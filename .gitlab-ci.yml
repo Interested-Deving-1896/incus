@@ -1,6 +1,5 @@
 # Minimal CI — upstream tracking fork
-# Runs on schedule to report the last commit and confirm the repo is reachable.
-# Add project-specific jobs as needed.
+# Runs on push, schedule, and manual trigger.
 
 stages:
   - info
@@ -17,6 +16,7 @@ upstream-info:
     - echo "Author: $CI_COMMIT_AUTHOR"
     - echo "Timestamp: $CI_COMMIT_TIMESTAMP"
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "web"'
     - when: manual
