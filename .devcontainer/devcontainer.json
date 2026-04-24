@@ -50,7 +50,7 @@
     }
   },
 
-  "postCreateCommand": "go mod download",
+  "postCreateCommand": "go mod download && pip install git-filter-repo",
 
   "mounts": [
     "source=incus_devcontainer_cache,target=/home/vscode/.cache,type=volume",

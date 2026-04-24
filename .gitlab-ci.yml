@@ -2,6 +2,7 @@
 # Runs on push, schedule, and manual trigger.
 
 stages:
+  - secret-scan
   - info
 
 upstream-info:
@@ -21,3 +22,16 @@ upstream-info:
     - if: '$CI_PIPELINE_SOURCE == "web"'
     - when: manual
       allow_failure: true
+
+secret-scan:
+  stage: secret-scan
+  image: python:3.12-slim
+  before_script:
+    - pip install git-filter-repo --quiet
+  script:
+    - |
+      echo "Scanning commit history for leaked GitLab PATs..."
+      git log --all -p | grep -E "glpat-[A-Za-z0-9_-]{20,}" && echo "LEAKED TOKEN DETECTED" && exit 1 || echo "No leaked tokens found."
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|master)$/'

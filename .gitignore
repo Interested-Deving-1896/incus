@@ -40,3 +40,4 @@ doc/__pycache__
 
 # For JetBrains IDEs
 .idea
+.npmrc
