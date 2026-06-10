@@ -9,9 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/internal/eagain"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/eagain"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdNetcat struct {
@@ -61,13 +62,13 @@ func (c *cmdNetcat) run(cmd *cobra.Command, args []string) error {
 
 	logFile, logErr := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_SYNC, 0o644)
 	if logErr == nil {
-		defer func() { _ = logFile.Close() }()
+		defer logger.WarnOnError(logFile.Close, "Failed to close log file")
 	}
 
 	uAddr, err := net.ResolveUnixAddr("unix", args[0])
 	if err != nil {
 		if logErr == nil {
-			_, _ = logFile.WriteString(fmt.Sprintf("Could not resolve unix domain socket \"%s\": %s\n", args[0], err))
+			_, _ = fmt.Fprintf(logFile, "Could not resolve unix domain socket \"%s\": %s\n", args[0], err)
 		}
 
 		return err
@@ -76,29 +77,27 @@ func (c *cmdNetcat) run(cmd *cobra.Command, args []string) error {
 	conn, err := net.DialUnix("unix", nil, uAddr)
 	if err != nil {
 		if logErr == nil {
-			_, _ = logFile.WriteString(fmt.Sprintf("Could not dial unix domain socket \"%s\": %s\n", args[0], err))
+			_, _ = fmt.Fprintf(logFile, "Could not dial unix domain socket \"%s\": %s\n", args[0], err)
 		}
 
 		return err
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
+	wg.Go(func() {
 		_, err := util.SafeCopy(eagain.Writer{Writer: os.Stdout}, eagain.Reader{Reader: conn})
 		if err != nil && logErr == nil {
-			_, _ = logFile.WriteString(fmt.Sprintf("Error while copying from stdout to unix domain socket \"%s\": %s\n", args[0], err))
+			_, _ = fmt.Fprintf(logFile, "Error while copying from stdout to unix domain socket \"%s\": %s\n", args[0], err)
 		}
 
 		_ = conn.Close()
-		wg.Done()
-	}()
+	})
 
 	go func() {
 		_, err := util.SafeCopy(eagain.Writer{Writer: conn}, eagain.Reader{Reader: os.Stdin})
 		if err != nil && logErr == nil {
-			_, _ = logFile.WriteString(fmt.Sprintf("Error while copying from unix domain socket \"%s\" to stdin: %s\n", args[0], err))
+			_, _ = fmt.Fprintf(logFile, "Error while copying from unix domain socket \"%s\" to stdin: %s\n", args[0], err)
 		}
 	}()
 

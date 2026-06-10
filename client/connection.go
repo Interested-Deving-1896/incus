@@ -15,10 +15,10 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/simplestreams"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/simplestreams"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // ConnectionArgs represents a set of common connection properties.

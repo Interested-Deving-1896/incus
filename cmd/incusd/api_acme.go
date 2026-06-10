@@ -7,16 +7,16 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/acme"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/task"
-	"github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	localtls "github.com/lxc/incus/v6/shared/tls"
+	"github.com/lxc/incus/v7/internal/server/acme"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/task"
+	"github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	localtls "github.com/lxc/incus/v7/shared/tls"
 )
 
 var apiACME = []APIEndpoint{
@@ -88,7 +88,7 @@ func acmeProvideChallenge(d *Daemon, r *http.Request) response.Response {
 		return response.InternalError(err)
 	}
 
-	defer resp.Body.Close()
+	defer logger.WarnOnError(resp.Body.Close, "Failed to close response body")
 
 	challenge, err := io.ReadAll(resp.Body)
 	if err != nil {

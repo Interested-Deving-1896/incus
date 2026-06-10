@@ -12,10 +12,11 @@ import (
 	"strings"
 	"time"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/db/query"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/db/query"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 // GetStoragePoolVolumesWithType return a list of all volumes of the given type.
@@ -130,7 +131,7 @@ type StorageVolume struct {
 // Accepts filters for narrowing down the results returned. If memberSpecific is true, then the search is
 // restricted to volumes that belong to this member or belong to all members.
 func (c *ClusterTx) GetStoragePoolVolumes(ctx context.Context, poolID int64, memberSpecific bool, filters ...StorageVolumeFilter) ([]*StorageVolume, error) {
-	var q *strings.Builder = &strings.Builder{}
+	q := &strings.Builder{}
 	args := []any{poolID}
 
 	q.WriteString(`
@@ -192,7 +193,7 @@ func (c *ClusterTx) GetStoragePoolVolumes(ctx context.Context, poolID int64, mem
 				q.WriteString(" OR ")
 			}
 
-			q.WriteString(fmt.Sprintf("(%s)", strings.Join(qFilters, " AND ")))
+			fmt.Fprintf(q, "(%s)", strings.Join(qFilters, " AND "))
 		}
 
 		q.WriteString(")")
@@ -202,8 +203,8 @@ func (c *ClusterTx) GetStoragePoolVolumes(ctx context.Context, poolID int64, mem
 	var volumes []*StorageVolume
 
 	err = query.Scan(ctx, c.Tx(), q.String(), func(scan func(dest ...any) error) error {
-		var volumeType int = int(-1)
-		var contentType int = int(-1)
+		volumeType := -1
+		contentType := -1
 		var vol StorageVolume
 
 		err := scan(&vol.Project, &vol.ID, &vol.Name, &vol.Location, &volumeType, &contentType, &vol.Description, &vol.CreatedAt)
@@ -601,7 +602,7 @@ type StorageVolumeArgs struct {
 func (c *ClusterTx) GetStorageVolumeNodes(ctx context.Context, poolID int64, projectName string, volumeName string, volumeType int) ([]NodeInfo, error) {
 	nodes := []NodeInfo{}
 
-	sql := `
+	stmt := `
 	SELECT coalesce(nodes.id,0) AS nodeID, coalesce(nodes.address,"") AS nodeAddress, coalesce(nodes.name,"") AS nodeName
 	FROM storage_volumes_all
 	JOIN projects ON projects.id = storage_volumes_all.project_id
@@ -612,7 +613,7 @@ func (c *ClusterTx) GetStorageVolumeNodes(ctx context.Context, poolID int64, pro
 		AND storage_volumes_all.type=?
 `
 
-	err := query.Scan(ctx, c.tx, sql, func(scan func(dest ...any) error) error {
+	err := query.Scan(ctx, c.tx, stmt, func(scan func(dest ...any) error) error {
 		node := NodeInfo{}
 		err := scan(&node.ID, &node.Address, &node.Name)
 		if err != nil {
@@ -721,10 +722,14 @@ SELECT storage_volumes_snapshots.name FROM storage_volumes_snapshots
 		return 0
 	}
 
-	max := 0
+	maxIndex := 0
 
 	for _, r := range results {
-		substr := r[0].(string)
+		substr, ok := r[0].(string)
+		if !ok {
+			continue
+		}
+
 		fields := strings.SplitN(pattern, "%d", 2)
 
 		var num int
@@ -733,12 +738,12 @@ SELECT storage_volumes_snapshots.name FROM storage_volumes_snapshots
 			continue
 		}
 
-		if num >= max {
-			max = num + 1
+		if num >= maxIndex {
+			maxIndex = num + 1
 		}
 	}
 
-	return max
+	return maxIndex
 }
 
 // Updates the description of a storage volume.
@@ -769,7 +774,7 @@ func storageVolumeConfigAdd(tx *sql.Tx, volumeID int64, volumeConfig map[string]
 		return err
 	}
 
-	defer func() { _ = stmt.Close() }()
+	defer logger.WarnOnError(stmt.Close, "Failed to close statement")
 
 	for k, v := range volumeConfig {
 		if v == "" {
@@ -834,7 +839,7 @@ func storagePoolVolumeContentTypeToName(contentType int) (string, error) {
 
 // GetCustomVolumesInProject returns all custom volumes in the given project.
 func (c *ClusterTx) GetCustomVolumesInProject(ctx context.Context, project string) ([]StorageVolumeArgs, error) {
-	sql := `
+	stmt := `
 SELECT
 	storage_volumes.id,
 	storage_volumes.name,
@@ -848,7 +853,7 @@ WHERE storage_volumes.type = ? AND projects.name = ?
 `
 
 	volumes := []StorageVolumeArgs{}
-	err := query.Scan(ctx, c.tx, sql, func(scan func(dest ...any) error) error {
+	err := query.Scan(ctx, c.tx, stmt, func(scan func(dest ...any) error) error {
 		volume := StorageVolumeArgs{}
 		err := scan(&volume.ID, &volume.Name, &volume.CreationDate, &volume.PoolName, &volume.NodeID)
 		if err != nil {

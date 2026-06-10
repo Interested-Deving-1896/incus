@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdAdminCluster struct {
@@ -24,7 +24,8 @@ func (c *cmdAdminCluster) command() *cobra.Command {
 	cmd.Use = cli.U("cluster")
 	cmd.Short = i18n.G("Low-level cluster administration commands")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Low level administration tools for inspecting and recovering clusters.`))
+		`Low level administration tools for inspecting and recovering clusters.`,
+	))
 
 	cmd.Run = c.run
 	return cmd

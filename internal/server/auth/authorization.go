@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/lxc/incus/v6/internal/server/certificate"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/internal/server/certificate"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 const (
@@ -34,7 +34,7 @@ var authorizers = map[string]func() authorizer{
 type authorizer interface {
 	Authorizer
 
-	init(driverName string, logger logger.Logger) error
+	init(driverName string, l logger.Logger) error
 	load(ctx context.Context, certificateCache *certificate.Cache, opts Opts) error
 }
 
@@ -154,7 +154,7 @@ func WithResourcesFunc(f func() (*Resources, error)) func(*Opts) {
 }
 
 // LoadAuthorizer instantiates, configures, and initializes an Authorizer.
-func LoadAuthorizer(ctx context.Context, driver string, logger logger.Logger, certificateCache *certificate.Cache, options ...func(opts *Opts)) (Authorizer, error) {
+func LoadAuthorizer(ctx context.Context, driver string, l logger.Logger, certificateCache *certificate.Cache, options ...func(opts *Opts)) (Authorizer, error) {
 	opts := &Opts{}
 	for _, o := range options {
 		o(opts)
@@ -166,7 +166,7 @@ func LoadAuthorizer(ctx context.Context, driver string, logger logger.Logger, ce
 	}
 
 	d := driverFunc()
-	err := d.init(driver, logger)
+	err := d.init(driver, l)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to initialize authorizer: %w", err)
 	}

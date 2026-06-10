@@ -10,14 +10,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdExport struct {
@@ -37,29 +38,28 @@ func (c *cmdExport) command() *cobra.Command {
 	cmd.Use = cli.U("export", cmdExportUsage...)
 	cmd.Short = i18n.G("Export instance backups")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Export instances as backup tarballs.`))
+		`Export instances as backup tarballs.`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus export u1 backup0.tar.gz
 	Download a backup tarball of the u1 instance.
 
 incus export u1 -
-	Download a backup tarball with it written to the standard output.`))
+	Download a backup tarball with it written to the standard output.`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVar(&c.flagInstanceOnly, "instance-only", false,
-		i18n.G("Whether or not to only backup the instance (without snapshots)"))
-	cmd.Flags().BoolVar(&c.flagRootOnly, "root-only", false,
-		i18n.G("Whether or not to only backup the instance (without dependent volumes)"))
-	cmd.Flags().BoolVar(&c.flagOptimizedStorage, "optimized-storage", false,
-		i18n.G("Use storage driver optimized format (can only be restored on a similar pool)"))
-	cmd.Flags().StringVar(&c.flagCompressionAlgorithm, "compression", "", i18n.G("Compression algorithm to use (none for uncompressed)")+"``")
-	cmd.Flags().BoolVar(&c.flagForce, "force", false, i18n.G("Force overwriting existing backup file"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagInstanceOnly, "instance-only", i18n.G("Whether or not to only backup the instance (without snapshots)"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagRootOnly, "root-only", i18n.G("Whether or not to only backup the instance (without dependent volumes)"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagOptimizedStorage, "optimized-storage", i18n.G("Use storage driver optimized format (can only be restored on a similar pool)"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagCompressionAlgorithm, "compression", "", "", i18n.G("Compression algorithm to use (none for uncompressed)"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagForce, "force|f", i18n.G("Force overwriting existing backup file"))
 
 	return cmd
 }
 
 func (c *cmdExport) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdExportUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdExportUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (c *cmdExport) run(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		defer func() { _ = target.Close() }()
+		defer logger.WarnOnError(target.Close, "Failed to close target file")
 	}
 
 	// Prepare the download request.

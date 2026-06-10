@@ -11,32 +11,29 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"time"
 
-	"github.com/gorilla/mux"
-
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/filter"
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/certificate"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	clusterRequest "github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	localtls "github.com/lxc/incus/v6/shared/tls"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/filter"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/certificate"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	clusterRequest "github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	localtls "github.com/lxc/incus/v7/shared/tls"
 )
 
 var certificatesCmd = APIEndpoint{
@@ -364,9 +361,17 @@ func clusterMemberJoinTokenValid(s *state.State, r *http.Request, projectName st
 
 			// Depending on whether it's a local operation or not, expiry will either be a time.Time or a string.
 			if s.ServerName == foundOp.Location {
-				expiry, _ = expiresAt.(time.Time)
+				expiry, ok = expiresAt.(time.Time)
+				if !ok {
+					return nil, api.StatusErrorf(http.StatusInternalServerError, "Invalid expiry metadata")
+				}
 			} else {
-				expiry, _ = time.Parse(time.RFC3339Nano, expiresAt.(string))
+				expiryStr, ok := expiresAt.(string)
+				if !ok {
+					return nil, api.StatusErrorf(http.StatusInternalServerError, "Invalid expiry metadata")
+				}
+
+				expiry, _ = time.Parse(time.RFC3339Nano, expiryStr)
 			}
 
 			// Check if token has expired.
@@ -416,10 +421,10 @@ func certificateTokenValid(s *state.State, r *http.Request, addToken *api.Certif
 
 		expiresAt, ok := foundOp.Metadata["expiresAt"]
 		if ok {
-			expiry, _ := expiresAt.(time.Time)
+			expiry, ok := expiresAt.(time.Time)
 
 			// Check if token has expired.
-			if time.Now().After(expiry) {
+			if ok && time.Now().After(expiry) {
 				return nil, api.StatusErrorf(http.StatusForbidden, "Token has expired")
 			}
 		}
@@ -569,38 +574,63 @@ func certificatesPost(d *Daemon, r *http.Request) response.Response {
 		} else {
 			// Check if certificate add token supplied as token.
 			joinToken, err := localtls.CertificateTokenDecode(req.TrustToken)
-			if err == nil {
-				// If so then check there is a matching join operation.
-				joinOp, err := certificateTokenValid(s, r, joinToken)
-				if err != nil {
-					return response.InternalError(fmt.Errorf("Failed during search for certificate add token operation: %w", err))
-				}
+			if err != nil {
+				return response.Forbidden(nil)
+			}
 
-				if joinOp == nil {
-					return response.Forbidden(errors.New("No matching certificate add operation found"))
-				}
+			// If so then check there is a matching join operation.
+			joinOp, err := certificateTokenValid(s, r, joinToken)
+			if err != nil {
+				return response.InternalError(fmt.Errorf("Failed during search for certificate add token operation: %w", err))
+			}
 
-				// Create a new request from the token data as the user isn't allowed to override anything.
-				req = api.CertificatesPost{}
-				switch tokenReq := joinOp.Metadata["request"].(type) {
-				case api.CertificatesPost:
-					req.Name = tokenReq.Name
-					req.Type = tokenReq.Type
-					req.Restricted = tokenReq.Restricted
-					req.Projects = tokenReq.Projects
-				case map[string]any:
-					req.Name = tokenReq["name"].(string)
-					req.Type = tokenReq["type"].(string)
-					req.Restricted = tokenReq["restricted"].(bool)
-					for _, project := range tokenReq["projects"].([]any) {
-						req.Projects = append(req.Projects, project.(string))
-					}
+			if joinOp == nil {
+				return response.Forbidden(errors.New("No matching certificate add operation found"))
+			}
 
-				default:
+			// Create a new request from the token data as the user isn't allowed to override anything.
+			req = api.CertificatesPost{}
+			switch tokenReq := joinOp.Metadata["request"].(type) {
+			case api.CertificatesPost:
+				req.Name = tokenReq.Name
+				req.Type = tokenReq.Type
+				req.Restricted = tokenReq.Restricted
+				req.Projects = tokenReq.Projects
+			case map[string]any:
+				name, ok := tokenReq["name"].(string)
+				if !ok {
 					return response.InternalError(errors.New("Bad certificate add operation data"))
 				}
-			} else {
-				return response.Forbidden(nil)
+
+				certType, ok := tokenReq["type"].(string)
+				if !ok {
+					return response.InternalError(errors.New("Bad certificate add operation data"))
+				}
+
+				restricted, ok := tokenReq["restricted"].(bool)
+				if !ok {
+					return response.InternalError(errors.New("Bad certificate add operation data"))
+				}
+
+				projects, ok := tokenReq["projects"].([]any)
+				if !ok {
+					return response.InternalError(errors.New("Bad certificate add operation data"))
+				}
+
+				req.Name = name
+				req.Type = certType
+				req.Restricted = restricted
+				for _, project := range projects {
+					projectName, ok := project.(string)
+					if !ok {
+						return response.InternalError(errors.New("Bad certificate add operation data"))
+					}
+
+					req.Projects = append(req.Projects, projectName)
+				}
+
+			default:
+				return response.InternalError(errors.New("Bad certificate add operation data"))
 			}
 		}
 	}
@@ -795,6 +825,12 @@ func certificatesPost(d *Daemon, r *http.Request) response.Response {
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    description: Certificate
@@ -821,7 +857,7 @@ func certificatesPost(d *Daemon, r *http.Request) response.Response {
 //	  "500":
 //	    $ref: "#/responses/InternalServerError"
 func certificateGet(d *Daemon, r *http.Request) response.Response {
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -855,6 +891,11 @@ func certificateGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: certificate
 //	    description: Certificate configuration
@@ -873,7 +914,7 @@ func certificateGet(d *Daemon, r *http.Request) response.Response {
 //	  "500":
 //	    $ref: "#/responses/InternalServerError"
 func certificatePut(d *Daemon, r *http.Request) response.Response {
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -924,6 +965,11 @@ func certificatePut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: certificate
 //	    description: Certificate configuration
@@ -942,7 +988,7 @@ func certificatePut(d *Daemon, r *http.Request) response.Response {
 //	  "500":
 //	    $ref: "#/responses/InternalServerError"
 func certificatePatch(d *Daemon, r *http.Request) response.Response {
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1131,6 +1177,12 @@ func doCertificateUpdate(d *Daemon, dbInfo api.Certificate, req api.CertificateP
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    $ref: "#/responses/EmptySyncResponse"
@@ -1143,7 +1195,7 @@ func doCertificateUpdate(d *Daemon, dbInfo api.Certificate, req api.CertificateP
 func certificateDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}

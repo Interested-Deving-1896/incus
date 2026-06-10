@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/subprocess"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/subprocess"
 )
 
 // Type of the block volume.
@@ -116,7 +116,7 @@ func Qcow2Commit(path string) error {
 
 // Qcow2Info returns information about a qcow2 image.
 func Qcow2Info(path string) (*ImageInfo, error) {
-	imgJSON, err := subprocess.RunCommand("qemu-img", "info", "--output=json", path)
+	imgJSON, err := subprocess.RunCommand("qemu-img", "info", "-U", "--output=json", path)
 	if err != nil {
 		return nil, err
 	}

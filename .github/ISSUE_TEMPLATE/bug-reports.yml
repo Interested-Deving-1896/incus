@@ -2,6 +2,12 @@ name: Bug report
 description: File a bug report.
 type: bug
 body:
+- type: markdown
+  attributes:
+    value: |
+      > [!NOTE]
+      > Thank you for taking the time to fill out this bug report. As this issue will be read and debugged by humans, we kindly ask you to refrain from using AI tools to try to interpret your problem or suggest patches, as per our [contribution guidelines](https://github.com/lxc/incus/blob/main/CONTRIBUTING.md).
+
 - type: checkboxes
   attributes:
     label: Is there an existing issue for this?

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"net/http"
@@ -20,29 +21,30 @@ import (
 
 	"github.com/google/uuid"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/device"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/device/nictype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/instance/operationlock"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/locking"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/resources"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/device"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/device/nictype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/instance/operationlock"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/locking"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/resources"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // Track last autorestart of an instance.
@@ -117,6 +119,15 @@ func (d *common) Architecture() int {
 // CreationDate returns the instance's creation date.
 func (d *common) CreationDate() time.Time {
 	return d.creationDate
+}
+
+// UpdateDevices overrides the instance's devices without persisting changes to the database.
+func (d *common) UpdateDevices(devices deviceConfig.Devices) error {
+	d.localDevices = devices
+
+	maps.Copy(d.expandedDevices, devices)
+
+	return nil
 }
 
 // Type returns the instance's type.
@@ -286,12 +297,12 @@ func (d *common) Backups() ([]backup.InstanceBackup, error) {
 	// Build the backup list
 	backups := []backup.InstanceBackup{}
 	for _, backupName := range backupNames {
-		backup, err := instance.BackupLoadByName(d.state, d.project.Name, backupName)
+		b, err := instance.BackupLoadByName(d.state, d.project.Name, backupName)
 		if err != nil {
 			return nil, err
 		}
 
-		backups = append(backups, *backup)
+		backups = append(backups, *b)
 	}
 
 	return backups, nil
@@ -827,7 +838,7 @@ func (d *common) snapshotCommon(inst instance.Instance, name string, expiry time
 		return fmt.Errorf("Create instance snapshot (mount source): %w", err)
 	}
 
-	defer func() { _ = pool.UnmountInstance(inst, d.op) }()
+	defer logger.WarnOnError(func() error { return pool.UnmountInstance(inst, d.op) }, "Failed to unmount instance")
 
 	// Attempt to update backup.yaml for instance.
 	err = inst.UpdateBackupFile()
@@ -887,6 +898,11 @@ func (d *common) insertConfigkey(key string, value string) (string, error) {
 // isRunningStatusCode returns if instance is running from status code.
 func (d *common) isRunningStatusCode(statusCode api.StatusCode) bool {
 	return statusCode != api.Error && statusCode != api.Stopped
+}
+
+// isErrorStatusCode returns if instance is errored from status code.
+func (d *common) isErrorStatusCode(statusCode api.StatusCode) bool {
+	return statusCode == api.Error
 }
 
 // isStartableStatusCode returns an error if the status code means the instance cannot be started currently.
@@ -1317,7 +1333,7 @@ func (d *common) devicesAdd(inst instance.Instance, instanceRunning bool, partia
 // devicesRegister calls the Register() function on all of the instance's devices.
 func (d *common) devicesRegister(inst instance.Instance) {
 	for _, entry := range d.ExpandedDevices().Sorted() {
-		err := device.Register(inst, d.state, entry.Name, entry.Config)
+		err := device.Register(inst, d.state, entry.Name, entry.Config, d.deviceVolatileGetFunc(entry.Name))
 		if err != nil {
 			if errors.Is(err, device.ErrUnsupportedDevType) {
 				continue // Skip unsupported device (allows for mixed instance type profiles).
@@ -1616,6 +1632,15 @@ func (d *common) balanceNUMANodes() error {
 	cpusPerNumaNode := int(cpu.Total) / len(nodes)
 
 	limitsCPU, err := strconv.Atoi(conf["limits.cpu"])
+	if err != nil && strings.Contains(conf["limits.cpu"], "=") {
+		// Compute the total from an explicit CPU topology.
+		sockets, cores, threads, topologyErr := validate.ParseCPUTopology(conf["limits.cpu"])
+		if topologyErr == nil {
+			limitsCPU = sockets * cores * threads
+			err = nil
+		}
+	}
+
 	if err == nil && limitsCPU > cpusPerNumaNode {
 		numaNodesToUse := int(math.Ceil(float64(limitsCPU) / float64(cpusPerNumaNode)))
 

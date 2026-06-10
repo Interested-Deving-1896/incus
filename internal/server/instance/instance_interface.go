@@ -12,17 +12,17 @@ import (
 	"github.com/pkg/sftp"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/cgroup"
-	"github.com/lxc/incus/v6/internal/server/db"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/instance/operationlock"
-	"github.com/lxc/incus/v6/internal/server/metrics"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/idmap"
-	"github.com/lxc/incus/v6/shared/ioprogress"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/cgroup"
+	"github.com/lxc/incus/v7/internal/server/db"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/instance/operationlock"
+	"github.com/lxc/incus/v7/internal/server/metrics"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/idmap"
+	"github.com/lxc/incus/v7/shared/ioprogress"
 )
 
 // HookStart hook used when instance has started.
@@ -57,6 +57,12 @@ const PowerStateRunning = "RUNNING"
 
 // PowerStateStopped represents the power state stored when an instance is stopped.
 const PowerStateStopped = "STOPPED"
+
+// AgentStateStarted represents the agent state stored when an instance agent is running.
+const AgentStateStarted = "STARTED"
+
+// AgentStateStopped represents the agent state stored when an instance agent is stopped.
+const AgentStateStopped = "STOPPED"
 
 // ConfigReader is used to read instance config.
 type ConfigReader interface {
@@ -106,10 +112,12 @@ type Instance interface {
 	DeleteQcow2Snapshot(devName string, snapshotIndex int, backingFilename string) error
 	ExportQcow2Block(diskName string, blockIndex int) (func(), string, error)
 	ConnectNBD(diskName string, diskSize int64, writable bool) (net.Conn, func(), error)
+	ConnectNBDAllDisks() (net.Conn, func(), error)
 
 	// Config handling.
 	Rename(newName string, applyTemplateTrigger bool) error
 	Update(newConfig db.InstanceArgs, userRequested bool) error
+	UpdateDevices(devices deviceConfig.Devices) error
 
 	Delete(force bool, cleanupDependencies bool) error
 	Export(meta io.Writer, roofs io.Writer, properties map[string]string, expiration time.Time, tracker *ioprogress.ProgressTracker) (*api.ImageMetadata, error)
@@ -256,6 +264,7 @@ type MigrateSendArgs struct {
 	MigrateArgs
 
 	AllowInconsistent bool
+	Devices           api.DevicesMap
 }
 
 // MigrateReceiveArgs represent arguments for instance migration receive.

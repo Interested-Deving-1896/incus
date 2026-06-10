@@ -3,15 +3,15 @@ package zone
 import (
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/api"
+	"github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 // NetworkZone represents a Network zone.
 type NetworkZone interface {
 	// Initialize.
-	init(state *state.State, id int64, projectName string, zoneInfo *api.NetworkZone)
+	init(s *state.State, id int64, projectName string, zoneInfo *api.NetworkZone)
 
 	// Info.
 	ID() int64

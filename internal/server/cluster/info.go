@@ -5,16 +5,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/node"
-	"github.com/lxc/incus/v6/shared/logger"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/node"
+	"github.com/lxc/incus/v7/shared/logger"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
-// Load information about the dqlite node associated with this cluster member.
+// Load information about the cowsql node associated with this cluster member.
 func loadInfo(database *db.Node, cert *localtls.CertInfo) (*db.RaftNode, error) {
-	// Figure out if we actually need to act as dqlite node.
+	// Figure out if we actually need to act as cowsql node.
 	var info *db.RaftNode
 	err := database.Transaction(context.TODO(), func(ctx context.Context, tx *db.NodeTx) error {
 		var err error
@@ -25,7 +25,7 @@ func loadInfo(database *db.Node, cert *localtls.CertInfo) (*db.RaftNode, error) 
 		return nil, err
 	}
 
-	// If we're not part of the dqlite cluster, there's nothing to do.
+	// If we're not part of the cowsql cluster, there's nothing to do.
 	if info == nil {
 		return nil, nil
 	}

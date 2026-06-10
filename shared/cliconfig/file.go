@@ -8,8 +8,9 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 func getConfigPaths() (string, string, error) {
@@ -161,7 +162,7 @@ func (c *Config) SaveConfig(path string) error {
 		return fmt.Errorf("Unable to create the configuration file: %w", err)
 	}
 
-	defer func() { _ = f.Close() }()
+	defer logger.WarnOnError(f.Close, "Failed to close file")
 
 	// Write the new config
 	data, err := yaml.Dump(&conf, yaml.V2)

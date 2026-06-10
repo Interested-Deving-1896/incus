@@ -6,42 +6,63 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	"golang.org/x/sync/errgroup"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/scriptlet"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	"github.com/lxc/incus/v6/internal/server/task"
-	"github.com/lxc/incus/v6/shared/api"
-	apiScriptlet "github.com/lxc/incus/v6/shared/api/scriptlet"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	instanceDrivers "github.com/lxc/incus/v7/internal/server/instance/drivers"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/scriptlet"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	"github.com/lxc/incus/v7/internal/server/task"
+	"github.com/lxc/incus/v7/shared/api"
+	apiScriptlet "github.com/lxc/incus/v7/shared/api/scriptlet"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
 )
 
 type (
 	evacuateStopFunc    func(inst instance.Instance, action string) error
 	evacuateMigrateFunc func(ctx context.Context, s *state.State, inst instance.Instance, sourceMemberInfo *db.NodeInfo, targetMemberInfo *db.NodeInfo, live bool, startInstance bool, op *operations.Operation) error
 )
+
+// evacuationProgressHandler allows wrapping progress data with a prefix string (instance identifier).
+func evacuationProgressHandler(op *operations.Operation, prefix string) func(newOp api.Operation) {
+	return func(newOp api.Operation) {
+		msg := prefix
+
+		for key, value := range newOp.Metadata {
+			if !strings.HasSuffix(key, "_progress") {
+				continue
+			}
+
+			str, ok := value.(string)
+			if !ok || str == "" {
+				continue
+			}
+
+			msg = fmt.Sprintf("%s: %s", prefix, str)
+			break
+		}
+
+		_ = op.ExtendMetadata(map[string]any{"evacuation_progress": msg})
+	}
+}
 
 type evacuateOpts struct {
 	s               *state.State
@@ -67,9 +88,10 @@ func evacuateClusterSetState(s *state.State, name string, newState int) error {
 
 		// Do nothing if the node is already in expected state.
 		if node.State == newState {
-			if newState == db.ClusterMemberStateEvacuated {
+			switch newState {
+			case db.ClusterMemberStateEvacuated:
 				return errors.New("Cluster member is already evacuated")
-			} else if newState == db.ClusterMemberStateCreated {
+			case db.ClusterMemberStateCreated:
 				return errors.New("Cluster member is already restored")
 			}
 
@@ -88,6 +110,99 @@ func evacuateClusterSetState(s *state.State, name string, newState int) error {
 
 // evacuateHostShutdownDefaultTimeout default timeout (in seconds) for waiting for clean shutdown to complete.
 const evacuateHostShutdownDefaultTimeout = 30
+
+func evacuateStopInstance(inst instance.Instance, action string) error {
+	l := logger.AddContext(logger.Ctx{"project": inst.Project().Name, "instance": inst.Name()})
+
+	switch action {
+	case "force-stop":
+		// Handle forced shutdown.
+		err := inst.Stop(false)
+		if err != nil && !errors.Is(err, instanceDrivers.ErrInstanceIsStopped) {
+			return fmt.Errorf("Failed to force stop instance %q in project %q: %w", inst.Name(), inst.Project().Name, err)
+		}
+
+	case "stateful-stop":
+		// Handle stateful stop.
+		err := inst.Stop(true)
+		if err != nil && !errors.Is(err, instanceDrivers.ErrInstanceIsStopped) {
+			return fmt.Errorf("Failed to stateful stop instance %q in project %q: %w", inst.Name(), inst.Project().Name, err)
+		}
+
+	default:
+		// Get the shutdown timeout for the instance.
+		timeout := inst.ExpandedConfig()["boot.host_shutdown_timeout"]
+		val, err := strconv.Atoi(timeout)
+		if err != nil {
+			val = evacuateHostShutdownDefaultTimeout
+		}
+
+		// Start with a clean shutdown.
+		err = inst.Shutdown(time.Duration(val) * time.Second)
+		if err != nil {
+			l.Warn("Failed shutting down instance, forcing stop", logger.Ctx{"err": err})
+
+			// Fallback to forced stop.
+			err = inst.Stop(false)
+			if err != nil && !errors.Is(err, instanceDrivers.ErrInstanceIsStopped) {
+				return fmt.Errorf("Failed to stop instance %q in project %q: %w", inst.Name(), inst.Project().Name, err)
+			}
+		}
+	}
+
+	// Mark the instance as RUNNING in volatile so its state can be properly restored.
+	err := inst.VolatileSet(map[string]string{"volatile.last_state.power": instance.PowerStateRunning})
+	if err != nil {
+		l.Warn("Failed to set instance state to RUNNING", logger.Ctx{"err": err})
+	}
+
+	return nil
+}
+
+func evacuateMigrateInstance(r *http.Request) evacuateMigrateFunc {
+	return func(ctx context.Context, s *state.State, inst instance.Instance, sourceMemberInfo *db.NodeInfo, targetMemberInfo *db.NodeInfo, live bool, startInstance bool, op *operations.Operation) error {
+		// Migrate the instance.
+		req := api.InstancePost{
+			Migration: true,
+			Live:      live,
+		}
+
+		progressHandler := evacuationProgressHandler(op, fmt.Sprintf("Migrating %q in project %q to %q", inst.Name(), inst.Project().Name, targetMemberInfo.Name))
+
+		err := migrateInstance(ctx, s, inst, req, sourceMemberInfo, targetMemberInfo, "", op, progressHandler)
+		if err != nil {
+			return fmt.Errorf("Failed to migrate instance %q in project %q: %w", inst.Name(), inst.Project().Name, err)
+		}
+
+		if !startInstance || live {
+			return nil
+		}
+
+		// Start it back up on target.
+		dest, err := cluster.Connect(targetMemberInfo.Address, s.Endpoints.NetworkCert(), s.ServerCert(), r, true)
+		if err != nil {
+			return fmt.Errorf("Failed to connect to destination %q for instance %q in project %q: %w", targetMemberInfo.Address, inst.Name(), inst.Project().Name, err)
+		}
+
+		dest = dest.UseProject(inst.Project().Name)
+
+		if op != nil {
+			_ = op.ExtendMetadata(map[string]any{"evacuation_progress": fmt.Sprintf("Starting %q in project %q", inst.Name(), inst.Project().Name)})
+		}
+
+		startOp, err := dest.UpdateInstanceState(inst.Name(), api.InstanceStatePut{Action: "start"}, "")
+		if err != nil {
+			return err
+		}
+
+		err = startOp.Wait()
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
 
 func evacuateClusterMember(ctx context.Context, s *state.State, op *operations.Operation, name string, mode string, stopInstance evacuateStopFunc, migrateInstance evacuateMigrateFunc) error {
 	// Get the instance list for the server being evacuated.
@@ -266,10 +381,34 @@ func evacuateInstancesFunc(ctx context.Context, inst instance.Instance, opts eva
 	return nil
 }
 
+// evacuateShutdown performs an evacuation of the local cluster member as part of the daemon shutdown sequence.
+func evacuateShutdown(ctx context.Context, s *state.State, name string) error {
+	run := func(op *operations.Operation) error {
+		return evacuateClusterMember(ctx, s, op, name, "", evacuateStopInstance, evacuateMigrateInstance(nil))
+	}
+
+	op, err := operations.OperationCreate(s, "", operations.OperationClassTask, operationtype.ClusterMemberEvacuate, nil, nil, run, nil, nil, nil)
+	if err != nil {
+		return fmt.Errorf("Failed creating cluster member evacuate operation: %w", err)
+	}
+
+	err = op.Start()
+	if err != nil {
+		return fmt.Errorf("Failed starting cluster member evacuate operation: %w", err)
+	}
+
+	err = op.Wait(ctx)
+	if err != nil {
+		return fmt.Errorf("Failed to evacuate cluster member: %w", err)
+	}
+
+	return nil
+}
+
 func restoreClusterMember(d *Daemon, r *http.Request, skipInstances bool) response.Response {
 	s := d.State()
 
-	originName, err := url.PathUnescape(mux.Vars(r)["name"])
+	originName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -482,9 +621,19 @@ func restoreClusterMemberFunc(inst instance.Instance, op *operations.Operation, 
 
 	source = source.UseTarget(originName)
 
+	_, err = source.GetEvents()
+	if err != nil {
+		return fmt.Errorf("Failed to connect to source events: %w", err)
+	}
+
 	migrationOp, err := source.MigrateInstance(inst.Name(), req)
 	if err != nil {
 		return fmt.Errorf("Migration API failure: %w", err)
+	}
+
+	_, err = migrationOp.AddHandler(evacuationProgressHandler(op, fmt.Sprintf("Migrating %q in project %q from %q", inst.Name(), inst.Project().Name, inst.Location())))
+	if err != nil {
+		return fmt.Errorf("Failed to setup migration progress handler: %w", err)
 	}
 
 	err = migrationOp.Wait()
@@ -551,23 +700,11 @@ func evacuateClusterSelectTarget(ctx context.Context, s *state.State, inst insta
 			return fmt.Errorf("Failed getting cluster members: %w", err)
 		}
 
-		// Filter candidates by group if needed.
+		// Filter candidates by the instance's cluster group and offline servers.
 		group := inst.LocalConfig()["volatile.cluster.group"]
-		if group != "" {
-			newMembers := make([]db.NodeInfo, 0, len(allMembers))
-			for _, member := range allMembers {
-				if !slices.Contains(member.Groups, group) {
-					continue
-				}
-
-				newMembers = append(newMembers, member)
-			}
-
-			allMembers = newMembers
-		}
-
-		// Filter offline servers.
-		candidateMembers, err = tx.GetCandidateMembers(ctx, allMembers, []int{inst.Architecture()}, "", nil, s.GlobalConfig.OfflineThreshold())
+		instProject := inst.Project()
+		clusterGroupsAllowed := project.GetRestrictedClusterGroups(&instProject)
+		candidateMembers, err = tx.GetCandidateMembers(ctx, allMembers, []int{inst.Architecture()}, group, clusterGroupsAllowed, s.GlobalConfig.OfflineThreshold())
 		if err != nil {
 			return err
 		}

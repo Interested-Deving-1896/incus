@@ -179,8 +179,8 @@ An instance placement scriptlet must implement the `instance_placement` function
 
    `instance_placement(request, candidate_members)`:
 
-- `request` is an object that contains an expanded representation of [`scriptlet.InstancePlacement`](https://pkg.go.dev/github.com/lxc/incus/shared/api/scriptlet/#InstancePlacement). This request includes `project` and `reason` fields. The `reason` can be `new`, `evacuation` or `relocation`.
-- `candidate_members` is a `list` of cluster member objects representing [`api.ClusterMember`](https://pkg.go.dev/github.com/lxc/incus/shared/api#ClusterMember) entries.
+- `request` is an object that contains an expanded representation of [`scriptlet.InstancePlacement`](https://pkg.go.dev/github.com/lxc/incus/shared/api/scriptlet/#InstancePlacement). This request includes `project` and `reason` fields. The `reason` can be `new`, `evacuation`, `relocation` or `rebalance`.
+- `candidate_members` is a `list` of cluster member objects representing [`api.ClusterMember`](https://pkg.go.dev/github.com/lxc/incus/shared/api#ClusterMember) entries. When the reason is `rebalance`, the list contains all compatible cluster members other than the source, sorted from least to most loaded.
 
 For example:
 

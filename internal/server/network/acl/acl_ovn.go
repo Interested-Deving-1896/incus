@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/network/ovn"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/network/ovn"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // OVN ACL rule priorities.
@@ -811,18 +811,18 @@ func ovnRuleSubjectToOVNACLMatch(s *state.State, direction string, aclNameIDs ma
 	for _, subjectCriterion := range subjectCriteria {
 		if validate.IsNetworkRange(subjectCriterion) == nil {
 			criterionParts := strings.SplitN(subjectCriterion, "-", 2)
-			if len(criterionParts) > 1 {
-				ip := net.ParseIP(criterionParts[0])
-				if ip != nil {
-					protocol := "ip4"
-					if ip.To4() == nil {
-						protocol = "ip6"
-					}
-
-					fieldParts = append(fieldParts, fmt.Sprintf("(%s.%s >= %s && %s.%s <= %s)", protocol, direction, criterionParts[0], protocol, direction, criterionParts[1]))
-				}
-			} else {
+			if len(criterionParts) <= 1 {
 				return "", false, false, nil, fmt.Errorf("Invalid IP range %q", subjectCriterion)
+			}
+
+			ip := net.ParseIP(criterionParts[0])
+			if ip != nil {
+				protocol := "ip4"
+				if ip.To4() == nil {
+					protocol = "ip6"
+				}
+
+				fieldParts = append(fieldParts, fmt.Sprintf("(%s.%s >= %s && %s.%s <= %s)", protocol, direction, criterionParts[0], protocol, direction, criterionParts[1]))
 			}
 		} else {
 			// Try parsing subject as single IP or CIDR.
@@ -982,7 +982,8 @@ func OVNApplyNetworkBaselineRules(client *ovn.NB, switchName ovn.OVNSwitch, rout
 			icmpPingReplyType = 129
 		}
 
-		rules = append(rules,
+		rules = append(
+			rules,
 			ovn.OVNACLRule{
 				Direction: "to-lport",
 				Action:    "allow",
@@ -1005,7 +1006,8 @@ func OVNApplyNetworkBaselineRules(client *ovn.NB, switchName ovn.OVNSwitch, rout
 			ipVersion = 6
 		}
 
-		rules = append(rules,
+		rules = append(
+			rules,
 			ovn.OVNACLRule{
 				Direction: "to-lport",
 				Action:    "allow",
@@ -1109,7 +1111,6 @@ func OVNPortGroupDeleteIfUnused(s *state.State, l logger.Logger, client *ovn.NB,
 	// For the indirectly referred to ACLs, store a list of the ACLs that are referring to it.
 	err = UsedBy(s, aclProjectName, func(ctx context.Context, tx *db.ClusterTx, matchedACLNames []string, usageType any, nicName string, nicConfig map[string]string) error {
 		switch u := usageType.(type) {
-
 		case db.InstanceArgs:
 			ignoreInst, isIgnoreInst := ignoreUsageType.(instance.Instance)
 

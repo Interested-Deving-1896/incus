@@ -8,8 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/internal/eagain"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/eagain"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdNetcat struct {
@@ -56,7 +57,7 @@ func (c *cmdNetcat) run(cmd *cobra.Command, args []string) error {
 	wg.Add(1)
 
 	go func() {
-		defer func() { _ = conn.Close() }()
+		defer logger.WarnOnError(conn.Close, "Failed to close connection")
 		defer wg.Done()
 
 		_, _ = util.SafeCopy(eagain.Writer{Writer: os.Stdout}, eagain.Reader{Reader: conn})

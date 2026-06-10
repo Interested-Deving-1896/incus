@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/ip"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/ip"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // macvlan represents a macvlan network.
@@ -30,6 +30,7 @@ func (n *macvlan) Validate(config map[string]string, clientType request.ClientTy
 		//
 		// ---
 		//  type: string
+		//  scope: local
 		//  condition: -
 		//  shortdesc: Parent interface to create macvlan NICs on
 		"parent": validate.Required(validate.IsNotEmpty, validate.IsInterfaceName),

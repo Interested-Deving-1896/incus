@@ -16,37 +16,33 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
-
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/filter"
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/certificate"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	clusterConfig "github.com/lxc/incus/v6/internal/server/cluster/config"
-	clusterRequest "github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	instanceDrivers "github.com/lxc/incus/v6/internal/server/instance/drivers"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/node"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/revert"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/filter"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/certificate"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	clusterConfig "github.com/lxc/incus/v7/internal/server/cluster/config"
+	clusterRequest "github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/node"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/revert"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 var clusterCmd = APIEndpoint{
@@ -149,13 +145,13 @@ func clusterGet(d *Daemon, r *http.Request) response.Response {
 		return left.Description < right.Description
 	})
 
-	cluster := api.Cluster{
+	clusterInfo := api.Cluster{
 		ServerName:   serverName,
 		Enabled:      serverName != "",
 		MemberConfig: memberConfig,
 	}
 
-	return response.SyncResponseETag(true, cluster, cluster)
+	return response.SyncResponseETag(true, clusterInfo, clusterInfo)
 }
 
 // Fetch information about all node-specific configuration keys set on the
@@ -722,12 +718,12 @@ func clusterPutJoin(d *Daemon, r *http.Request, req api.ClusterPut) response.Res
 		// Client and metric type certificates from the cluster we are joining will not be added until later.
 		s.UpdateCertificateCache()
 
-		// Update local setup and possibly join the raft dqlite cluster.
+		// Update local setup and possibly join the raft cowsql cluster.
 		nodes := make([]db.RaftNode, len(info.RaftNodes))
-		for i, node := range info.RaftNodes {
-			nodes[i].ID = node.ID
-			nodes[i].Address = node.Address
-			nodes[i].Role = db.RaftRole(node.Role)
+		for i, raftNode := range info.RaftNodes {
+			nodes[i].ID = raftNode.ID
+			nodes[i].Address = raftNode.Address
+			nodes[i].Role = db.RaftRole(raftNode.Role)
 		}
 
 		err = cluster.Join(s, d.gateway, networkCert, serverCert, req.ServerName, nodes)
@@ -784,7 +780,15 @@ func clusterPutJoin(d *Daemon, r *http.Request, req api.ClusterPut) response.Res
 
 		changes := util.CloneMap(currentClusterConfig.Dump())
 
-		err = doApi10UpdateTriggers(d, nil, changes, nodeConfig, currentClusterConfig)
+		// OVN/OVS setup is handled explicitly below with error tolerance, since
+		// the joining node may not have OVS/OVN available locally.
+		delete(changes, "network.ovn.northbound_connection")
+		delete(changes, "network.ovn.ca_cert")
+		delete(changes, "network.ovn.client_cert")
+		delete(changes, "network.ovn.client_key")
+
+		// Apply remaining configuration changes.
+		err = doAPI10UpdateTriggers(d, nil, changes, nodeConfig, currentClusterConfig)
 		if err != nil {
 			return err
 		}
@@ -903,7 +907,7 @@ func clusterPutDisable(d *Daemon, r *http.Request, req api.ClusterPut) response.
 
 		if d.systemdSocketActivated {
 			logger.Info("Exiting daemon following removal from cluster")
-			os.Exit(0)
+			os.Exit(0) // nolint:revive
 		} else {
 			logger.Info("Restarting daemon following removal from cluster")
 			err = localUtil.ReplaceDaemon()
@@ -921,11 +925,11 @@ func clusterPutDisable(d *Daemon, r *http.Request, req api.ClusterPut) response.
 
 		// Send the response before replacing the daemon process.
 		f, ok := w.(http.Flusher)
-		if ok {
-			f.Flush()
-		} else {
+		if !ok {
 			return errors.New("http.ResponseWriter is not type http.Flusher")
 		}
+
+		f.Flush()
 
 		return nil
 	})
@@ -1531,6 +1535,12 @@ func clusterNodesPost(d *Daemon, r *http.Request) response.Response {
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Cluster member name
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    description: Cluster member
@@ -1559,7 +1569,7 @@ func clusterNodesPost(d *Daemon, r *http.Request) response.Response {
 func clusterNodeGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1639,6 +1649,11 @@ func clusterNodeGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Cluster member name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: cluster
 //	    description: Cluster member configuration
@@ -1672,6 +1687,11 @@ func clusterNodePatch(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Cluster member name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: cluster
 //	    description: Cluster member configuration
@@ -1695,7 +1715,7 @@ func clusterNodePut(d *Daemon, r *http.Request) response.Response {
 
 // updateClusterNode is shared between clusterNodePut and clusterNodePatch.
 func updateClusterNode(s *state.State, gateway *cluster.Gateway, r *http.Request, isPatch bool) response.Response {
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1985,6 +2005,11 @@ func clusterValidateConfig(config map[string]string) error {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Cluster member name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: cluster
 //	    description: Cluster member rename request
@@ -2003,7 +2028,7 @@ func clusterValidateConfig(config map[string]string) error {
 func clusterNodePost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	memberName, err := url.PathUnescape(mux.Vars(r)["name"])
+	memberName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2058,6 +2083,12 @@ func clusterNodePost(d *Daemon, r *http.Request) response.Response {
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Cluster member name
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    $ref: "#/responses/EmptySyncResponse"
@@ -2080,7 +2111,7 @@ func clusterNodeDelete(d *Daemon, r *http.Request) response.Response {
 		pending = 0
 	}
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2177,11 +2208,11 @@ func clusterNodeDelete(d *Daemon, r *http.Request) response.Response {
 
 			// Send the response before replacing the daemon process.
 			f, ok := w.(http.Flusher)
-			if ok {
-				f.Flush()
-			} else {
+			if !ok {
 				return errors.New("http.ResponseWriter is not type http.Flusher")
 			}
+
+			f.Flush()
 
 			return nil
 		})
@@ -2293,7 +2324,7 @@ func clusterNodeDelete(d *Daemon, r *http.Request) response.Response {
 
 	err = rebalanceMemberRoles(s, d.gateway, r, nil)
 	if err != nil {
-		logger.Warnf("Failed to rebalance dqlite nodes: %v", err)
+		logger.Warnf("Failed to rebalance cowsql nodes: %v", err)
 	}
 
 	// If this leader node removed itself, just disable clustering.
@@ -2363,13 +2394,13 @@ func internalClusterPostAccept(d *Daemon, r *http.Request) response.Response {
 			return response.SmartError(errors.New("Unable to find leader address"))
 		}
 
-		url := &url.URL{
+		redirectURL := &url.URL{
 			Scheme: "https",
 			Path:   "/internal/cluster/accept",
 			Host:   leader,
 		}
 
-		return response.SyncResponseRedirect(url.String())
+		return response.SyncResponseRedirect(redirectURL.String())
 	}
 
 	// Get lock now we are on leader.
@@ -2399,10 +2430,10 @@ func internalClusterPostAccept(d *Daemon, r *http.Request) response.Response {
 		PrivateKey: s.Endpoints.NetworkPrivateKey(),
 	}
 
-	for i, node := range nodes {
-		accepted.RaftNodes[i].ID = node.ID
-		accepted.RaftNodes[i].Address = node.Address
-		accepted.RaftNodes[i].Role = int(node.Role)
+	for i, raftNode := range nodes {
+		accepted.RaftNodes[i].ID = raftNode.ID
+		accepted.RaftNodes[i].Address = raftNode.Address
+		accepted.RaftNodes[i].Role = int(raftNode.Role)
 	}
 
 	return response.SyncResponse(true, accepted)
@@ -2426,7 +2457,7 @@ type internalClusterPostAcceptResponse struct {
 	PrivateKey []byte             `json:"private_key" yaml:"private_key"`
 }
 
-// Represent a node that is part of the dqlite raft cluster.
+// Represent a node that is part of the cowsql raft cluster.
 type internalRaftNode struct {
 	ID      uint64 `json:"id" yaml:"id"`
 	Address string `json:"address" yaml:"address"`
@@ -2450,13 +2481,13 @@ func internalClusterPostRebalance(d *Daemon, r *http.Request) response.Response 
 
 	if localClusterAddress != leader {
 		logger.Debugf("Redirect cluster rebalance request to %s", leader)
-		url := &url.URL{
+		redirectURL := &url.URL{
 			Scheme: "https",
 			Path:   "/internal/cluster/rebalance",
 			Host:   leader,
 		}
 
-		return response.SyncResponseRedirect(url.String())
+		return response.SyncResponseRedirect(redirectURL.String())
 	}
 
 	// Get lock now we are on leader.
@@ -2471,7 +2502,7 @@ func internalClusterPostRebalance(d *Daemon, r *http.Request) response.Response 
 	return response.SyncResponse(true, nil)
 }
 
-// Check if there's a dqlite node whose role should be changed, and post a
+// Check if there's a cowsql node whose role should be changed, and post a
 // change role request if so.
 func rebalanceMemberRoles(s *state.State, gateway *cluster.Gateway, r *http.Request, unavailableMembers []string) error {
 	if s.ShutdownCtx.Err() != nil {
@@ -2490,20 +2521,20 @@ again:
 	}
 
 	// Process demotions of offline nodes immediately.
-	for _, node := range nodes {
-		if node.Address != address {
+	for _, member := range nodes {
+		if member.Address != address {
 			continue
 		}
 
 		reachable := cluster.HasConnectivity(s.Endpoints.NetworkCert(), s.ServerCert(), address, true)
 
-		if node.Role != db.RaftSpare {
+		if member.Role != db.RaftSpare {
 			if !reachable {
 				// The server isn't ready to be promoted yet, try again next time.
 				return nil
 			}
 
-			logger.Info("Promoting cluster member", logger.Ctx{"name": node.Name, "role": node.Role})
+			logger.Info("Promoting cluster member", logger.Ctx{"name": member.Name, "role": member.Role})
 			break
 		}
 
@@ -2512,11 +2543,11 @@ again:
 			break
 		}
 
-		logger.Info("Demoting cluster member", logger.Ctx{"name": node.Name, "role": node.Role})
+		logger.Info("Demoting cluster member", logger.Ctx{"name": member.Name, "role": member.Role})
 
-		err := gateway.DemoteOfflineNode(node.ID)
+		err := gateway.DemoteOfflineNode(member.ID)
 		if err != nil {
-			return fmt.Errorf("Failed to demote cluster member %q: %w", node.Name, err)
+			return fmt.Errorf("Failed to demote cluster member %q: %w", member.Name, err)
 		}
 
 		goto again
@@ -2559,12 +2590,12 @@ func upgradeNodesWithoutRaftRole(s *state.State, gateway *cluster.Gateway) error
 // slice contains details about all members, including the one being changed.
 func changeMemberRole(s *state.State, r *http.Request, address string, nodes []db.RaftNode) error {
 	post := &internalClusterPostAssignRequest{}
-	for _, node := range nodes {
+	for _, raftNode := range nodes {
 		post.RaftNodes = append(post.RaftNodes, internalRaftNode{
-			ID:      node.ID,
-			Address: node.Address,
-			Role:    int(node.Role),
-			Name:    node.Name,
+			ID:      raftNode.ID,
+			Address: raftNode.Address,
+			Role:    int(raftNode.Role),
+			Name:    raftNode.Name,
 		})
 	}
 
@@ -2632,7 +2663,7 @@ findLeader:
 	return nil
 }
 
-// Used to assign a new role to a the local dqlite node.
+// Used to assign a new role to a the local cowsql node.
 func internalClusterPostAssign(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 	req := internalClusterPostAssignRequest{}
@@ -2649,11 +2680,11 @@ func internalClusterPostAssign(d *Daemon, r *http.Request) response.Response {
 	}
 
 	nodes := make([]db.RaftNode, len(req.RaftNodes))
-	for i, node := range req.RaftNodes {
-		nodes[i].ID = node.ID
-		nodes[i].Address = node.Address
-		nodes[i].Role = db.RaftRole(node.Role)
-		nodes[i].Name = node.Name
+	for i, raftNode := range req.RaftNodes {
+		nodes[i].ID = raftNode.ID
+		nodes[i].Address = raftNode.Address
+		nodes[i].Role = db.RaftRole(raftNode.Role)
+		nodes[i].Name = raftNode.Name
 	}
 
 	err = cluster.Assign(s, d.gateway, nodes)
@@ -2700,13 +2731,13 @@ func internalClusterPostHandover(d *Daemon, r *http.Request) response.Response {
 
 	if localClusterAddress != leader {
 		logger.Debugf("Redirect handover request to %s", leader)
-		url := &url.URL{
+		redirectURL := &url.URL{
 			Scheme: "https",
 			Path:   "/internal/cluster/handover",
 			Host:   leader,
 		}
 
-		return response.SyncResponseRedirect(url.String())
+		return response.SyncResponseRedirect(redirectURL.String())
 	}
 
 	// Get lock now we are on leader.
@@ -2731,8 +2762,8 @@ func internalClusterPostHandover(d *Daemon, r *http.Request) response.Response {
 	}
 
 	// Demote the member that is handing over.
-	for i, node := range nodes {
-		if node.Address == req.Address {
+	for i, raftNode := range nodes {
+		if raftNode.Address == req.Address {
 			nodes[i].Role = db.RaftSpare
 		}
 	}
@@ -2861,7 +2892,7 @@ func clusterCheckNetworksMatch(ctx context.Context, clusterDB *db.Cluster, reqNe
 func internalClusterRaftNodeDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	address, err := url.PathUnescape(mux.Vars(r)["address"])
+	address, err := pathVar(r, "address")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2888,6 +2919,12 @@ func internalClusterRaftNodeDelete(d *Daemon, r *http.Request) response.Response
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Cluster member name
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    description: Cluster member state
@@ -2914,7 +2951,7 @@ func internalClusterRaftNodeDelete(d *Daemon, r *http.Request) response.Response
 //	  "500":
 //	    $ref: "#/responses/InternalServerError"
 func clusterNodeStateGet(d *Daemon, r *http.Request) response.Response {
-	memberName, err := url.PathUnescape(mux.Vars(r)["name"])
+	memberName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2947,6 +2984,11 @@ func clusterNodeStateGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Cluster member name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: cluster
 //	    description: Cluster member state
@@ -2963,7 +3005,7 @@ func clusterNodeStateGet(d *Daemon, r *http.Request) response.Response {
 //	  "500":
 //	    $ref: "#/responses/InternalServerError"
 func clusterNodeStatePost(d *Daemon, r *http.Request) response.Response {
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -3021,95 +3063,10 @@ func clusterNodeStatePost(d *Daemon, r *http.Request) response.Response {
 		}
 	}
 
-	if req.Action == "evacuate" {
-		stopFunc := func(inst instance.Instance, action string) error {
-			l := logger.AddContext(logger.Ctx{"project": inst.Project().Name, "instance": inst.Name()})
-
-			if action == "force-stop" {
-				// Handle forced shutdown.
-				err = inst.Stop(false)
-				if err != nil && !errors.Is(err, instanceDrivers.ErrInstanceIsStopped) {
-					return fmt.Errorf("Failed to force stop instance %q in project %q: %w", inst.Name(), inst.Project().Name, err)
-				}
-			} else if action == "stateful-stop" {
-				// Handle stateful stop.
-				err = inst.Stop(true)
-				if err != nil && !errors.Is(err, instanceDrivers.ErrInstanceIsStopped) {
-					return fmt.Errorf("Failed to stateful stop instance %q in project %q: %w", inst.Name(), inst.Project().Name, err)
-				}
-			} else {
-				// Get the shutdown timeout for the instance.
-				timeout := inst.ExpandedConfig()["boot.host_shutdown_timeout"]
-				val, err := strconv.Atoi(timeout)
-				if err != nil {
-					val = evacuateHostShutdownDefaultTimeout
-				}
-
-				// Start with a clean shutdown.
-				err = inst.Shutdown(time.Duration(val) * time.Second)
-				if err != nil {
-					l.Warn("Failed shutting down instance, forcing stop", logger.Ctx{"err": err})
-
-					// Fallback to forced stop.
-					err = inst.Stop(false)
-					if err != nil && !errors.Is(err, instanceDrivers.ErrInstanceIsStopped) {
-						return fmt.Errorf("Failed to stop instance %q in project %q: %w", inst.Name(), inst.Project().Name, err)
-					}
-				}
-			}
-
-			// Mark the instance as RUNNING in volatile so its state can be properly restored.
-			err = inst.VolatileSet(map[string]string{"volatile.last_state.power": instance.PowerStateRunning})
-			if err != nil {
-				l.Warn("Failed to set instance state to RUNNING", logger.Ctx{"err": err})
-			}
-
-			return nil
-		}
-
-		migrateFunc := func(ctx context.Context, s *state.State, inst instance.Instance, sourceMemberInfo *db.NodeInfo, targetMemberInfo *db.NodeInfo, live bool, startInstance bool, op *operations.Operation) error {
-			// Migrate the instance.
-			req := api.InstancePost{
-				Migration: true,
-				Live:      live,
-			}
-
-			err := migrateInstance(ctx, s, inst, req, sourceMemberInfo, targetMemberInfo, "", op)
-			if err != nil {
-				return fmt.Errorf("Failed to migrate instance %q in project %q: %w", inst.Name(), inst.Project().Name, err)
-			}
-
-			if !startInstance || live {
-				return nil
-			}
-
-			// Start it back up on target.
-			dest, err := cluster.Connect(targetMemberInfo.Address, s.Endpoints.NetworkCert(), s.ServerCert(), r, true)
-			if err != nil {
-				return fmt.Errorf("Failed to connect to destination %q for instance %q in project %q: %w", targetMemberInfo.Address, inst.Name(), inst.Project().Name, err)
-			}
-
-			dest = dest.UseProject(inst.Project().Name)
-
-			if op != nil {
-				_ = op.ExtendMetadata(map[string]any{"evacuation_progress": fmt.Sprintf("Starting %q in project %q", inst.Name(), inst.Project().Name)})
-			}
-
-			startOp, err := dest.UpdateInstanceState(inst.Name(), api.InstanceStatePut{Action: "start"}, "")
-			if err != nil {
-				return err
-			}
-
-			err = startOp.Wait()
-			if err != nil {
-				return err
-			}
-
-			return nil
-		}
-
+	switch req.Action {
+	case "evacuate":
 		run := func(op *operations.Operation) error {
-			return evacuateClusterMember(context.Background(), s, op, name, req.Mode, stopFunc, migrateFunc)
+			return evacuateClusterMember(context.Background(), s, op, name, req.Mode, evacuateStopInstance, evacuateMigrateInstance(r))
 		}
 
 		op, err := operations.OperationCreate(s, "", operations.OperationClassTask, operationtype.ClusterMemberEvacuate, nil, nil, run, nil, nil, r)
@@ -3118,7 +3075,7 @@ func clusterNodeStatePost(d *Daemon, r *http.Request) response.Response {
 		}
 
 		return operations.OperationResponse(op)
-	} else if req.Action == "restore" {
+	case "restore":
 		if req.Mode != "" && req.Mode != "skip" {
 			return response.BadRequest(fmt.Errorf("Invalid restore mode %q", req.Mode))
 		}

@@ -18,36 +18,35 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"github.com/lxc/incus/v6/internal/filter"
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	internalIO "github.com/lxc/incus/v6/internal/io"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	storageDrivers "github.com/lxc/incus/v6/internal/server/storage/drivers"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/filter"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 var storagePoolVolumesCmd = APIEndpoint{
@@ -105,6 +104,11 @@ var storagePoolVolumeTypeFileCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: poolName
+//      description: Storage pool name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -166,6 +170,11 @@ var storagePoolVolumeTypeFileCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: poolName
+//      description: Storage pool name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -220,6 +229,16 @@ var storagePoolVolumeTypeFileCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: poolName
+//      description: Storage pool name
+//      type: string
+//      required: true
+//    - in: path
+//      name: type
+//      description: Storage volume type
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -274,6 +293,16 @@ var storagePoolVolumeTypeFileCmd = APIEndpoint{
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -323,6 +352,16 @@ var storagePoolVolumeTypeFileCmd = APIEndpoint{
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -372,13 +411,13 @@ func storagePoolVolumesGet(d *Daemon, r *http.Request) response.Response {
 	targetMember := request.QueryParam(r, "target")
 	memberSpecific := targetMember != ""
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Get the name of the volume type.
-	volumeTypeName, err := url.PathUnescape(mux.Vars(r)["type"])
+	volumeTypeName, err := pathVar(r, "type")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -684,6 +723,11 @@ func filterVolumes(volumes []*db.StorageVolume, clauses *filter.ClauseSet, allPr
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -725,6 +769,16 @@ func filterVolumes(volumes []*db.StorageVolume, clauses *filter.ClauseSet, allPr
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -755,7 +809,7 @@ func filterVolumes(volumes []*db.StorageVolume, clauses *filter.ClauseSet, allPr
 func storagePoolVolumesPost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -804,9 +858,8 @@ func storagePoolVolumesPost(d *Daemon, r *http.Request) response.Response {
 	}
 
 	// Handle being called through the typed URL.
-	_, ok := mux.Vars(r)["type"]
-	if ok {
-		req.Type, err = url.PathUnescape(mux.Vars(r)["type"])
+	if r.PathValue("type") != "" {
+		req.Type, err = pathVar(r, "type")
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -940,7 +993,12 @@ func clusterCopyCustomVolumeInternal(s *state.State, r *http.Request, sourceAddr
 	opAPI := op.Get()
 
 	for k, v := range opAPI.Metadata {
-		websockets[k] = v.(string)
+		vStr, ok := v.(string)
+		if !ok {
+			continue
+		}
+
+		websockets[k] = vStr
 	}
 
 	// Reset the source for a migration
@@ -1073,10 +1131,7 @@ func doVolumeMigration(s *state.State, r *http.Request, requestProjectName strin
 		return response.InternalError(err)
 	}
 
-	push := false
-	if req.Source.Mode == "push" {
-		push = true
-	}
+	push := req.Source.Mode == "push"
 
 	// Initialize migrationArgs, don't set the Storage property yet, this is done in DoStorage,
 	// to avoid this function relying on the legacy storage layer.
@@ -1147,6 +1202,21 @@ func doVolumeMigration(s *state.State, r *http.Request, requestProjectName strin
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1175,12 +1245,12 @@ func storagePoolVolumePost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	// Get the name of the storage volume.
-	volumeName, err := url.PathUnescape(mux.Vars(r)["volumeName"])
+	volumeName, err := pathVar(r, "volumeName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	volumeTypeName, err := url.PathUnescape(mux.Vars(r)["type"])
+	volumeTypeName, err := pathVar(r, "type")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1190,7 +1260,7 @@ func storagePoolVolumePost(d *Daemon, r *http.Request) response.Response {
 	}
 
 	// Get the name of the storage pool the volume is supposed to be attached to.
-	srcPoolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	srcPoolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1461,12 +1531,12 @@ func storagePoolVolumePost(d *Daemon, r *http.Request) response.Response {
 	}
 
 	// Check if the daemon itself is using it.
-	used, err := storagePools.VolumeUsedByDaemon(s, srcPoolName, volumeName)
+	frag, err := storagePools.VolumeUsedByDaemon(s, srcPoolName, volumeName)
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	if used {
+	if frag != "" {
 		return response.SmartError(errors.New("Volume is used by Incus itself and cannot be renamed"))
 	}
 
@@ -1660,7 +1730,7 @@ func storageVolumePostClusteringMigrate(s *state.State, r *http.Request, srcPool
 }
 
 // storagePoolVolumeTypePostMigration handles volume migration type POST requests.
-func storagePoolVolumeTypePostMigration(state *state.State, r *http.Request, requestProjectName string, projectName string, poolName string, volumeName string, req api.StorageVolumePost) response.Response {
+func storagePoolVolumeTypePostMigration(s *state.State, r *http.Request, requestProjectName string, projectName string, poolName string, volumeName string, req api.StorageVolumePost) response.Response {
 	ws, err := newStorageMigrationSource(req.VolumeOnly, req.Target)
 	if err != nil {
 		return response.InternalError(err)
@@ -1675,12 +1745,12 @@ func storagePoolVolumeTypePostMigration(state *state.State, r *http.Request, req
 	}
 
 	run := func(op *operations.Operation) error {
-		return ws.DoStorage(state, projectName, poolName, volumeName, op)
+		return ws.DoStorage(s, projectName, poolName, volumeName, op)
 	}
 
 	if req.Target != nil {
 		// Push mode.
-		op, err := operations.OperationCreate(state, requestProjectName, operations.OperationClassTask, operationtype.VolumeMigrate, resources, nil, run, nil, nil, r)
+		op, err := operations.OperationCreate(s, requestProjectName, operations.OperationClassTask, operationtype.VolumeMigrate, resources, nil, run, nil, nil, r)
 		if err != nil {
 			return response.InternalError(err)
 		}
@@ -1689,7 +1759,7 @@ func storagePoolVolumeTypePostMigration(state *state.State, r *http.Request, req
 	}
 
 	// Pull mode.
-	op, err := operations.OperationCreate(state, requestProjectName, operations.OperationClassWebsocket, operationtype.VolumeMigrate, resources, ws.Metadata(), run, ws.Cancel, ws.Connect, r)
+	op, err := operations.OperationCreate(s, requestProjectName, operations.OperationClassWebsocket, operationtype.VolumeMigrate, resources, ws.Metadata(), run, ws.Cancel, ws.Connect, r)
 	if err != nil {
 		return response.InternalError(err)
 	}
@@ -1795,6 +1865,21 @@ func storagePoolVolumeTypePostMove(s *state.State, r *http.Request, poolName str
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1841,6 +1926,21 @@ func storagePoolVolumeTypePostMove(s *state.State, r *http.Request, poolName str
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1879,19 +1979,19 @@ func storagePoolVolumeTypePostMove(s *state.State, r *http.Request, poolName str
 func storagePoolVolumeGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	volumeTypeName, err := url.PathUnescape(mux.Vars(r)["type"])
+	volumeTypeName, err := pathVar(r, "type")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Get the name of the storage volume.
-	volumeName, err := url.PathUnescape(mux.Vars(r)["volumeName"])
+	volumeName, err := pathVar(r, "volumeName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Get the name of the storage pool the volume is supposed to be attached to.
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2084,6 +2184,21 @@ func getVolumeFull(ctx context.Context, s *state.State, poolName string, vol api
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -2115,19 +2230,19 @@ func storagePoolVolumePut(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	volumeTypeName, err := url.PathUnescape(mux.Vars(r)["type"])
+	volumeTypeName, err := pathVar(r, "type")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Get the name of the storage volume.
-	volumeName, err := url.PathUnescape(mux.Vars(r)["volumeName"])
+	volumeName, err := pathVar(r, "volumeName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Get the name of the storage pool the volume is supposed to be attached to.
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2191,7 +2306,8 @@ func storagePoolVolumePut(d *Daemon, r *http.Request) response.Response {
 	op := &operations.Operation{}
 	op.SetRequestor(r)
 
-	if volumeType == db.StoragePoolVolumeTypeCustom {
+	switch volumeType {
+	case db.StoragePoolVolumeTypeCustom:
 		// Restore custom volume from snapshot if requested. This should occur first
 		// before applying config changes so that changes are applied to the
 		// restored volume.
@@ -2219,7 +2335,7 @@ func storagePoolVolumePut(d *Daemon, r *http.Request) response.Response {
 				return response.SmartError(err)
 			}
 		}
-	} else if volumeType == db.StoragePoolVolumeTypeContainer || volumeType == db.StoragePoolVolumeTypeVM {
+	case db.StoragePoolVolumeTypeContainer, db.StoragePoolVolumeTypeVM:
 		inst, err := instance.LoadByProjectAndName(s, projectName, dbVolume.Name)
 		if err != nil {
 			return response.SmartError(err)
@@ -2230,13 +2346,15 @@ func storagePoolVolumePut(d *Daemon, r *http.Request) response.Response {
 		if err != nil {
 			return response.SmartError(err)
 		}
-	} else if volumeType == db.StoragePoolVolumeTypeImage {
+
+	case db.StoragePoolVolumeTypeImage:
 		// Handle image update requests.
 		err = pool.UpdateImage(dbVolume.Name, req.Description, req.Config, op)
 		if err != nil {
 			return response.SmartError(err)
 		}
-	} else {
+
+	default:
 		return response.SmartError(errors.New("Invalid volume type"))
 	}
 
@@ -2255,6 +2373,21 @@ func storagePoolVolumePut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -2286,12 +2419,12 @@ func storagePoolVolumePatch(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	// Get the name of the storage volume.
-	volumeName, err := url.PathUnescape(mux.Vars(r)["volumeName"])
+	volumeName, err := pathVar(r, "volumeName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	volumeTypeName, err := url.PathUnescape(mux.Vars(r)["type"])
+	volumeTypeName, err := pathVar(r, "type")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2301,7 +2434,7 @@ func storagePoolVolumePatch(d *Daemon, r *http.Request) response.Response {
 	}
 
 	// Get the name of the storage pool the volume is supposed to be attached to.
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2395,6 +2528,21 @@ func storagePoolVolumePatch(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -2418,12 +2566,12 @@ func storagePoolVolumeDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	// Get the name of the storage volume.
-	volumeName, err := url.PathUnescape(mux.Vars(r)["volumeName"])
+	volumeName, err := pathVar(r, "volumeName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	volumeTypeName, err := url.PathUnescape(mux.Vars(r)["type"])
+	volumeTypeName, err := pathVar(r, "type")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2433,7 +2581,7 @@ func storagePoolVolumeDelete(d *Daemon, r *http.Request) response.Response {
 	}
 
 	// Get the name of the storage pool the volume is supposed to be attached to.
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2549,11 +2697,26 @@ func createStoragePoolVolumeFromISO(s *state.State, r *http.Request, requestProj
 		return response.InternalError(err)
 	}
 
-	defer func() { _ = os.Remove(isoFile.Name()) }()
+	defer logger.WarnOnError(func() error { return os.Remove(isoFile.Name()) }, "Failed to remove ISO file")
 	reverter.Add(func() { _ = isoFile.Close() })
 
+	// Get disk budget for the project if any.
+	var budget int64
+
+	err = s.DB.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
+		budget, err = project.GetSpaceBudget(tx, projectName)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	// Stream uploaded ISO data into temporary file.
-	size, err := util.SafeCopy(isoFile, data)
+	size, err := util.SafeCopy(internalIO.NewQuotaWriter(isoFile, budget), data)
 	if err != nil {
 		return response.InternalError(err)
 	}
@@ -2562,7 +2725,7 @@ func createStoragePoolVolumeFromISO(s *state.State, r *http.Request, requestProj
 	runReverter := reverter.Clone()
 
 	run := func(op *operations.Operation) error {
-		defer func() { _ = isoFile.Close() }()
+		defer logger.WarnOnError(isoFile.Close, "Failed to close ISO file")
 		defer runReverter.Fail()
 
 		pool, err := storagePools.LoadByName(s, pool)
@@ -2602,11 +2765,26 @@ func createStoragePoolVolumeFromBackup(s *state.State, r *http.Request, requestP
 		return response.InternalError(err)
 	}
 
-	defer func() { _ = os.Remove(backupFile.Name()) }()
+	defer logger.WarnOnError(func() error { return os.Remove(backupFile.Name()) }, "Failed to remove backup file")
 	reverter.Add(func() { _ = backupFile.Close() })
 
+	// Get disk budget for the project if any.
+	var budget int64
+
+	err = s.DB.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
+		budget, err = project.GetSpaceBudget(tx, projectName)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	// Stream uploaded backup data into temporary file.
-	_, err = util.SafeCopy(backupFile, data)
+	_, err = util.SafeCopy(internalIO.NewQuotaWriter(backupFile, budget), data)
 	if err != nil {
 		return response.InternalError(err)
 	}
@@ -2632,7 +2810,7 @@ func createStoragePoolVolumeFromBackup(s *state.State, r *http.Request, requestP
 			return response.InternalError(err)
 		}
 
-		defer func() { _ = os.Remove(tarFile.Name()) }()
+		defer logger.WarnOnError(func() error { return os.Remove(tarFile.Name()) }, "Failed to remove tarball file")
 
 		// Decompress to tarFile temporary file.
 		err = archive.ExtractWithFds(decomArgs[0], decomArgs[1:], nil, nil, tarFile)
@@ -2723,7 +2901,7 @@ func createStoragePoolVolumeFromBackup(s *state.State, r *http.Request, requestP
 	runReverter := reverter.Clone()
 
 	run := func(op *operations.Operation) error {
-		defer func() { _ = backupFile.Close() }()
+		defer logger.WarnOnError(backupFile.Close, "Failed to close backup file")
 		defer runReverter.Fail()
 
 		pool, err := storagePools.LoadByName(s, bInfo.Pool)

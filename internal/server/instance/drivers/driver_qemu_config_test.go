@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/cfg"
-	"github.com/lxc/incus/v6/shared/osarch"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/cfg"
+	"github.com/lxc/incus/v7/shared/osarch"
 )
 
 func TestQemuConfigTemplates(t *testing.T) {
@@ -345,7 +345,7 @@ func TestQemuConfigTemplates(t *testing.T) {
 			opts     qemuGpuOpts
 			expected string
 		}{{
-			qemuGpuOpts{dev: qemuDevOpts{"pci", "qemu_pcie3", "00.0", true}, architecture: osarch.ARCH_64BIT_INTEL_X86},
+			qemuGpuOpts{dev: qemuDevOpts{"pci", "qemu_pcie3", "00.0", true}, architecture: osarch.ARCH_64BIT_INTEL_X86, virtioVGA: true},
 			`# GPU
 			[device "qemu_gpu"]
 			addr = "00.0"
@@ -444,17 +444,16 @@ func TestQemuConfigTemplates(t *testing.T) {
 			expected string
 		}{{
 			qemuCPUOpts{
-				architecture:        "x86_64",
-				cpuCount:            8,
-				cpuSockets:          1,
-				cpuCores:            4,
-				cpuThreads:          2,
-				cpuNumaNodes:        []uint64{},
-				cpuNumaMapping:      []qemuNumaEntry{},
-				cpuNumaHostNodes:    []uint64{},
-				hugepages:           "",
-				memory:              7629,
-				qemuMemObjectFormat: "repeated",
+				architecture:     "x86_64",
+				cpuCount:         8,
+				cpuSockets:       1,
+				cpuCores:         4,
+				cpuThreads:       2,
+				cpuNumaNodes:     []uint64{},
+				cpuNumaMapping:   []qemuNumaEntry{},
+				cpuNumaHostNodes: []uint64{},
+				hugepages:        "",
+				memory:           7629,
 			},
 			`# CPU
 			[smp-opts]
@@ -483,10 +482,9 @@ func TestQemuConfigTemplates(t *testing.T) {
 				cpuNumaMapping: []qemuNumaEntry{
 					{node: 20, socket: 21, core: 22, thread: 23},
 				},
-				cpuNumaHostNodes:    []uint64{8, 9, 10},
-				hugepages:           "/hugepages/path",
-				memory:              12000,
-				qemuMemObjectFormat: "indexed",
+				cpuNumaHostNodes: []uint64{8, 9, 10},
+				hugepages:        "/hugepages/path",
+				memory:           12000,
 			},
 			`# CPU
 			[smp-opts]
@@ -557,10 +555,9 @@ func TestQemuConfigTemplates(t *testing.T) {
 				cpuNumaMapping: []qemuNumaEntry{
 					{node: 20, socket: 21, core: 22, thread: 23},
 				},
-				cpuNumaHostNodes:    []uint64{8, 9, 10},
-				hugepages:           "",
-				memory:              12000,
-				qemuMemObjectFormat: "indexed",
+				cpuNumaHostNodes: []uint64{8, 9, 10},
+				hugepages:        "",
+				memory:           12000,
 			},
 			`# CPU
 			[smp-opts]
@@ -620,10 +617,9 @@ func TestQemuConfigTemplates(t *testing.T) {
 					{node: 11, socket: 12, core: 13, thread: 14},
 					{node: 20, socket: 21, core: 22, thread: 23},
 				},
-				cpuNumaHostNodes:    []uint64{8, 9, 10},
-				hugepages:           "",
-				memory:              12000,
-				qemuMemObjectFormat: "repeated",
+				cpuNumaHostNodes: []uint64{8, 9, 10},
+				hugepages:        "",
+				memory:           12000,
 			},
 			`# CPU
 			[smp-opts]
@@ -633,7 +629,7 @@ func TestQemuConfigTemplates(t *testing.T) {
 			threads = "1"
 
 			[object "mem0"]
-			host-nodes = "8"
+			host-nodes.0 = "8"
 			policy = "bind"
 			qom-type = "memory-backend-memfd"
 			size = "12000M"
@@ -644,7 +640,7 @@ func TestQemuConfigTemplates(t *testing.T) {
 			type = "node"
 
 			[object "mem1"]
-			host-nodes = "9"
+			host-nodes.0 = "9"
 			policy = "bind"
 			qom-type = "memory-backend-memfd"
 			size = "12000M"
@@ -655,7 +651,7 @@ func TestQemuConfigTemplates(t *testing.T) {
 			type = "node"
 
 			[object "mem2"]
-			host-nodes = "10"
+			host-nodes.0 = "10"
 			policy = "bind"
 			qom-type = "memory-backend-memfd"
 			size = "12000M"
@@ -690,10 +686,9 @@ func TestQemuConfigTemplates(t *testing.T) {
 					{node: 11, socket: 12, core: 13, thread: 14},
 					{node: 20, socket: 21, core: 22, thread: 23},
 				},
-				cpuNumaHostNodes:    []uint64{8, 9, 10},
-				hugepages:           "/hugepages",
-				memory:              12000,
-				qemuMemObjectFormat: "indexed",
+				cpuNumaHostNodes: []uint64{8, 9, 10},
+				hugepages:        "/hugepages",
+				memory:           12000,
 			},
 			`# CPU
 			[smp-opts]

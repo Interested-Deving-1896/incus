@@ -12,12 +12,12 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
-	incus "github.com/lxc/incus/v6/client"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/ask"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/revert"
+	incus "github.com/lxc/incus/v7/client"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/ask"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/revert"
 )
 
 // VolumeMigration handles the migration logic for an custom volume.

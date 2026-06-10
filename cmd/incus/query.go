@@ -13,11 +13,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdQuery struct {
@@ -36,17 +36,19 @@ func (c *cmdQuery) command() *cobra.Command {
 	cmd.Use = cli.U("query", cmdQueryUsage...)
 	cmd.Short = i18n.G("Send a raw query to the server")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Send a raw query to the server`))
+		`Send a raw query to the server`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus query -X DELETE --wait /1.0/instances/c1
-    Delete local instance "c1".`))
+    Delete local instance "c1".`,
+	))
 	cmd.Hidden = true
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVar(&c.flagRespWait, "wait", false, i18n.G("Wait for the operation to complete"))
-	cmd.Flags().BoolVar(&c.flagRespRaw, "raw", false, i18n.G("Print the raw response"))
-	cmd.Flags().StringVarP(&c.flagAction, "request", "X", "GET", i18n.G("Action (defaults to GET)")+"``")
-	cmd.Flags().StringVarP(&c.flagData, "data", "d", "", i18n.G("Input data")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagRespWait, "wait", i18n.G("Wait for the operation to complete"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagRespRaw, "raw", i18n.G("Print the raw response"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagAction, "request|X", "GET", "", i18n.G("Action"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagData, "data|d", "", "", i18n.G("Input data"))
 
 	return cmd
 }
@@ -65,7 +67,7 @@ func (c *cmdQuery) pretty(input any) string {
 }
 
 func (c *cmdQuery) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdQueryUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdQueryUsage, cmd, args)
 	if err != nil {
 		return err
 	}

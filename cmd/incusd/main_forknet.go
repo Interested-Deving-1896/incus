@@ -19,16 +19,6 @@ package main
 #include "memory_utils.h"
 #include "process_utils.h"
 
-static void forkdonetinfo(int pidfd, int ns_fd)
-{
-	if (!change_namespaces(pidfd, ns_fd, CLONE_NEWNET)) {
-		fprintf(stderr, "Failed setns to container network namespace: %s\n", strerror(errno));
-		_exit(1);
-	}
-
-	// Jump back to Go for the rest
-}
-
 static int dosetns_file(char *file, char *nstype)
 {
 	__do_close int ns_fd = -EBADF;
@@ -160,8 +150,6 @@ void forknet(void)
 {
 	char *command = NULL;
 	char *cur = NULL;
-	pid_t pid = 0;
-
 
 	// Get the subcommand
 	command = advance_arg(false);
@@ -179,7 +167,7 @@ void forknet(void)
 	// skip "--"
 	advance_arg(true);
 
-	// Get the pid
+	// Get the netns file path.
 	cur = advance_arg(false);
 	if (cur == NULL || (strcmp(cur, "--help") == 0 || strcmp(cur, "--version") == 0 || strcmp(cur, "-h") == 0)) {
 		return;
@@ -191,19 +179,6 @@ void forknet(void)
 		_exit(1);
 	}
 
-	// Call the subcommands
-	if (strcmp(command, "info") == 0) {
-		int ns_fd, pidfd;
-		pid = atoi(cur);
-
-		pidfd = atoi(advance_arg(true));
-		ns_fd = pidfd_nsfd(pidfd, pid);
-		if (ns_fd < 0)
-			_exit(1);
-
-		forkdonetinfo(pidfd, ns_fd);
-	}
-
 	if (strcmp(command, "detach") == 0)
 		forkdonetdetach(cur);
 }
@@ -212,7 +187,6 @@ import "C"
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -229,14 +203,17 @@ import (
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/insomniacslk/dhcp/dhcpv6/nclient6"
 	"github.com/insomniacslk/dhcp/iana"
+	"github.com/mdlayher/packet"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/net/bpf"
+	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/internal/netutils"
-	"github.com/lxc/incus/v6/internal/server/ip"
-	_ "github.com/lxc/incus/v6/shared/cgo" // Used by cgo
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/ip"
+	_ "github.com/lxc/incus/v7/shared/cgo" // Used by cgo
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdForknet struct {
@@ -261,13 +238,6 @@ func (c *cmdForknet) command() *cobra.Command {
 `
 	cmd.Hidden = true
 
-	// info
-	cmdInfo := &cobra.Command{}
-	cmdInfo.Use = "info <PID> <PidFd>"
-	cmdInfo.Args = cobra.ExactArgs(2)
-	cmdInfo.RunE = c.runInfo
-	cmd.AddCommand(cmdInfo)
-
 	// detach
 	cmdDetach := &cobra.Command{}
 	cmdDetach.Use = "detach <netns file> <daemon PID> <ifname> <hostname>"
@@ -288,40 +258,23 @@ func (c *cmdForknet) command() *cobra.Command {
 	return cmd
 }
 
-func (c *cmdForknet) runInfo(_ *cobra.Command, _ []string) error {
-	hostInterfaces, _ := net.Interfaces()
-	networks, err := netutils.NetnsGetifaddrs(-1, hostInterfaces)
-	if err != nil {
-		return err
-	}
-
-	buf, err := json.Marshal(networks)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%s\n", buf)
-
-	return nil
-}
-
 // RunDHCP spawns the DHCP client(s) and applies address, route and DNS configuration.
 func (c *cmdForknet) runDHCP(_ *cobra.Command, args []string) error {
-	logger := logrus.New()
-	logger.Level = logrus.DebugLevel
+	l := logrus.New()
+	l.Level = logrus.DebugLevel
 
 	c.instNetworkPath = args[0]
 
 	if C.forknet_dhcp_logfile >= 0 {
-		logger.SetOutput(os.NewFile(uintptr(C.forknet_dhcp_logfile), "incus-dhcp-logfile"))
+		l.SetOutput(os.NewFile(uintptr(C.forknet_dhcp_logfile), "incus-dhcp-logfile"))
 	} else {
-		logger.SetOutput(io.Discard)
+		l.SetOutput(io.Discard)
 	}
 
 	// Read the hostname.
 	bb, err := os.ReadFile(filepath.Join(c.instNetworkPath, "hostname"))
 	if err != nil {
-		logger.WithError(err).Error("Unable to read hostname file")
+		l.WithError(err).Error("Unable to read hostname file")
 	}
 
 	hostname := strings.TrimSpace(string(bb))
@@ -329,14 +282,14 @@ func (c *cmdForknet) runDHCP(_ *cobra.Command, args []string) error {
 	// Create PID file.
 	err = os.WriteFile(filepath.Join(c.instNetworkPath, "dhcp.pid"), []byte(fmt.Sprintf("%d", os.Getpid())), 0o644)
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCP, couldn't write PID file")
+		l.WithError(err).Error("Giving up on DHCP, couldn't write PID file")
 		return err
 	}
 
 	// Enumerate network interfaces and skip loopback.
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCP, couldn't list interfaces")
+		l.WithError(err).Error("Giving up on DHCP, couldn't list interfaces")
 		return err
 	}
 
@@ -350,7 +303,7 @@ func (c *cmdForknet) runDHCP(_ *cobra.Command, args []string) error {
 	}
 
 	if len(names) == 0 {
-		logger.Info("No non-loopback interfaces found; nothing to do for DHCP")
+		l.Info("No non-loopback interfaces found; nothing to do for DHCP")
 		return nil
 	}
 
@@ -360,13 +313,20 @@ func (c *cmdForknet) runDHCP(_ *cobra.Command, args []string) error {
 	c.dhcpv6Leases = map[string]*dhcpv6.Message{}
 	c.applyDNSMu.Unlock()
 
+	// Get the DUID.
+	duid, err := c.loadOrCreateDUID(ifaces)
+	if err != nil {
+		l.WithError(err).Error("Giving up on DHCPv6, couldn't load or create DUID")
+		return err
+	}
+
 	// Buffer size is 2 goroutines per iface.
 	errorChannel := make(chan error, len(names)*2)
 
 	// Launch DHCP clients for each iface.
 	for _, iface := range names {
-		logger := logger.WithField("interface", iface).Logger
-		logger.Info("running dhcp on interface")
+		l := l.WithField("interface", iface).Logger
+		l.Info("running dhcp on interface")
 
 		link := &ip.Link{
 			Name: iface,
@@ -374,14 +334,14 @@ func (c *cmdForknet) runDHCP(_ *cobra.Command, args []string) error {
 
 		err := link.SetUp()
 		if err != nil {
-			logger.WithField("interface", iface).WithError(err).Error("Giving up on DHCP for this interface, couldn't bring up interface")
+			l.WithField("interface", iface).WithError(err).Error("Giving up on DHCP for this interface, couldn't bring up interface")
 
 			// continue to try other interfaces
 			continue
 		}
 
-		go c.dhcpRunV4(errorChannel, iface, hostname, logger)
-		go c.dhcpRunV6(errorChannel, iface, hostname, logger)
+		go c.dhcpRunV4(errorChannel, iface, hostname, l)
+		go c.dhcpRunV6(errorChannel, iface, hostname, duid, l)
 	}
 
 	// Wait for all goroutines to return (2 per interface).
@@ -389,7 +349,7 @@ func (c *cmdForknet) runDHCP(_ *cobra.Command, args []string) error {
 	for i := 0; i < len(names)*2; i++ {
 		err := <-errorChannel
 		if err != nil {
-			logger.WithError(err).Error("DHCP client failed")
+			l.WithError(err).Error("DHCP client failed")
 			finalErr = fmt.Errorf("some DHCP clients failed (one or more)")
 		}
 	}
@@ -397,18 +357,85 @@ func (c *cmdForknet) runDHCP(_ *cobra.Command, args []string) error {
 	return finalErr
 }
 
-func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname string, logger *logrus.Logger) {
-	// Try to get a lease.
-	client, err := nclient4.New(iface)
+// newDHCPv4Conn opens a raw packet socket for DHCPv4 and uses BPF to filter the packets.
+func newDHCPv4Conn(iface string) (net.PacketConn, net.HardwareAddr, error) {
+	ifc, err := net.InterfaceByName(iface)
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCPv4, couldn't set up client")
-		errorChannel <- err
-		return
+		return nil, nil, err
 	}
 
-	defer func() { _ = client.Close() }()
+	conn, err := packet.Listen(ifc, packet.Datagram, unix.ETH_P_IP, nil)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	lease, err := client.Request(context.Background(),
+	// Setup the filter.
+	filter, err := bpf.Assemble([]bpf.Instruction{
+		// Load the IPv4 protocol field and only keep UDP (17).
+		bpf.LoadAbsolute{Off: 9, Size: 1},
+		bpf.JumpIf{Cond: bpf.JumpNotEqual, Val: unix.IPPROTO_UDP, SkipTrue: 6},
+
+		// Load the flags and fragment offset and drop any fragment, as
+		// the transport header is only present in the first one.
+		bpf.LoadAbsolute{Off: 6, Size: 2},
+		bpf.JumpIf{Cond: bpf.JumpBitsSet, Val: 0x1fff, SkipTrue: 4},
+
+		// Set X to the IPv4 header length (4 * IHL).
+		bpf.LoadMemShift{Off: 0},
+
+		// Load the UDP destination port and only keep packets where it matches the DHCP client port (68).
+		bpf.LoadIndirect{Off: 2, Size: 2},
+		bpf.JumpIf{Cond: bpf.JumpNotEqual, Val: nclient4.ClientPort, SkipTrue: 1},
+
+		// Accept the packet, otherwise drop it.
+		bpf.RetConstant{Val: 0xffffffff},
+		bpf.RetConstant{Val: 0},
+	})
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+
+	err = conn.SetBPF(filter)
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+
+	return nclient4.NewBroadcastUDPConn(conn, &net.UDPAddr{Port: nclient4.ClientPort}), ifc.HardwareAddr, nil
+}
+
+func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname string, l *logrus.Logger) {
+	var client *nclient4.Client
+
+	// Try to open a raw socket with a kernel-level BPF filter attached.
+	conn, hwAddr, err := newDHCPv4Conn(iface)
+	if err != nil {
+		l.WithError(err).Warning("Couldn't set up filtered DHCPv4 socket, falling back to userspace filtering")
+
+		client, err = nclient4.New(iface)
+		if err != nil {
+			l.WithError(err).Error("Giving up on DHCPv4, couldn't set up client")
+			errorChannel <- err
+			return
+		}
+	} else {
+		client, err = nclient4.NewWithConn(conn, hwAddr)
+		if err != nil {
+			l.WithError(err).Error("Giving up on DHCPv4, couldn't set up client")
+			_ = conn.Close()
+			errorChannel <- err
+			return
+		}
+	}
+
+	defer logger.WarnOnError(client.Close, "Failed to close DHCP client")
+
+	// Setup a 30s timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	lease, err := client.Request(ctx,
 		dhcpv4.WithoutOption(dhcpv4.OptionIPAddressLeaseTime),
 		dhcpv4.WithRequestedOptions(
 			dhcpv4.OptionSubnetMask,           // 1
@@ -422,7 +449,14 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 		),
 		dhcpv4.WithOption(dhcpv4.OptHostName(hostname)))
 	if err != nil {
-		logger.WithError(err).WithField("hostname", hostname).
+		if errors.Is(err, context.DeadlineExceeded) {
+			l.WithField("hostname", hostname).
+				Info("No DHCPv4 server responded in time; giving up on DHCPv4")
+			errorChannel <- nil
+			return
+		}
+
+		l.WithError(err).WithField("hostname", hostname).
 			Error("Giving up on DHCPv4, couldn't get a lease")
 		errorChannel <- err
 		return
@@ -430,14 +464,14 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 
 	// Parse the response.
 	if lease.Offer == nil {
-		logger.WithField("hostname", hostname).
-			Error("Giving up on DHCPv4, couldn't get a lease after 5s")
-		errorChannel <- err
+		l.WithField("hostname", hostname).
+			Error("Giving up on DHCPv4, couldn't get a lease")
+		errorChannel <- errors.New("Giving up on DHCPv4, couldn't get a lease")
 		return
 	}
 
 	if lease.Offer.YourIPAddr == nil || lease.Offer.YourIPAddr.Equal(net.IPv4zero) || lease.Offer.SubnetMask() == nil || len(lease.Offer.Router()) != 1 {
-		logger.Error("Giving up on DHCPv4, lease didn't contain required fields")
+		l.Error("Giving up on DHCPv4, lease didn't contain required fields")
 		errorChannel <- errors.New("Giving up on DHCPv4, lease didn't contain required fields")
 		return
 	}
@@ -446,9 +480,9 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 	c.dhcpv4Leases[iface] = lease
 	c.applyDNSMu.Unlock()
 
-	err = c.dhcpApplyDNS(logger)
+	err = c.dhcpApplyDNS(l)
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCPv4, error applying DNS")
+		l.WithError(err).Error("Giving up on DHCPv4, error applying DNS")
 		errorChannel <- err
 		return
 	}
@@ -465,7 +499,7 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 
 	err = addr.Add()
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCPv4, couldn't add IP")
+		l.WithError(err).Error("Giving up on DHCPv4, couldn't add IP")
 		errorChannel <- err
 		return
 	}
@@ -484,7 +518,7 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 
 			err = route.Add()
 			if err != nil {
-				logger.WithError(err).Error("Giving up on DHCPv4, couldn't add classless static route")
+				l.WithError(err).Error("Giving up on DHCPv4, couldn't add classless static route")
 				errorChannel <- err
 				return
 			}
@@ -493,11 +527,11 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 		gws := lease.Offer.Router()
 
 		if len(gws) == 0 || gws[0] == nil || gws[0].IsUnspecified() {
-			logger.WithField("interface", iface).Info("No default gateway provided by DHCPv4; skipping default route")
+			l.WithField("interface", iface).Info("No default gateway provided by DHCPv4; skipping default route")
 		} else {
 			err := c.installDefaultRouteV4(iface, gws[0])
 			if err != nil {
-				logger.WithError(err).Error("Giving up on DHCPv4, couldn't add default route")
+				l.WithError(err).Error("Giving up on DHCPv4, couldn't add default route")
 				errorChannel <- err
 				return
 			}
@@ -506,7 +540,6 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 
 	// Handle DHCP renewal.
 	for {
-
 		// Calculate the renewal time.
 		var t1 time.Duration
 
@@ -546,7 +579,7 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 			),
 			dhcpv4.WithOption(dhcpv4.OptHostName(hostname)))
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCPv4, couldn't renew the lease")
+			l.WithError(err).Error("Giving up on DHCPv4, couldn't renew the lease")
 			errorChannel <- err
 			return
 		}
@@ -555,24 +588,36 @@ func (c *cmdForknet) dhcpRunV4(errorChannel chan error, iface string, hostname s
 	}
 }
 
-func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname string, logger *logrus.Logger) {
+func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname string, duid dhcpv6.DUID, l *logrus.Logger) {
 	// Wait a couple of seconds for IPv6 link-local.
 	time.Sleep(2 * time.Second)
 
 	// Get a new DHCPv6 client.
 	client, err := nclient6.New(iface)
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCPv6, couldn't set up client")
+		l.WithError(err).Error("Giving up on DHCPv6, couldn't set up client")
 		errorChannel <- err
 		return
 	}
 
-	defer func() { _ = client.Close() }()
+	defer logger.WarnOnError(client.Close, "Failed to close DHCP client")
+
+	// Setup a 30s timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// Try to get a lease.
-	advertisement, err := client.Solicit(context.Background(), dhcpv6.WithFQDN(0, hostname))
+	advertisement, err := client.Solicit(ctx,
+		dhcpv6.WithClientID(duid),
+		dhcpv6.WithFQDN(0, hostname))
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCPv6, error during DHCPv6 Solicit")
+		if errors.Is(err, context.DeadlineExceeded) {
+			l.Info("No DHCPv6 server responded in time; giving up on DHCPv6")
+			errorChannel <- nil
+			return
+		}
+
+		l.WithError(err).Error("Giving up on DHCPv6, error during DHCPv6 Solicit")
 		errorChannel <- err
 		return
 	}
@@ -582,24 +627,32 @@ func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname s
 		// Get interface details.
 		i, err := net.InterfaceByName(iface)
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCPv6, couldn't get interface details")
+			l.WithError(err).Error("Giving up on DHCPv6, couldn't get interface details")
 			errorChannel <- err
 			return
 		}
 
 		// Try to get some information.
-		infoRequest, err := dhcpv6.NewSolicit(i.HardwareAddr)
+		infoRequest, err := dhcpv6.NewSolicit(i.HardwareAddr,
+			dhcpv6.WithClientID(duid),
+			dhcpv6.WithFQDN(0, hostname))
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCPv6, error preparing DHCPv6 Info Request")
+			l.WithError(err).Error("Giving up on DHCPv6, error preparing DHCPv6 Info Request")
 			errorChannel <- err
 			return
 		}
 
 		infoRequest.MessageType = dhcpv6.MessageTypeInformationRequest
 		infoRequest.Options.Del(dhcpv6.OptionIANA)
-		reply, err := client.SendAndRead(context.Background(), nclient6.AllDHCPRelayAgentsAndServers, infoRequest, nclient6.IsMessageType(dhcpv6.MessageTypeReply))
+		reply, err := client.SendAndRead(ctx, nclient6.AllDHCPRelayAgentsAndServers, infoRequest, nclient6.IsMessageType(dhcpv6.MessageTypeReply))
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCPv6, error during DHCPv6 Info Request")
+			if errors.Is(err, context.DeadlineExceeded) {
+				l.Info("No DHCPv6 server responded in time; giving up on DHCPv6")
+				errorChannel <- nil
+				return
+			}
+
+			l.WithError(err).Error("Giving up on DHCPv6, error during DHCPv6 Info Request")
 			errorChannel <- err
 			return
 		}
@@ -609,9 +662,9 @@ func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname s
 		c.dhcpv6Leases[iface] = reply
 		c.applyDNSMu.Unlock()
 
-		err = c.dhcpApplyDNS(logger)
+		err = c.dhcpApplyDNS(l)
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCPv6, error applying DNS")
+			l.WithError(err).Error("Giving up on DHCPv6, error applying DNS")
 			errorChannel <- err
 			return
 		}
@@ -621,9 +674,17 @@ func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname s
 		return
 	}
 
-	reply, err := client.Request(context.Background(), advertisement, dhcpv6.WithFQDN(0, hostname))
+	reply, err := client.Request(ctx, advertisement,
+		dhcpv6.WithClientID(duid),
+		dhcpv6.WithFQDN(0, hostname))
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCPv6, error during DHCPv6 Request")
+		if errors.Is(err, context.DeadlineExceeded) {
+			l.Info("No DHCPv6 server responded in time; giving up on DHCPv6")
+			errorChannel <- nil
+			return
+		}
+
+		l.WithError(err).Error("Giving up on DHCPv6, error during DHCPv6 Request")
 		errorChannel <- err
 		return
 	}
@@ -632,9 +693,9 @@ func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname s
 	c.dhcpv6Leases[iface] = reply
 	c.applyDNSMu.Unlock()
 
-	err = c.dhcpApplyDNS(logger)
+	err = c.dhcpApplyDNS(l)
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCPv6, error applying DNS")
+		l.WithError(err).Error("Giving up on DHCPv6, error applying DNS")
 		errorChannel <- err
 		return
 	}
@@ -642,7 +703,7 @@ func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname s
 	// Network configuration.
 	ia := reply.Options.OneIANA()
 	if ia == nil {
-		logger.Error("Giving up on DHCPv6 renewal, reply missing IANA")
+		l.Error("Giving up on DHCPv6 renewal, reply missing IANA")
 		errorChannel <- errors.New("Giving up on DHCPv6 renewal, reply missing IANA")
 		return
 	}
@@ -659,7 +720,7 @@ func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname s
 
 		err = addr.Add()
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCPv6, couldn't add IP")
+			l.WithError(err).Error("Giving up on DHCPv6, couldn't add IP")
 			errorChannel <- err
 			return
 		}
@@ -667,44 +728,140 @@ func (c *cmdForknet) dhcpRunV6(errorChannel chan error, iface string, hostname s
 
 	// Handle DHCP Renewal.
 	for {
-		// Wait until it's renewal time.
+		// Calculate the renewal time.
 		t1 := ia.T1
+
+		if t1 == 0 {
+			for _, iaaddr := range ia.Options.Addresses() {
+				if iaaddr.PreferredLifetime <= 0 {
+					continue
+				}
+
+				renew := iaaddr.PreferredLifetime / 2
+				if t1 == 0 || renew < t1 {
+					t1 = renew
+				}
+			}
+		}
+
+		if t1 == 0 {
+			t1 = time.Minute
+		}
+
+		j := time.Duration(int64(t1) / 20) // 5%
+		if j > 0 {
+			t1 += time.Duration(rand.Int63n(int64(2*j))) - j
+		}
+
+		// Wait until it's renewal time.
 		time.Sleep(t1)
 
-		// Renew the lease.
+		// Build the renewal message from the current lease.
 		var optIAAddrs []dhcpv6.OptIAAddress
 		for _, optIAAddr := range ia.Options.Addresses() {
 			optIAAddrs = append(optIAAddrs, *optIAAddr)
 		}
 
 		modifiers := []dhcpv6.Modifier{
-			dhcpv6.WithClientID(reply.Options.ClientID()),
+			dhcpv6.WithClientID(duid),
 			dhcpv6.WithServerID(reply.Options.ServerID()),
 			dhcpv6.WithIAID(ia.IaId),
 			dhcpv6.WithIANA(optIAAddrs...),
+			dhcpv6.WithFQDN(0, hostname),
 		}
 
 		renew, err := dhcpv6.NewMessage(modifiers...)
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCv6, couldn't create renew message")
+			l.WithError(err).Error("Giving up on DHCPv6, couldn't create renew message")
 			errorChannel <- err
 			return
 		}
 
 		renew.MessageType = dhcpv6.MessageTypeRenew
+		renew.AddOption(dhcpv6.OptElapsedTime(0))
 
-		newReply, err := dhcpv6.NewReplyFromMessage(renew, dhcpv6.WithFQDN(0, hostname))
+		// Send the renewal.
+		newReply, err := client.SendAndRead(context.Background(),
+			nclient6.AllDHCPRelayAgentsAndServers,
+			renew,
+			nclient6.IsMessageType(dhcpv6.MessageTypeReply))
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCPv6, couldn't renew the lease")
+			l.WithError(err).Error("Giving up on DHCPv6, couldn't renew the lease")
 			errorChannel <- err
 			return
 		}
 
+		newIA := newReply.Options.OneIANA()
+		if newIA == nil {
+			l.Error("Giving up on DHCPv6 renewal, reply missing IANA")
+			errorChannel <- errors.New("Giving up on DHCPv6 renewal, reply missing IANA")
+			return
+		}
+
 		reply = newReply
+		ia = newIA
+
+		// Refresh DNS in case the server returned new options.
+		c.applyDNSMu.Lock()
+		c.dhcpv6Leases[iface] = reply
+		c.applyDNSMu.Unlock()
+
+		err = c.dhcpApplyDNS(l)
+		if err != nil {
+			l.WithError(err).Error("Giving up on DHCPv6, error applying DNS after renewal")
+			errorChannel <- err
+			return
+		}
 	}
 }
 
-func (c *cmdForknet) dhcpApplyDNS(logger *logrus.Logger) error {
+// Get a stable DUID, recording it on disk.
+func (c *cmdForknet) loadOrCreateDUID(ifaces []net.Interface) (dhcpv6.DUID, error) {
+	duidPath := filepath.Join(c.instNetworkPath, "dhcp6.duid")
+
+	bb, err := os.ReadFile(duidPath)
+	if err == nil {
+		duid, err := dhcpv6.DUIDFromBytes(bb)
+		if err == nil {
+			return duid, nil
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	var hwAddr net.HardwareAddr
+	for _, ifi := range ifaces {
+		if ifi.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		if len(ifi.HardwareAddr) < 4 {
+			continue
+		}
+
+		hwAddr = ifi.HardwareAddr
+		break
+	}
+
+	if hwAddr == nil {
+		return nil, errors.New("No suitable hardware address available for DUID generation")
+	}
+
+	duid := &dhcpv6.DUIDLLT{
+		HWType:        iana.HWTypeEthernet,
+		Time:          dhcpv6.GetTime(),
+		LinkLayerAddr: hwAddr,
+	}
+
+	err = os.WriteFile(duidPath, duid.ToBytes(), 0o600)
+	if err != nil {
+		return nil, err
+	}
+
+	return duid, nil
+}
+
+func (c *cmdForknet) dhcpApplyDNS(l *logrus.Logger) error {
 	nameservers := map[string]struct{}{}
 	searchLabels := []string{}
 	domainNames := []string{}
@@ -758,17 +915,17 @@ func (c *cmdForknet) dhcpApplyDNS(logger *logrus.Logger) error {
 	// Create resolv.conf.
 	f, err := os.Create(filepath.Join(c.instNetworkPath, "resolv.conf"))
 	if err != nil {
-		logger.WithError(err).Error("Giving up on DHCP, couldn't create resolv.conf")
+		l.WithError(err).Error("Giving up on DHCP, couldn't create resolv.conf")
 		return err
 	}
 
-	defer f.Close()
+	defer logger.WarnOnError(f.Close, "Failed to close resolv.conf")
 
 	// Write unique nameservers.
 	for ns := range nameservers {
 		_, err = fmt.Fprintf(f, "nameserver %s\n", ns)
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCP, couldn't write resolv.conf")
+			l.WithError(err).Error("Giving up on DHCP, couldn't write resolv.conf")
 			return err
 		}
 	}
@@ -793,16 +950,16 @@ func (c *cmdForknet) dhcpApplyDNS(logger *logrus.Logger) error {
 		}
 
 		if len(out) > 0 {
-			_, err = fmt.Fprintf(f, "search %s\n", strings.Join(out, ", "))
+			_, err = fmt.Fprintf(f, "search %s\n", strings.Join(out, " "))
 			if err != nil {
-				logger.WithError(err).Error("Giving up on DHCP, couldn't write resolv.conf")
+				l.WithError(err).Error("Giving up on DHCP, couldn't write resolv.conf")
 				return err
 			}
 		}
 	} else if len(domainNames) > 0 {
 		_, err = fmt.Fprintf(f, "domain %s\n", domainNames[0])
 		if err != nil {
-			logger.WithError(err).Error("Giving up on DHCP, couldn't write resolv.conf")
+			l.WithError(err).Error("Giving up on DHCP, couldn't write resolv.conf")
 			return err
 		}
 	}

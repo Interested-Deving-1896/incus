@@ -4,21 +4,21 @@ import (
 	"context"
 	"maps"
 
-	clusterConfig "github.com/lxc/incus/v6/internal/server/cluster/config"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/node"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/proxy"
+	clusterConfig "github.com/lxc/incus/v7/internal/server/cluster/config"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/node"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/proxy"
 )
 
-func daemonConfigRender(state *state.State) (map[string]string, error) {
+func daemonConfigRender(s *state.State) (map[string]string, error) {
 	config := map[string]string{}
 
 	// Turn the config into a JSON-compatible map.
-	maps.Copy(config, state.GlobalConfig.Dump())
+	maps.Copy(config, s.GlobalConfig.Dump())
 
 	// Apply the local config.
-	err := state.DB.Node.Transaction(context.Background(), func(ctx context.Context, tx *db.NodeTx) error {
+	err := s.DB.Node.Transaction(context.Background(), func(ctx context.Context, tx *db.NodeTx) error {
 		nodeConfig, err := node.ConfigLoad(ctx, tx)
 		if err != nil {
 			return err

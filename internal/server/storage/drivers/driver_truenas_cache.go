@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 // This is a per-pool TrueNAS cache, used to limit the number
@@ -198,7 +198,7 @@ func (d *truenas) getCachedProperty(dataset string, key string) (string, bool) {
 	}
 
 	// Update cache if needed.
-	parentDataset := strings.Split(dataset, "@")[0]
+	parentDataset, _, _ := strings.Cut(dataset, "@")
 	d.prefillCachedProperties(parentDataset)
 
 	// Get the value.

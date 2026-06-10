@@ -9,12 +9,12 @@ import (
 
 	"github.com/jochenvg/go-udev"
 
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // unixHotplugIsOurDevice indicates whether the unixHotplug device event qualifies as part of our device.
@@ -133,7 +133,8 @@ func (d *unixHotplug) Register() error {
 	f := func(e UnixHotplugEvent) (*deviceConfig.RunConfig, error) {
 		runConf := deviceConfig.RunConfig{}
 
-		if e.Action == "add" {
+		switch e.Action {
+		case "add":
 			if !unixHotplugIsOurDevice(devConfig, &e) {
 				return nil, nil
 			}
@@ -149,7 +150,7 @@ func (d *unixHotplug) Register() error {
 					return nil, err
 				}
 			}
-		} else if e.Action == "remove" {
+		case "remove":
 			relativeTargetPath := strings.TrimPrefix(e.Path, "/")
 			err := unixDeviceRemove(devicesPath, "unix", deviceName, relativeTargetPath, &runConf)
 			if err != nil {

@@ -9,13 +9,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/qemudefault"
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/qmp"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/metrics"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/qemudefault"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/qmp"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/metrics"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 func (d *qemu) getQemuMetrics() (*metrics.MetricSet, error) {
@@ -113,7 +113,7 @@ func (d *qemu) getQemuMemoryMetrics(monitor *qmp.Monitor) (metrics.MemoryMetrics
 		return out, err
 	}
 
-	defer func() { _ = f.Close() }()
+	defer logger.WarnOnError(f.Close, "Failed to close file")
 
 	// Read it line by line.
 	memRSS := int64(-1)

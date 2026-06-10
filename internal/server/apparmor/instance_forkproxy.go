@@ -9,12 +9,12 @@ import (
 	"slices"
 	"strings"
 
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/sys"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/util"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/sys"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // Internal copy of the device interface.
@@ -62,7 +62,7 @@ func forkproxyProfile(sysOS *sys.OS, inst instance, dev device) (string, error) 
 	}
 
 	// Render the profile.
-	var sb *strings.Builder = &strings.Builder{}
+	sb := &strings.Builder{}
 	err = forkproxyProfileTpl.Execute(sb, map[string]any{
 		"name":        ForkproxyProfileName(inst, dev),
 		"varPath":     internalUtil.VarPath(""),

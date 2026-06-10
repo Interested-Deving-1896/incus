@@ -15,24 +15,24 @@ import (
 	"github.com/kballard/go-shellquote"
 	ociSpecs "github.com/opencontainers/runtime-spec/specs-go"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/instance/operationlock"
-	"github.com/lxc/incus/v6/internal/server/locking"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	"github.com/lxc/incus/v6/internal/server/task"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/util"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/instance/operationlock"
+	"github.com/lxc/incus/v7/internal/server/locking"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	"github.com/lxc/incus/v7/internal/server/task"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // Helper functions
@@ -424,6 +424,13 @@ func instanceCreateAsCopy(s *state.State, opts instanceCreateAsCopyOpts, op *ope
 			}
 		}
 
+		var snapInstOps []*operationlock.InstanceOperation
+		defer func() {
+			for _, snapInstOp := range snapInstOps {
+				snapInstOp.Done(nil)
+			}
+		}()
+
 		for _, srcSnap := range snapshots {
 			snapLocalDevices := srcSnap.LocalDevices().Clone()
 
@@ -456,10 +463,10 @@ func instanceCreateAsCopy(s *state.State, opts instanceCreateAsCopyOpts, op *ope
 					"path": "/",
 					"pool": instRootDiskDevice["pool"],
 				}
-			} else { //nolint:staticcheck // (keep the empty branch for the comment)
-				// Snapshot has multiple root disk devices, we can't automatically fix this so
-				// leave alone so we don't prevent copy.
 			}
+
+			// If the snapshot has multiple root disk devices, we can't automatically fix this so
+			// leave alone so we don't prevent copy.
 
 			fields := strings.SplitN(srcSnap.Name(), internalInstance.SnapshotDelimiter, 2)
 			newSnapName := fmt.Sprintf("%s/%s", inst.Name(), fields[1])
@@ -485,7 +492,7 @@ func instanceCreateAsCopy(s *state.State, opts instanceCreateAsCopyOpts, op *ope
 			}
 
 			reverter.Add(cleanup)
-			defer snapInstOp.Done(err)
+			snapInstOps = append(snapInstOps, snapInstOp)
 		}
 	}
 
@@ -803,9 +810,9 @@ func pruneExpiredAndAutoCreateInstanceSnapshotsTask(d *Daemon) (task.Func, task.
 }
 
 // getSourceImageFromInstanceSource returns the image to use for an instance source.
-func getSourceImageFromInstanceSource(ctx context.Context, s *state.State, tx *db.ClusterTx, project string, source api.InstanceSource, imageRef *string, instType string) (*api.Image, error) {
+func getSourceImageFromInstanceSource(ctx context.Context, s *state.State, tx *db.ClusterTx, projectName string, source api.InstanceSource, imageRef *string, instType string) (*api.Image, error) {
 	// Resolve the image.
-	sourceImageRefUpdate, err := instance.ResolveImage(ctx, tx, project, source)
+	sourceImageRefUpdate, err := instance.ResolveImage(ctx, tx, projectName, source)
 	if err != nil {
 		return nil, err
 	}
@@ -827,7 +834,7 @@ func getSourceImageFromInstanceSource(ctx context.Context, s *state.State, tx *d
 	}
 
 	// Check if image has an entry in the database.
-	_, sourceImage, err := tx.GetImageByFingerprintPrefix(ctx, sourceImageHash, dbCluster.ImageFilter{Project: &project})
+	_, sourceImage, err := tx.GetImageByFingerprintPrefix(ctx, sourceImageHash, dbCluster.ImageFilter{Project: &projectName})
 	if err != nil {
 		return nil, err
 	}

@@ -12,11 +12,12 @@ import (
 	"slices"
 	"strings"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	"github.com/lxc/incus/v6/shared/ask"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	"github.com/lxc/incus/v7/shared/ask"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // VHResourceType defines what kind of resource this is (e.g., CPU, memory).
@@ -226,7 +227,7 @@ func (m *OVAMigration) migrate() error {
 		return err
 	}
 
-	defer func() { _ = os.RemoveAll(outputPath) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(outputPath) }, "Failed to remove temporary directory")
 
 	err = m.unpackOVA(outputPath)
 	if err != nil {
@@ -269,7 +270,7 @@ func (m *OVAMigration) unpackOVA(outPath string) error {
 		return err
 	}
 
-	defer file.Close()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	tarReader := tar.NewReader(file)
 
@@ -278,7 +279,7 @@ func (m *OVAMigration) unpackOVA(outPath string) error {
 		return err
 	}
 
-	defer func() { _ = outPathRoot.Close() }()
+	defer logger.WarnOnError(outPathRoot.Close, "Failed to close directory")
 
 	for {
 		header, err := tarReader.Next()
@@ -314,7 +315,7 @@ func (m *OVAMigration) readOVA() error {
 		return err
 	}
 
-	defer file.Close()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	tarReader := tar.NewReader(file)
 

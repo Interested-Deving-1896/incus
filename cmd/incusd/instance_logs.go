@@ -4,23 +4,21 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
-	"github.com/gorilla/mux"
-
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/storage"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/revert"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/storage"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
 )
 
 var instanceLogCmd = APIEndpoint{
@@ -63,6 +61,11 @@ var instanceExecOutputsCmd = APIEndpoint{
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -106,7 +109,7 @@ func instanceLogsGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -160,6 +163,16 @@ func instanceLogsGet(d *Daemon, r *http.Request) response.Response {
 //	  - application/json
 //	  - application/octet-stream
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: filename
+//	    description: Log file name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -185,7 +198,7 @@ func instanceLogGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -210,7 +223,7 @@ func instanceLogGet(d *Daemon, r *http.Request) response.Response {
 		return resp
 	}
 
-	file, err := url.PathUnescape(mux.Vars(r)["file"])
+	file, err := pathVar(r, "file")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -239,6 +252,16 @@ func instanceLogGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: filename
+//	    description: Log file name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -259,7 +282,7 @@ func instanceLogDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -284,7 +307,7 @@ func instanceLogDelete(d *Daemon, r *http.Request) response.Response {
 		return resp
 	}
 
-	file, err := url.PathUnescape(mux.Vars(r)["file"])
+	file, err := pathVar(r, "file")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -317,6 +340,11 @@ func instanceLogDelete(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -361,7 +389,7 @@ func instanceExecOutputsGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -397,7 +425,7 @@ func instanceExecOutputsGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	defer func() { _ = pool.UnmountInstance(inst, nil) }()
+	defer logger.WarnOnError(func() error { return pool.UnmountInstance(inst, nil) }, "Failed to unmount instance")
 
 	// Read exec record-output files
 	dents, err := os.ReadDir(inst.ExecOutputPath())
@@ -428,6 +456,16 @@ func instanceExecOutputsGet(d *Daemon, r *http.Request) response.Response {
 //	  - application/json
 //	  - application/octet-stream
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: filename
+//	    description: Log file name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -456,7 +494,7 @@ func instanceExecOutputGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -481,7 +519,7 @@ func instanceExecOutputGet(d *Daemon, r *http.Request) response.Response {
 		return resp
 	}
 
-	file, err := url.PathUnescape(mux.Vars(r)["file"])
+	file, err := pathVar(r, "file")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -526,6 +564,16 @@ func instanceExecOutputGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: filename
+//	    description: Log file name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -546,7 +594,7 @@ func instanceExecOutputDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -571,7 +619,7 @@ func instanceExecOutputDelete(d *Daemon, r *http.Request) response.Response {
 		return resp
 	}
 
-	file, err := url.PathUnescape(mux.Vars(r)["file"])
+	file, err := pathVar(r, "file")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -591,7 +639,7 @@ func instanceExecOutputDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	defer func() { _ = pool.UnmountInstance(inst, nil) }()
+	defer logger.WarnOnError(func() error { return pool.UnmountInstance(inst, nil) }, "Failed to unmount instance")
 
 	err = os.Remove(filepath.Join(inst.ExecOutputPath(), file))
 	if err != nil {

@@ -23,11 +23,11 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
-	"github.com/lxc/incus/v6/internal/ports"
-	"github.com/lxc/incus/v6/internal/server/metrics"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/internal/ports"
+	"github.com/lxc/incus/v7/internal/server/metrics"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 var (
@@ -121,7 +121,7 @@ func runService(name string, agentCmd *cmdAgent) error {
 		}
 	}
 
-	defer elog.Close()
+	defer logger.WarnOnError(elog.Close, "Failed to close event log")
 
 	elog.Info(1, fmt.Sprintf("Starting %s service", name))
 	run := svc.Run
@@ -204,7 +204,7 @@ func osGetOSState() *api.InstanceStateOSInfo {
 		return nil
 	}
 
-	defer k.Close()
+	defer logger.WarnOnError(k.Close, "Failed to close registry key")
 
 	// Get local hostname.
 	hostname, err := os.Hostname()

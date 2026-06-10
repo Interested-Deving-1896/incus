@@ -101,7 +101,6 @@ There are two options currently available to Debian users.
 
     On Debian systems, running `apt install incus` will get Incus installed with all dependencies required for running containers and virtual machines.
     If you only wish to run containers in Incus, you can run just `apt install incus-base`.
-    If migrating from LXD, also run `apt install incus-extra` to get the `lxd-to-incus` command.
 
 1. Zabbly package repository
 
@@ -189,8 +188,6 @@ Install Incus with:
 
     zypper in incus
 
-If migrating from LXD, please also install `incus-tools` for `lxd-to-incus`.
-
 The default setup should work fine for most users, but if you intend to run many containers on your system you may wish to apply some custom `sysctl` settings [as suggested in the production deployments guide](./reference/server_settings.md).
 
 Please report packaging issues [here](https://bugzilla.opensuse.org/).
@@ -233,11 +230,10 @@ There are two options currently available to Ubuntu users.
     A native `incus` package is currently available in Ubuntu 24.04 LTS and later.
     On such systems, just running `apt install incus` will get Incus installed.
     To run virtual machines, also run `apt install qemu-system`.
-    If migrating from LXD, also run `apt install incus-tools` to get the `lxd-to-incus` command.
 
 1. Zabbly package repository
 
-    [Zabbly](https://zabbly.com) provides up to date and supported Incus packages for Ubuntu LTS releases (22.04 and 24.04).
+    [Zabbly](https://zabbly.com) provides up to date and supported Incus packages for Ubuntu LTS releases (22.04, 24.04, and 26.04).
     Those packages contain everything needed to use all Incus features.
 
     Up to date installation instructions may be found here: [`https://github.com/zabbly/incus`](https://github.com/zabbly/incus)
@@ -346,7 +342,7 @@ Also you can find the package you need with the binary name from [Alpine Linux p
 
 Install the main dependencies:
 
-    apk add acl attr ca-certificates cgmanager dbus dnsmasq lxc libintl iproute2 iptables netcat-openbsd rsync squashfs-tools shadow-uidmap tar xz
+    apk add acl attr ca-certificates cgmanager dbus dnsmasq lxc libintl iproute2 nftables netcat-openbsd rsync squashfs-tools shadow-uidmap tar xz
 
 Install the extra dependencies for running virtual machines:
 
@@ -366,7 +362,7 @@ Also, due to a [`gettext` issue](https://github.com/gosexy/gettext/issues/1), yo
 Install the build and required runtime dependencies with:
 
     sudo apt update
-    sudo apt install acl attr autoconf automake dnsmasq-base git golang-go libacl1-dev libcap-dev liblxc1 lxc-dev libsqlite3-dev libtool libudev-dev liblz4-dev libuv1-dev make pkg-config rsync squashfs-tools tar tcl xz-utils ebtables
+    sudo apt install acl attr autoconf automake dnsmasq-base git golang-go libacl1-dev libcap-dev liblxc1 lxc-dev libsqlite3-dev libtool libudev-dev liblz4-dev libuv1-dev make pkg-config rsync squashfs-tools tar tcl xz-utils nftables
 
 ****NOTE:**** The version of `golang-go` in your version of Debian or Ubuntu may not be sufficient to build Incus (see {ref}`requirements-go`).
 In such cases, you may need to install a newer Go version [from upstream](https://go.dev/doc/install).
@@ -398,7 +394,7 @@ You can get the development resources required to build Incus on your OpenSUSE T
 
 In addition, for normal operation, you'll also likely need:
 
-    sudo zypper install dnsmasq squashfs xz rsync tar attr acl qemu qemu-img qemu-spice qemu-hw-display-virtio-gpu-pci iptables ebtables nftables
+    sudo zypper install dnsmasq squashfs xz rsync tar attr acl qemu qemu-img qemu-spice qemu-hw-display-virtio-gpu-pci nftables
 
 For using NVIDIA GPUs inside containers, you will need the NVIDIA container tools and LXC hooks:
 

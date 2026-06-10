@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"slices"
@@ -15,32 +14,36 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	liblxc "github.com/lxc/go-lxc"
 	"golang.org/x/sys/unix"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/jmap"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/ws"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/jmap"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/ws"
 )
 
 type consoleWs struct {
 	// instance currently worked on
 	instance instance.Instance
+
+	// daemon state (used to emit lifecycle events)
+	state *state.State
 
 	// websocket connections to bridge pty fds to
 	conns map[int]*websocket.Conn
@@ -164,6 +167,12 @@ func (s *consoleWs) connectVGA(r *http.Request, w http.ResponseWriter) error {
 			s.connsLock.Unlock()
 
 			s.controlConnected <- true
+
+			// Emit a single instance-console event per session here. SPICE clients open one
+			// dynamic websocket per channel (display, cursor, inputs, ...) and emitting from the
+			// per-channel path would produce many duplicate events for one user-visible session.
+			s.state.Events.SendLifecycle(s.instance.Project().Name, lifecycle.InstanceConsole.Event(s.instance, logger.Ctx{"type": s.protocol}))
+
 			return nil
 		}
 
@@ -437,6 +446,11 @@ func (s *consoleWs) cancel(*operations.Operation) error {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -460,7 +474,7 @@ func instanceConsolePost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -487,8 +501,8 @@ func instanceConsolePost(d *Daemon, r *http.Request) response.Response {
 	}
 
 	if client != nil {
-		url := api.NewURL().Path(version.APIVersion, "instances", name, "console").Project(projectName)
-		resp, _, err := client.RawQuery("POST", url.String(), post, "")
+		consoleURL := api.NewURL().Path(version.APIVersion, "instances", name, "console").Project(projectName)
+		resp, _, err := client.RawQuery("POST", consoleURL.String(), post, "")
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -561,30 +575,31 @@ func instanceConsolePost(d *Daemon, r *http.Request) response.Response {
 		}
 	}
 
-	ws := &consoleWs{}
-	ws.fds = map[int]string{}
-	ws.conns = map[int]*websocket.Conn{}
-	ws.conns[-1] = nil
-	ws.conns[0] = nil
-	ws.dynamic = map[*websocket.Conn]*os.File{}
-	for i := -1; i < len(ws.conns)-1; i++ {
-		ws.fds[i], err = internalUtil.RandomHexString(32)
+	consoleWS := &consoleWs{}
+	consoleWS.fds = map[int]string{}
+	consoleWS.conns = map[int]*websocket.Conn{}
+	consoleWS.conns[-1] = nil
+	consoleWS.conns[0] = nil
+	consoleWS.dynamic = map[*websocket.Conn]*os.File{}
+	for i := -1; i < len(consoleWS.conns)-1; i++ {
+		consoleWS.fds[i], err = internalUtil.RandomHexString(32)
 		if err != nil {
 			return response.InternalError(err)
 		}
 	}
 
-	ws.allConnected = make(chan bool, 1)
-	ws.controlConnected = make(chan bool, 1)
-	ws.instance = inst
-	ws.width = post.Width
-	ws.height = post.Height
-	ws.protocol = post.Type
+	consoleWS.allConnected = make(chan bool, 1)
+	consoleWS.controlConnected = make(chan bool, 1)
+	consoleWS.instance = inst
+	consoleWS.state = s
+	consoleWS.width = post.Width
+	consoleWS.height = post.Height
+	consoleWS.protocol = post.Type
 
 	resources := map[string][]api.URL{}
-	resources["instances"] = []api.URL{*api.NewURL().Path(version.APIVersion, "instances", ws.instance.Name())}
+	resources["instances"] = []api.URL{*api.NewURL().Path(version.APIVersion, "instances", consoleWS.instance.Name())}
 
-	op, err := operations.OperationCreate(s, projectName, operations.OperationClassWebsocket, operationtype.ConsoleShow, resources, ws.metadata(), ws.do, ws.cancel, ws.connect, r)
+	op, err := operations.OperationCreate(s, projectName, operations.OperationClassWebsocket, operationtype.ConsoleShow, resources, consoleWS.metadata(), consoleWS.do, consoleWS.cancel, consoleWS.connect, r)
 	if err != nil {
 		return response.InternalError(err)
 	}
@@ -603,6 +618,11 @@ func instanceConsolePost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -641,7 +661,7 @@ func instanceConsoleLogGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -701,7 +721,7 @@ func instanceConsoleLogGet(d *Daemon, r *http.Request) response.Response {
 		// Send a ringbuffer request to the container.
 		logContents, err := c.ConsoleLog(console)
 		if err != nil {
-			errno, isErrno := linux.GetErrno(err)
+			isErrno, errno := linux.GetErrno(err)
 			if !isErrno {
 				return response.SmartError(err)
 			}
@@ -786,6 +806,11 @@ func instanceConsoleLogGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -807,7 +832,7 @@ func instanceConsoleLogDelete(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(errors.New("Clearing the console buffer requires liblxc >= 3.0"))
 	}
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -832,10 +857,10 @@ func instanceConsoleLogDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(errors.New("Instance is not container type"))
 	}
 
-	truncateConsoleLogFile := func(path string) error {
+	truncateConsoleLogFile := func(logPath string) error {
 		// Check that this is a regular file. We don't want to try and unlink
 		// /dev/stderr or /dev/null or something.
-		st, err := os.Stat(path)
+		st, err := os.Stat(logPath)
 		if err != nil {
 			return err
 		}
@@ -844,11 +869,11 @@ func instanceConsoleLogDelete(d *Daemon, r *http.Request) response.Response {
 			return errors.New("The console log is not a regular file")
 		}
 
-		if path == "" {
+		if logPath == "" {
 			return errors.New("Container does not keep a console logfile")
 		}
 
-		return os.Truncate(path, 0)
+		return os.Truncate(logPath, 0)
 	}
 
 	if !inst.IsRunning() {
@@ -866,7 +891,7 @@ func instanceConsoleLogDelete(d *Daemon, r *http.Request) response.Response {
 
 	_, err = c.ConsoleLog(console)
 	if err != nil {
-		errno, isErrno := linux.GetErrno(err)
+		isErrno, errno := linux.GetErrno(err)
 		if !isErrno {
 			return response.SmartError(err)
 		}

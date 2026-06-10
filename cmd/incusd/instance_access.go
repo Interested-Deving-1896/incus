@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
 
-	"github.com/gorilla/mux"
-
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
 )
 
 // swagger:operation GET /1.0/instances/{name}/access instances instance_access
@@ -23,6 +20,11 @@ import (
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -58,7 +60,7 @@ func instanceAccess(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -77,7 +79,7 @@ func instanceAccess(d *Daemon, r *http.Request) response.Response {
 		return resp
 	}
 
-	access, err := s.Authorizer.GetInstanceAccess(context.TODO(), projectName, mux.Vars(r)["name"])
+	access, err := s.Authorizer.GetInstanceAccess(context.TODO(), projectName, r.PathValue("name"))
 	if err != nil {
 		return response.InternalError(err)
 	}

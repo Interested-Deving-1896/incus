@@ -10,13 +10,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	config "github.com/lxc/incus/v6/shared/cliconfig"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	config "github.com/lxc/incus/v7/shared/cliconfig"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 // Start.
@@ -148,23 +148,22 @@ func (c *cmdAction) command(action string) *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVar(&c.flagAll, "all", false, i18n.G("Run against all instances"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAll, "all|a", i18n.G("Run against all instances"))
 
 	switch action {
 	case "stop":
-		cmd.Flags().BoolVar(&c.flagStateful, "stateful", false, i18n.G("Store the instance state"))
+		cli.AddBoolFlag(cmd.Flags(), &c.flagStateful, "stateful", i18n.G("Store the instance state"))
 	case "start":
-		cmd.Flags().BoolVar(&c.flagStateless, "stateless", false, i18n.G("Ignore the instance state"))
+		cli.AddBoolFlag(cmd.Flags(), &c.flagStateless, "stateless", i18n.G("Ignore the instance state"))
 	}
 
 	if slices.Contains([]string{"start", "restart", "stop"}, action) {
-		cmd.Flags().StringVar(&c.flagConsole, "console", "", i18n.G("Immediately attach to the console")+"``")
-		cmd.Flags().Lookup("console").NoOptDefVal = "console"
+		cli.AddStringFlag(cmd.Flags(), &c.flagConsole, "console", "", "console", i18n.G("Immediately attach to the console"))
 	}
 
 	if slices.Contains([]string{"restart", "stop"}, action) {
-		cmd.Flags().BoolVarP(&c.flagForce, "force", "f", false, i18n.G("Force the instance to stop"))
-		cmd.Flags().IntVar(&c.flagTimeout, "timeout", -1, i18n.G("Time to wait for the instance to shutdown cleanly")+"``")
+		cli.AddBoolFlag(cmd.Flags(), &c.flagForce, "force|f", i18n.G("Force the instance to stop"))
+		cli.AddIntFlag(cmd.Flags(), &c.flagTimeout, "timeout", -1, i18n.G("Time to wait for the instance to shutdown cleanly"))
 	}
 
 	return cmd
@@ -281,6 +280,7 @@ func (c *cmdAction) doAction(action string, conf *config.Config, p *u.Parsed) er
 		console := cmdConsole{}
 		console.global = c.global
 		console.flagType = c.flagConsole
+		console.withLog = c.flagConsole == "console"
 		return console.console(d, instanceName)
 	}
 
@@ -313,6 +313,7 @@ func (c *cmdAction) doAction(action string, conf *config.Config, p *u.Parsed) er
 		console := cmdConsole{}
 		console.global = c.global
 		console.flagType = c.flagConsole
+		console.withLog = c.flagConsole == "console"
 
 		consoleErr := console.console(d, instanceName)
 		if consoleErr != nil {
@@ -336,7 +337,7 @@ func (c *cmdAction) doAction(action string, conf *config.Config, p *u.Parsed) er
 
 // It handles actions on instances (single or all) and manages error handling, console flag restrictions, and batch operations.
 func (c *cmdAction) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdActionUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdActionUsage, cmd, args)
 	if err != nil {
 		return err
 	}

@@ -533,6 +533,17 @@ var APIExtensions = []string{
 	"metrics_project_resources",
 	"storage_volume_nbd",
 	"projects_restricted_storage_pool_access",
+	"server_shutdown_action",
+	"instances_placement_scriptlet_rebalance",
+	"network_bridge_multicast_snooping",
+	"storage_create_options",
+	"instances_tpm_platform_cert",
+	"linstor_raw",
+	"network_address_set_ip_ranges",
+	"storage_volumes_rebuild",
+	"api_fragments",
+	"instance_limits_cpu_topology",
+	"instance_nbd",
 }
 
 // APIExtensionsCount returns the number of available API extensions.

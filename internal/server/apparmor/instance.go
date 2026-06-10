@@ -8,17 +8,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/cgroup"
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/edk2"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/project"
-	storageDrivers "github.com/lxc/incus/v6/internal/server/storage/drivers"
-	"github.com/lxc/incus/v6/internal/server/sys"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/edk2"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/project"
+	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
+	"github.com/lxc/incus/v7/internal/server/sys"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // Internal copy of the instance interface.
@@ -148,11 +147,11 @@ func instanceProfileGenerate(sysOS *sys.OS, inst instance, extraBinaries []strin
 // instanceProfile generates the AppArmor profile template from the given instance.
 func instanceProfile(sysOS *sys.OS, inst instance, extraBinaries []string) (string, error) {
 	// Prepare raw.apparmor.
-	rawContent := ""
+	var rawContent strings.Builder
 	rawApparmor, ok := inst.ExpandedConfig()["raw.apparmor"]
 	if ok {
 		for _, line := range strings.Split(strings.Trim(rawApparmor, "\n"), "\n") {
-			rawContent += fmt.Sprintf("  %s\n", line)
+			fmt.Fprintf(&rawContent, "  %s\n", line)
 		}
 	}
 
@@ -178,20 +177,18 @@ func instanceProfile(sysOS *sys.OS, inst instance, extraBinaries []string) (stri
 	}
 
 	// Render the profile.
-	var sb *strings.Builder = &strings.Builder{}
+	sb := &strings.Builder{}
 	if inst.Type() == instancetype.Container {
 		err = lxcProfileTpl.Execute(sb, map[string]any{
 			"extra_binaries":   extraBinaries,
-			"feature_cgns":     sysOS.CGInfo.Namespacing,
-			"feature_cgroup2":  sysOS.CGInfo.Layout == cgroup.CgroupsUnified || sysOS.CGInfo.Layout == cgroup.CgroupsHybrid,
 			"feature_stacking": sysOS.AppArmorStacking && !sysOS.AppArmorStacked,
 			"feature_unix":     unixSupported,
 			"feature_userns":   usernsSupported,
-			"kernel_binfmt":    util.IsFalseOrEmpty(inst.ExpandedConfig()["security.privileged"]) && sysOS.UnprivBinfmt,
+			"kernel_binfmt":    util.IsFalseOrEmpty(inst.ExpandedConfig()["security.privileged"]),
 			"name":             InstanceProfileName(inst),
 			"namespace":        InstanceNamespaceName(inst),
 			"nesting":          util.IsTrue(inst.ExpandedConfig()["security.nesting"]),
-			"raw":              rawContent,
+			"raw":              rawContent.String(),
 			"unprivileged":     util.IsFalseOrEmpty(inst.ExpandedConfig()["security.privileged"]) || sysOS.RunningInUserNS,
 			"zfs_delegation":   !inst.IsPrivileged() && storageDrivers.ZFSSupportsDelegation() && util.PathExists("/dev/zfs"),
 		})
@@ -281,7 +278,7 @@ func instanceProfile(sysOS *sys.OS, inst instance, extraBinaries []string) (stri
 			"id":             inst.ID(),
 			"name":           InstanceProfileName(inst),
 			"path":           path,
-			"raw":            rawContent,
+			"raw":            rawContent.String(),
 			"edk2Paths":      edk2Paths,
 			"agentPath":      agentPath,
 		})

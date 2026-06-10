@@ -6,27 +6,23 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-
-	clusterConfig "github.com/lxc/incus/v6/internal/server/cluster/config"
-	clusterRequest "github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	"github.com/lxc/incus/v6/internal/server/storage/s3"
-	"github.com/lxc/incus/v6/internal/server/storage/s3/miniod"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	clusterConfig "github.com/lxc/incus/v7/internal/server/cluster/config"
+	clusterRequest "github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	"github.com/lxc/incus/v7/internal/server/storage/s3"
+	"github.com/lxc/incus/v7/internal/server/storage/s3/local"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // swagger:operation GET / server api_get
@@ -68,17 +64,14 @@ import (
 //	          example: ["/1.0"]
 func restServer(d *Daemon) *http.Server {
 	/* Setup the web server */
-	router := mux.NewRouter()
-	router.StrictSlash(false) // Don't redirect to URL with trailing slash.
-	router.SkipClean(true)
-	router.UseEncodedPath() // Allow encoded values in path segments.
+	router := http.NewServeMux()
 
 	// Serving the UI.
 	uiPath := os.Getenv("INCUS_UI")
 	uiEnabled := uiPath != "" && util.PathExists(fmt.Sprintf("%s/index.html", uiPath))
 	if uiEnabled {
-		uiHttpDir := uiHttpDir{http.Dir(uiPath)}
-		router.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", http.FileServer(uiHttpDir)))
+		uiDir := uiHTTPDir{http.Dir(uiPath)}
+		router.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(uiDir)))
 		router.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/ui/", http.StatusMovedPermanently)
 		})
@@ -88,8 +81,8 @@ func restServer(d *Daemon) *http.Server {
 	documentationPath := os.Getenv("INCUS_DOCUMENTATION")
 	docEnabled := documentationPath != "" && util.PathExists(documentationPath)
 	if docEnabled {
-		documentationHttpDir := documentationHttpDir{http.Dir(documentationPath)}
-		router.PathPrefix("/documentation/").Handler(http.StripPrefix("/documentation/", http.FileServer(documentationHttpDir)))
+		documentationDir := documentationHTTPDir{http.Dir(documentationPath)}
+		router.Handle("/documentation/", http.StripPrefix("/documentation/", http.FileServer(documentationDir)))
 		router.HandleFunc("/documentation", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/documentation/", http.StatusMovedPermanently)
 		})
@@ -129,7 +122,7 @@ func restServer(d *Daemon) *http.Server {
 		d.oidcVerifier.Logout(w, r)
 	})
 
-	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		ua := r.Header.Get("User-Agent")
@@ -168,14 +161,14 @@ func restServer(d *Daemon) *http.Server {
 		d.createCmd(router, "", c)
 	}
 
-	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	notFoundHandler := func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Sending top level 404", logger.Ctx{"url": r.URL, "method": r.Method, "remote": r.RemoteAddr})
 		w.Header().Set("Content-Type", "application/json")
 		_ = response.NotFound(nil).Render(w)
-	})
+	}
 
 	return &http.Server{
-		Handler:           &httpServer{r: router, d: d},
+		Handler:           &httpServer{r: router, d: d, n: notFoundHandler},
 		ConnContext:       request.SaveConnectionInContext,
 		IdleTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 3 * time.Second,
@@ -211,11 +204,9 @@ func vSockServer(d *Daemon) *http.Server {
 
 func metricsServer(d *Daemon) *http.Server {
 	/* Setup the web server */
-	router := mux.NewRouter()
-	router.StrictSlash(false)
-	router.SkipClean(true)
+	router := http.NewServeMux()
 
-	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = response.SyncResponse(true, []string{"/1.0"}).Render(w)
 	})
@@ -227,14 +218,14 @@ func metricsServer(d *Daemon) *http.Server {
 	d.createCmd(router, "1.0", api10Cmd)
 	d.createCmd(router, "1.0", metricsCmd)
 
-	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	notFoundHandler := func(w http.ResponseWriter, r *http.Request) {
 		logger.Info("Sending top level 404", logger.Ctx{"url": r.URL, "method": r.Method, "remote": r.RemoteAddr})
 		w.Header().Set("Content-Type", "application/json")
 		_ = response.NotFound(nil).Render(w)
-	})
+	}
 
 	return &http.Server{
-		Handler:           &httpServer{r: router, d: d},
+		Handler:           &httpServer{r: router, d: d, n: notFoundHandler},
 		IdleTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout:       3 * time.Second,
@@ -244,11 +235,9 @@ func metricsServer(d *Daemon) *http.Server {
 
 func storageBucketsServer(d *Daemon) *http.Server {
 	/* Setup the web server */
-	router := mux.NewRouter()
-	router.StrictSlash(false)
-	router.SkipClean(true)
+	router := http.NewServeMux()
 
-	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		// Wait until daemon is fully started.
 		<-d.waitReady.Done()
 
@@ -278,33 +267,7 @@ func storageBucketsServer(d *Daemon) *http.Server {
 				return
 			}
 
-			// Fast path.
-			minioProc, err := miniod.Get(project.StorageVolume(bucket.Project, bucket.Name))
-			if minioProc == nil || err != nil {
-				// Slow path.
-				logger.Errorf("auth slow")
-				pool, err := storagePools.LoadByName(s, bucket.PoolName)
-				if err != nil {
-					errResult := s3.Error{Code: s3.ErrorCodeInternalError, Message: err.Error()}
-					errResult.Response(w)
-
-					return
-				}
-
-				minioProc, err = pool.ActivateBucket(bucket.Project, bucket.Name, nil)
-				if err != nil {
-					errResult := s3.Error{Code: s3.ErrorCodeInternalError, Message: err.Error()}
-					errResult.Response(w)
-
-					return
-				}
-			}
-
-			u := minioProc.URL()
-
-			rproxy := httputil.NewSingleHostReverseProxy(&u)
-			rproxy.ServeHTTP(w, r)
-
+			serveLocalBucket(d, w, r, bucket)
 			return
 		}
 
@@ -313,8 +276,8 @@ func storageBucketsServer(d *Daemon) *http.Server {
 		listResult.Response(w)
 	})
 
-	// We use the NotFoundHandler to reverse proxy requests to dynamically started local MinIO processes.
-	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// We use the NotFound handler to dispatch requests to local buckets by path.
+	notFoundHandler := func(w http.ResponseWriter, r *http.Request) {
 		// Wait until daemon is fully started.
 		<-d.waitReady.Done()
 
@@ -364,44 +327,78 @@ func storageBucketsServer(d *Daemon) *http.Server {
 			return
 		}
 
-		// Fast path.
-		minioProc, err := miniod.Get(project.StorageVolume(bucket.Project, bucket.Name))
-		if minioProc == nil || err != nil {
-			// Slow path.
-			logger.Errorf("anon slow")
-			pool, err := storagePools.LoadByName(s, bucket.PoolName)
-			if err != nil {
-				errResult := s3.Error{Code: s3.ErrorCodeInternalError, Message: err.Error()}
-				errResult.Response(w)
-
-				return
-			}
-
-			minioProc, err = pool.ActivateBucket(bucket.Project, bucket.Name, nil)
-			if err != nil {
-				errResult := s3.Error{Code: s3.ErrorCodeInternalError, Message: err.Error()}
-				errResult.Response(w)
-
-				return
-			}
-		}
-
-		u := minioProc.URL()
-
-		rproxy := httputil.NewSingleHostReverseProxy(&u)
-		rproxy.ServeHTTP(w, r)
-	})
+		serveLocalBucket(d, w, r, bucket)
+	}
 
 	return &http.Server{
-		Handler:           &httpServer{r: router, d: d},
+		Handler:           &httpServer{r: router, d: d, n: notFoundHandler},
 		IdleTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 3 * time.Second,
 	}
 }
 
+// serveLocalBucket mounts the bucket volume, loads its keys, and dispatches the
+// request to the in-process S3 handler. Always called for buckets backed by
+// local storage drivers (dir, btrfs, zfs).
+func serveLocalBucket(d *Daemon, w http.ResponseWriter, r *http.Request, bucket *db.StorageBucket) {
+	s := d.State()
+
+	pool, err := storagePools.LoadByName(s, bucket.PoolName)
+	if err != nil {
+		(&s3.Error{Code: s3.ErrorCodeInternalError, Message: err.Error()}).Response(w)
+		return
+	}
+
+	// Load credentials for the bucket.
+	var keys []*db.StorageBucketKey
+	err = s.DB.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
+		var err error
+		keys, err = tx.GetStoragePoolBucketKeys(ctx, bucket.ID)
+		return err
+	})
+	if err != nil {
+		(&s3.Error{Code: s3.ErrorCodeInternalError, Message: err.Error()}).Response(w)
+		return
+	}
+
+	creds := make([]local.Credential, 0, len(keys))
+	for _, k := range keys {
+		creds = append(creds, local.Credential{
+			AccessKey: k.AccessKey,
+			SecretKey: k.SecretKey,
+			Role:      local.Role(k.Role),
+		})
+	}
+
+	bucketDir, unmount, err := pool.MountLocalBucket(bucket.Project, bucket.Name, nil)
+	if err != nil {
+		(&s3.Error{Code: s3.ErrorCodeInternalError, Message: err.Error()}).Response(w)
+		return
+	}
+
+	defer func() {
+		err := unmount()
+		if err != nil {
+			logger.Errorf("Failed unmounting bucket %q after S3 request: %v", bucket.Name, err)
+		}
+	}()
+
+	srv := local.NewServer(bucketDir, creds)
+
+	// Migrate any data left over from the legacy minio layout, but only
+	// once the request has cleared authentication. This is a no-op once
+	// the bucket has been migrated.
+	srv.OnAuthenticated = func() error {
+		return local.MigrateMinioBucket(bucketDir, bucket.Name)
+	}
+
+	srv.ServeHTTP(w, r)
+}
+
 type httpServer struct {
-	r *mux.Router
+	r *http.ServeMux
 	d *Daemon
+	n func(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *httpServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -418,6 +415,16 @@ func (s *httpServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// OPTIONS request don't need any further processing
 	if req.Method == "OPTIONS" {
 		return
+	}
+
+	// http.ServeMux has no NotFoundHandler, so when no route matches the
+	// request we dispatch to the configured NotFound handler ourselves.
+	if s.n != nil {
+		_, pattern := s.r.Handler(req)
+		if pattern == "" {
+			s.n(rw, req)
+			return
+		}
 	}
 
 	// Call the original server
@@ -463,12 +470,12 @@ func isClusterInternal(r *http.Request) bool {
 	return r.Header.Get("User-Agent") == clusterRequest.UserAgentClient
 }
 
-type uiHttpDir struct {
+type uiHTTPDir struct {
 	http.FileSystem
 }
 
 // Open is part of the http.FileSystem interface.
-func (httpFS uiHttpDir) Open(name string) (http.File, error) {
+func (httpFS uiHTTPDir) Open(name string) (http.File, error) {
 	fsFile, err := httpFS.FileSystem.Open(name)
 	if err != nil && errors.Is(err, fs.ErrNotExist) {
 		return httpFS.FileSystem.Open("index.html")
@@ -477,12 +484,12 @@ func (httpFS uiHttpDir) Open(name string) (http.File, error) {
 	return fsFile, err
 }
 
-type documentationHttpDir struct {
+type documentationHTTPDir struct {
 	http.FileSystem
 }
 
 // Open is part of the http.FileSystem interface.
-func (httpFS documentationHttpDir) Open(name string) (http.File, error) {
+func (httpFS documentationHTTPDir) Open(name string) (http.File, error) {
 	fsFile, err := httpFS.FileSystem.Open(name)
 	if err != nil && errors.Is(err, fs.ErrNotExist) {
 		return httpFS.FileSystem.Open("index.html")

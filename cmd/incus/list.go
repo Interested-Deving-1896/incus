@@ -14,15 +14,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type column struct {
@@ -125,7 +125,8 @@ Custom columns are defined with "[config:|devices:]key[:name][:maxWidth]":
   Defaults to the key if not specified or empty.
 
   MAXWIDTH: Max width of the column (longer results are truncated).
-  Defaults to -1 (unlimited). Use 0 to limit to the column header size.`))
+  Defaults to -1 (unlimited). Use 0 to limit to the column header size.`,
+	))
 
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus list -c nFs46,volatile.eth0.hwaddr:MAC,config:image.os,devices:eth0.parent:ETHP
@@ -134,13 +135,14 @@ Custom columns are defined with "[config:|devices:]key[:name][:maxWidth]":
   "ETHP" is a custom column generated from a device key.
 
 incus list -c ns,user.comment:comment
-  List instances with their running state and user comment.`))
+  List instances with their running state and user comment.`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultColumns, i18n.G("Columns")+"``")
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().BoolVar(&c.flagFast, "fast", false, i18n.G("Fast mode (same as --columns=nsacPt)"))
-	cmd.Flags().BoolVar(&c.flagAllProjects, "all-projects", false, i18n.G("Display instances from all projects"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultColumns, "", i18n.G("Columns"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagFast, "fast", i18n.G("Fast mode (same as --columns=nsacPt)"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAllProjects, "all-projects", i18n.G("Display instances from all projects"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -233,8 +235,7 @@ func (c *cmdList) listInstances(d incus.InstanceServer, instances []api.Instance
 		cInfoWg := sync.WaitGroup{}
 
 		for range threads {
-			cInfoWg.Add(1)
-			go func() {
+			cInfoWg.Go(func() {
 				for {
 					cName, more := <-cInfoQueue
 					if !more {
@@ -250,9 +251,7 @@ func (c *cmdList) listInstances(d incus.InstanceServer, instances []api.Instance
 					cInfo = append(cInfo, *state)
 					cInfoLock.Unlock()
 				}
-
-				cInfoWg.Done()
-			}()
+			})
 		}
 
 		for _, info := range instances {
@@ -276,8 +275,7 @@ func (c *cmdList) listInstances(d incus.InstanceServer, instances []api.Instance
 	cSnapshotsWg := sync.WaitGroup{}
 
 	for range threads {
-		cStatesWg.Add(1)
-		go func() {
+		cStatesWg.Go(func() {
 			for {
 				cName, more := <-cStatesQueue
 				if !more {
@@ -293,12 +291,9 @@ func (c *cmdList) listInstances(d incus.InstanceServer, instances []api.Instance
 				cStates[cName] = state
 				cStatesLock.Unlock()
 			}
+		})
 
-			cStatesWg.Done()
-		}()
-
-		cSnapshotsWg.Add(1)
-		go func() {
+		cSnapshotsWg.Go(func() {
 			for {
 				cName, more := <-cSnapshotsQueue
 				if !more {
@@ -314,9 +309,7 @@ func (c *cmdList) listInstances(d incus.InstanceServer, instances []api.Instance
 				cSnapshots[cName] = snaps
 				cSnapshotsLock.Unlock()
 			}
-
-			cSnapshotsWg.Done()
-		}()
+		})
 	}
 
 	for _, inst := range instances {
@@ -400,7 +393,7 @@ func (c *cmdList) showInstances(instances []api.InstanceFull, filters []string, 
 }
 
 func (c *cmdList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdListUsage, cmd, args)
 	if err != nil {
 		return err
 	}

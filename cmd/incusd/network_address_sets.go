@@ -6,25 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	clusterRequest "github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	addressset "github.com/lxc/incus/v6/internal/server/network/address-set"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	clusterRequest "github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	addressset "github.com/lxc/incus/v7/internal/server/network/address-set"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var networkAddressSetsCmd = APIEndpoint{
@@ -333,6 +330,11 @@ func networkAddressSetsPost(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: name
+//      description: Address set name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -356,7 +358,7 @@ func networkAddressSetDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	addrSetName, err := url.PathUnescape(mux.Vars(r)["name"])
+	addrSetName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -391,6 +393,11 @@ func networkAddressSetDelete(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: name
+//      description: Address set name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -430,7 +437,7 @@ func networkAddressSetGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	addrSetName, err := url.PathUnescape(mux.Vars(r)["name"])
+	addrSetName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -461,6 +468,11 @@ func networkAddressSetGet(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: name
+//      description: Address set name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -496,6 +508,11 @@ func networkAddressSetGet(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: name
+//      description: Address set name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -527,7 +544,7 @@ func networkAddressSetPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	addrSetName, err := url.PathUnescape(mux.Vars(r)["name"])
+	addrSetName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -585,6 +602,11 @@ func networkAddressSetPut(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: name
+//      description: Address set name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -614,7 +636,7 @@ func networkAddressSetPost(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	addrSetName, err := url.PathUnescape(mux.Vars(r)["name"])
+	addrSetName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}

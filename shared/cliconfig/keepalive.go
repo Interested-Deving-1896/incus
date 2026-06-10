@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"time"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 func (c *Config) handleKeepAlive(remote Remote, name string) (incus.InstanceServer, error) {
@@ -34,7 +34,7 @@ func (c *Config) handleKeepAlive(remote Remote, name string) (incus.InstanceServ
 		_ = os.Remove(socketPath)
 
 		// Prepare to spawn the proxy.
-		proc, err := subprocess.NewProcess("incus", []string{"remote", "proxy", name, socketPath, fmt.Sprintf("--timeout=%d", remote.KeepAlive)}, "", "")
+		proc, err := subprocess.NewProcess("incus", []string{"remote", "proxy", name + ":", socketPath, fmt.Sprintf("--timeout=%d", remote.KeepAlive)}, "", "")
 		if err != nil {
 			return nil, err
 		}

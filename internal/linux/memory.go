@@ -6,7 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lxc/incus/v6/shared/units"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/units"
 )
 
 // DeviceTotalMemory returns the total amount of memory on the system (in bytes).
@@ -22,7 +23,7 @@ func GetMeminfo(field string) (int64, error) {
 		return -1, err
 	}
 
-	defer func() { _ = f.Close() }()
+	defer logger.WarnOnError(f.Close, "Failed to close file")
 
 	// Read it line by line
 	scan := bufio.NewScanner(f)

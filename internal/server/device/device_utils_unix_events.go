@@ -7,11 +7,11 @@ import (
 	"strings"
 	"sync"
 
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // UnixEvent represents the properties of a Unix device inotify event.
@@ -94,7 +94,7 @@ func unixUnregisterHandler(s *state.State, inst instance.Instance, deviceName st
 }
 
 // unixRunHandlers executes any handlers registered for Unix events.
-func unixRunHandlers(state *state.State, event *UnixEvent) {
+func unixRunHandlers(s *state.State, event *UnixEvent) {
 	unixMutex.Lock()
 	defer unixMutex.Unlock()
 
@@ -125,13 +125,13 @@ func unixRunHandlers(state *state.State, event *UnixEvent) {
 		// If runConf supplied, load instance and call its Unix event handler function so
 		// any instance specific device actions can occur.
 		if runConf != nil {
-			instance, err := instance.LoadByProjectAndName(state, projectName, instanceName)
+			inst, err := instance.LoadByProjectAndName(s, projectName, instanceName)
 			if err != nil {
 				logger.Error("Unix event loading instance failed", logger.Ctx{"err": err, "project": projectName, "instance": instanceName, "device": deviceName})
 				continue
 			}
 
-			err = instance.DeviceEventHandler(runConf)
+			err = inst.DeviceEventHandler(runConf)
 			if err != nil {
 				logger.Error("Unix event instance handler failed", logger.Ctx{"err": err, "project": projectName, "instance": instanceName, "device": deviceName})
 				continue

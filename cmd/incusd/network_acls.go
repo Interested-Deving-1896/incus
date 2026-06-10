@@ -7,26 +7,23 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	clusterRequest "github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/network/acl"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	clusterRequest "github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/network/acl"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var networkACLsCmd = APIEndpoint{
@@ -350,6 +347,11 @@ func networkACLsPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: ACL name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -372,7 +374,7 @@ func networkACLDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	aclName, err := url.PathUnescape(mux.Vars(r)["name"])
+	aclName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -407,6 +409,11 @@ func networkACLDelete(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: ACL name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -445,7 +452,7 @@ func networkACLGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	aclName, err := url.PathUnescape(mux.Vars(r)["name"])
+	aclName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -476,6 +483,11 @@ func networkACLGet(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: name
+//      description: ACL name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -511,6 +523,11 @@ func networkACLGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: ACL name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -541,7 +558,7 @@ func networkACLPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	aclName, err := url.PathUnescape(mux.Vars(r)["name"])
+	aclName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -601,6 +618,11 @@ func networkACLPut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: ACL name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -624,7 +646,7 @@ func networkACLPut(d *Daemon, r *http.Request) response.Response {
 func networkACLPost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	aclName, err := url.PathUnescape(mux.Vars(r)["name"])
+	aclName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -674,6 +696,11 @@ func networkACLPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/octet-stream
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: ACL name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -699,7 +726,7 @@ func networkACLLogGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	aclName, err := url.PathUnescape(mux.Vars(r)["name"])
+	aclName, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}

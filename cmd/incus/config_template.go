@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
 )
 
 type cmdConfigTemplate struct {
@@ -68,8 +68,10 @@ func (c *cmdConfigTemplateCreate) command() *cobra.Command {
 	cmd.Aliases = []string{"add"}
 	cmd.Short = i18n.G("Create new instance file templates")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Create new instance file templates`))
+		`Create new instance file templates`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(`incus config template create u1 t1
+    Create template t1 for instance u1
 
 incus config template create u1 t1 < config.tpl
     Create template t1 for instance u1 from config.tpl`))
@@ -88,7 +90,7 @@ incus config template create u1 t1 < config.tpl
 }
 
 func (c *cmdConfigTemplateCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConfigTemplateCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConfigTemplateCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -147,7 +149,7 @@ func (c *cmdConfigTemplateDelete) command() *cobra.Command {
 }
 
 func (c *cmdConfigTemplateDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConfigTemplateDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConfigTemplateDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -193,7 +195,7 @@ func (c *cmdConfigTemplateEdit) command() *cobra.Command {
 }
 
 func (c *cmdConfigTemplateEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConfigTemplateEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConfigTemplateEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -267,7 +269,7 @@ func (c *cmdConfigTemplateList) command() *cobra.Command {
 	cmd.Aliases = []string{"ls"}
 	cmd.Short = i18n.G("List instance file templates")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`List instance file templates`))
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -287,7 +289,7 @@ func (c *cmdConfigTemplateList) command() *cobra.Command {
 }
 
 func (c *cmdConfigTemplateList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConfigTemplateListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConfigTemplateListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -330,7 +332,8 @@ func (c *cmdConfigTemplateShow) command() *cobra.Command {
 	cmd.Use = cli.U("show", cmdConfigTemplateShowUsage...)
 	cmd.Short = i18n.G("Show content of instance file templates")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Show content of instance file templates`))
+		`Show content of instance file templates`,
+	))
 
 	cmd.RunE = c.run
 
@@ -350,7 +353,7 @@ func (c *cmdConfigTemplateShow) command() *cobra.Command {
 }
 
 func (c *cmdConfigTemplateShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConfigTemplateShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConfigTemplateShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}

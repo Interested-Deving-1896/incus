@@ -17,15 +17,15 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/termios"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/termios"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdConsole struct {
@@ -34,6 +34,8 @@ type cmdConsole struct {
 	flagForce   bool
 	flagShowLog bool
 	flagType    string
+
+	withLog bool
 }
 
 var cmdConsoleUsage = u.Usage{u.Instance.Remote()}
@@ -46,12 +48,13 @@ func (c *cmdConsole) command() *cobra.Command {
 		`Attach to instance consoles
 
 This command allows you to interact with the boot console of an instance
-as well as retrieve past log entries from it.`))
+as well as retrieve past log entries from it.`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVarP(&c.flagForce, "force", "f", false, i18n.G("Forces a connection to the console, even if there is already an active session"))
-	cmd.Flags().BoolVar(&c.flagShowLog, "show-log", false, i18n.G("Retrieve the instance's console log"))
-	cmd.Flags().StringVarP(&c.flagType, "type", "t", c.global.defaultConsoleType(), i18n.G("Type of connection to establish: 'console' for serial console, 'vga' for SPICE graphical output")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagForce, "force|f", i18n.G("Forces a connection to the console, even if there is already an active session"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagShowLog, "show-log", i18n.G("Retrieve the instance's console log"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagType, "type|t", c.global.defaultConsoleType(), "", i18n.G("Type of connection to establish: 'console' for serial console, 'vga' for SPICE graphical output"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return c.global.cmpInstances(toComplete)
@@ -109,7 +112,7 @@ func (er stdinMirror) Read(p []byte) (int, error) {
 }
 
 func (c *cmdConsole) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConsoleUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConsoleUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -171,7 +174,7 @@ func (c *cmdConsole) text(d incus.InstanceServer, name string) error {
 		return err
 	}
 
-	defer func() { _ = termios.Restore(cfd, oldTTYstate) }()
+	defer logger.WarnOnError(func() error { return termios.Restore(cfd, oldTTYstate) }, "Failed to restore terminal")
 
 	handler := c.controlSocketHandler
 
@@ -195,11 +198,20 @@ func (c *cmdConsole) text(d incus.InstanceServer, name string) error {
 	sendDisconnect := make(chan struct{})
 	defer close(sendDisconnect)
 
+	// Buffer websocket output so it doesn't interleave with the log
+	// content printed below.
+	var terminalOut io.WriteCloser = os.Stdout
+	var buffered *bufferedWriter
+	if c.withLog {
+		buffered = &bufferedWriter{out: os.Stdout}
+		terminalOut = buffered
+	}
+
 	consoleArgs := incus.InstanceConsoleArgs{
 		Terminal: &readWriteCloser{stdinMirror{
 			os.Stdin,
 			manualDisconnect, new(bool),
-		}, os.Stdout},
+		}, terminalOut},
 		Control:           handler,
 		ConsoleDisconnect: consoleDisconnect,
 	}
@@ -223,6 +235,33 @@ func (c *cmdConsole) text(d incus.InstanceServer, name string) error {
 	}
 
 	fmt.Print(i18n.G("To detach from the console, press: <ctrl>+a q") + "\n\r")
+
+	// With the websocket attached, fetch the existing console log,
+	// print it, then release any buffered websocket output. A small
+	// overlap is preferable to losing output produced before the attach.
+	if c.withLog {
+		logArgs := &incus.InstanceConsoleLogArgs{}
+		log, err := d.GetInstanceConsoleLog(name, logArgs)
+		if err != nil {
+			return err
+		}
+
+		content, err := io.ReadAll(log)
+		if err != nil {
+			return err
+		}
+
+		// In raw mode the terminal doesn't translate \n to \r\n, so
+		// normalize line endings before printing the log.
+		text := strings.ReplaceAll(string(content), "\r\n", "\n")
+		text = strings.ReplaceAll(text, "\n", "\r\n")
+		fmt.Print(text)
+
+		err = buffered.Flush()
+		if err != nil {
+			return err
+		}
+	}
 
 	// Wait for the operation to complete
 	err = op.Wait()
@@ -290,7 +329,7 @@ func (c *cmdConsole) vga(d incus.InstanceServer, name string) error {
 			return err
 		}
 
-		defer func() { _ = os.Remove(path.Name()) }()
+		defer logger.WarnOnError(func() error { return os.Remove(path.Name()) }, "Failed to remove temporary file")
 
 		socket = fmt.Sprintf("spice+unix://%s", path.Name())
 	} else {

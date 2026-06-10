@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
@@ -14,33 +15,34 @@ import (
 	petname "github.com/dustinkirkland/golang-petname"
 	"github.com/gorilla/websocket"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/instance/operationlock"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/scriptlet"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	apiScriptlet "github.com/lxc/incus/v6/shared/api/scriptlet"
-	"github.com/lxc/incus/v6/shared/archive"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/util"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/instance/operationlock"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/scriptlet"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	apiScriptlet "github.com/lxc/incus/v7/shared/api/scriptlet"
+	"github.com/lxc/incus/v7/shared/archive"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 func ensureDownloadedImageFitWithinBudget(ctx context.Context, s *state.State, r *http.Request, op *operations.Operation, p api.Project, imgAlias string, source api.InstanceSource, imgType string) (*api.Image, error) {
@@ -298,17 +300,22 @@ func createFromMigration(ctx context.Context, s *state.State, r *http.Request, p
 	if req.Source.Refresh || (clusterMoveSourceName != "" && clusterMoveSourceName == req.Name) {
 		inst, err = instance.LoadByProjectAndName(s, projectName, req.Name)
 		if err != nil {
-			if response.IsNotFoundError(err) {
-				if clusterMoveSourceName != "" {
-					// Cluster move doesn't allow renaming as part of migration so fail here.
-					return response.SmartError(errors.New("Cluster move doesn't allow renaming"))
-				}
-
-				req.Source.Refresh = false
-			} else {
+			if !response.IsNotFoundError(err) {
 				return response.SmartError(err)
 			}
+
+			if clusterMoveSourceName != "" {
+				// Cluster move doesn't allow renaming as part of migration so fail here.
+				return response.SmartError(errors.New("Cluster move doesn't allow renaming"))
+			}
+
+			req.Source.Refresh = false
 		}
+	}
+
+	// Refuse to migrate onto an existing instance of a different type.
+	if inst != nil && inst.Type() != dbType {
+		return response.Conflict(fmt.Errorf("Instance %q already exists with a different type", req.Name))
 	}
 
 	reverter := revert.New()
@@ -351,6 +358,31 @@ func createFromMigration(ctx context.Context, s *state.State, r *http.Request, p
 		if err != nil {
 			return response.SmartError(fmt.Errorf("Failed setting up websocket dialer for migration sink connections: %w", err))
 		}
+	}
+
+	// Override existing devices with values provided in the request.
+	devs := inst.LocalDevices().CloneNative()
+	if req.Devices != nil {
+		err = inst.ForEachDependentDiskType(func(dev deviceConfig.DeviceNamed) error {
+			reqDevice, ok := req.Devices[dev.Name]
+			if !ok {
+				return nil
+			}
+
+			maps.Copy(devs[dev.Name], reqDevice)
+
+			return nil
+		})
+		if err != nil {
+			return response.InternalError(err)
+		}
+	}
+
+	// Update devices for the target instance without saving changes to the database,
+	// as the same instance is still being used by the source.
+	err = inst.UpdateDevices(deviceConfig.NewDevices(devs))
+	if err != nil {
+		return response.InternalError(fmt.Errorf("Failed to update instance %q: %w", inst.Name(), err))
 	}
 
 	migrationArgs := migrationSinkArgs{
@@ -399,7 +431,7 @@ func createFromMigration(ctx context.Context, s *state.State, r *http.Request, p
 
 		instOp.Done(nil) // Complete operation that was created earlier, to release lock.
 
-		if migrationArgs.StoragePool != "" {
+		if migrationArgs.StoragePool != "" || req.Devices != nil {
 			// Update root device for the instance if needed.
 			updateNeeded := false
 
@@ -429,6 +461,23 @@ func createFromMigration(ctx context.Context, s *state.State, r *http.Request, p
 				if devs[rootDevKey]["pool"] != storagePool {
 					devs[rootDevKey]["pool"] = storagePool
 					updateNeeded = true
+				}
+			}
+
+			if req.Devices != nil {
+				err = inst.ForEachDependentDiskType(func(dev deviceConfig.DeviceNamed) error {
+					updateNeeded = true
+					reqDevice, ok := req.Devices[dev.Name]
+					if !ok {
+						return nil
+					}
+
+					maps.Copy(devs[dev.Name], reqDevice)
+
+					return nil
+				})
+				if err != nil {
+					return err
 				}
 			}
 
@@ -482,6 +531,71 @@ func createFromMigration(ctx context.Context, s *state.State, r *http.Request, p
 	return operations.OperationResponse(op)
 }
 
+// validateDependentVolumes validates dependent volumes during copy.
+func validateDependentVolumes(source instance.Instance, req *api.InstancesPost) error {
+	// Fetch all dependent devices belonging to the instance.
+	dependentVolumes := []string{}
+	err := source.ForEachDependentDiskType(func(dev deviceConfig.DeviceNamed) error {
+		dependentVolumes = append(dependentVolumes, dev.Name)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	sourceDevices := source.LocalDevices()
+	for _, key := range dependentVolumes {
+		newDevice, exists := req.Devices[key]
+		if !exists {
+			return fmt.Errorf("Missing device %s in request", key)
+		}
+
+		oldDevice, exists := sourceDevices[key]
+		if !exists {
+			return fmt.Errorf("Missing device %s on source", key)
+		}
+
+		if newDevice["pool"] != "" && oldDevice["pool"] != newDevice["pool"] {
+			continue
+		}
+
+		// Check if the source was overridden.
+		if oldDevice["source"] == newDevice["source"] {
+			return fmt.Errorf("Device source name should be different during copy for dependent disk: %s", key)
+		}
+	}
+
+	return nil
+}
+
+// ErrPoolNotRemote indicates the pool is not remote.
+var ErrPoolNotRemote = errors.New("Pool is not remote")
+
+// checkVolumesOnRemoteStorage checks whether root and dependent disks are located on remote storage.
+func checkVolumesOnRemoteStorage(s *state.State, pool *api.StoragePool, inst instance.Instance) error {
+	if !slices.Contains(db.StorageRemoteDriverNames(), pool.Driver) {
+		return ErrPoolNotRemote
+	}
+
+	err := inst.ForEachDependentDiskType(func(dev deviceConfig.DeviceNamed) error {
+		diskPool, err := storagePools.LoadByName(s, dev.Config["pool"])
+		if err != nil {
+			return fmt.Errorf("Failed loading storage pool: %w", err)
+		}
+
+		if !slices.Contains(db.StorageRemoteDriverNames(), diskPool.Driver().Name()) {
+			return ErrPoolNotRemote
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func createFromCopy(ctx context.Context, s *state.State, r *http.Request, projectName string, profiles []api.Profile, req *api.InstancesPost) response.Response {
 	if s.ServerClustered && s.DB.Cluster.LocalNodeIsEvacuated() {
 		return response.Forbidden(errors.New("Cluster member is evacuated"))
@@ -503,9 +617,14 @@ func createFromCopy(ctx context.Context, s *state.State, r *http.Request, projec
 		return response.SmartError(err)
 	}
 
-	// If "security.secureboot" has changed, force a NVRAM reset.
-	if util.IsTrueOrEmpty(source.ExpandedConfig()["security.secureboot"]) != util.IsTrueOrEmpty(req.Config["security.secureboot"]) {
+	// If "security.secureboot" has changed, force a NVRAM reset (VMs only).
+	if source.Type() == instancetype.VM && util.IsTrueOrEmpty(source.ExpandedConfig()["security.secureboot"]) != util.IsTrueOrEmpty(req.Config["security.secureboot"]) {
 		req.Config["volatile.apply_nvram"] = "true"
+	}
+
+	err = validateDependentVolumes(source, req)
+	if err != nil {
+		return response.SmartError(err)
 	}
 
 	// When clustered, use the node name, otherwise use the hostname.
@@ -539,9 +658,14 @@ func createFromCopy(ctx context.Context, s *state.State, r *http.Request, projec
 				return response.SmartError(err)
 			}
 
-			if !slices.Contains(db.StorageRemoteDriverNames(), pool.Driver) {
-				// Redirect to migration
-				return clusterCopyContainerInternal(ctx, s, r, source, projectName, profiles, req)
+			err = checkVolumesOnRemoteStorage(s, pool, source)
+			if err != nil {
+				if errors.Is(err, ErrPoolNotRemote) {
+					// Redirect to migration
+					return clusterCopyContainerInternal(ctx, s, r, source, projectName, profiles, req)
+				}
+
+				return response.SmartError(err)
 			}
 		}
 	}
@@ -656,11 +780,26 @@ func createFromBackup(s *state.State, r *http.Request, projectName string, data 
 		return response.InternalError(err)
 	}
 
-	defer func() { _ = os.Remove(backupFile.Name()) }()
+	defer logger.WarnOnError(func() error { return os.Remove(backupFile.Name()) }, "Failed to remove backup file")
 	reverter.Add(func() { _ = backupFile.Close() })
 
+	// Get disk budget for the project if any.
+	var budget int64
+
+	err = s.DB.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
+		budget, err = project.GetSpaceBudget(tx, projectName)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	// Stream uploaded backup data into temporary file.
-	_, err = util.SafeCopy(backupFile, data)
+	_, err = util.SafeCopy(internalIO.NewQuotaWriter(backupFile, budget), data)
 	if err != nil {
 		return response.InternalError(err)
 	}
@@ -686,7 +825,7 @@ func createFromBackup(s *state.State, r *http.Request, projectName string, data 
 			return response.InternalError(err)
 		}
 
-		defer func() { _ = os.Remove(tarFile.Name()) }()
+		defer logger.WarnOnError(func() error { return os.Remove(tarFile.Name()) }, "Failed to remove tarball file")
 
 		// Decompress to tarFile temporary file.
 		err = archive.ExtractWithFds(decomArgs[0], decomArgs[1:], nil, nil, tarFile)
@@ -714,7 +853,7 @@ func createFromBackup(s *state.State, r *http.Request, projectName string, data 
 	}
 
 	// Detect broken legacy backups.
-	if bInfo.Config == nil {
+	if bInfo.Config == nil || bInfo.Config.Container == nil {
 		return response.BadRequest(errors.New("Backup file is missing required information"))
 	}
 
@@ -831,7 +970,7 @@ func createFromBackup(s *state.State, r *http.Request, projectName string, data 
 	runReverter := reverter.Clone()
 
 	run := func(op *operations.Operation) error {
-		defer func() { _ = backupFile.Close() }()
+		defer logger.WarnOnError(backupFile.Close, "Failed to close backup file")
 		defer runReverter.Fail()
 
 		pool, err := storagePools.LoadByName(s, bInfo.Pool)
@@ -1507,6 +1646,7 @@ func clusterCopyContainerInternal(ctx context.Context, s *state.State, r *http.R
 			Migration:    true,
 			Live:         req.Source.Live,
 			InstanceOnly: instanceOnly,
+			Devices:      req.Devices,
 		}
 
 		op, err := client.MigrateInstance(req.Source.Source, pullReq)
@@ -1519,7 +1659,12 @@ func clusterCopyContainerInternal(ctx context.Context, s *state.State, r *http.R
 
 	websockets := map[string]string{}
 	for k, v := range opAPI.Metadata {
-		websockets[k] = v.(string)
+		vStr, ok := v.(string)
+		if !ok {
+			continue
+		}
+
+		websockets[k] = vStr
 	}
 
 	// Reset the source for a migration

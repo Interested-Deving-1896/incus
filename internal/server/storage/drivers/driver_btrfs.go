@@ -11,25 +11,24 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 var (
-	btrfsVersion       string
-	btrfsLoaded        bool
-	btrfsPropertyForce bool
+	btrfsVersion string
+	btrfsLoaded  bool
 )
 
 type btrfs struct {
@@ -71,22 +70,6 @@ func (d *btrfs) load() error {
 		if err != nil || count != 1 {
 			return errors.New("The 'btrfs' tool isn't working properly")
 		}
-	}
-
-	// Check if we need --force to set properties.
-	ver5142, err := version.Parse("5.14.2")
-	if err != nil {
-		return err
-	}
-
-	ourVer, err := version.Parse(btrfsVersion)
-	if err != nil {
-		return err
-	}
-
-	// If running 5.14.2 or older, we need --force.
-	if ourVer.Compare(ver5142) > 0 {
-		btrfsPropertyForce = true
 	}
 
 	btrfsLoaded = true
@@ -174,7 +157,7 @@ func (d *btrfs) Create() error {
 		reverter.Add(func() { _ = os.Remove(d.config["source"]) })
 
 		// Format the file.
-		_, err = makeFSType(d.config["source"], "btrfs", &mkfsOptions{Label: d.name})
+		_, err = makeFSType(d.config["source"], "btrfs", &mkfsOptions{Label: d.name, ExtraArgs: d.config["btrfs.create_options"]})
 		if err != nil {
 			return fmt.Errorf("Failed to format sparse file: %w", err)
 		}
@@ -190,7 +173,7 @@ func (d *btrfs) Create() error {
 		}
 
 		// Format the block device.
-		_, err := makeFSType(d.config["source"], "btrfs", &mkfsOptions{Label: d.name})
+		_, err := makeFSType(d.config["source"], "btrfs", &mkfsOptions{Label: d.name, ExtraArgs: d.config["btrfs.create_options"]})
 		if err != nil {
 			return fmt.Errorf("Failed to format block device: %w", err)
 		}
@@ -363,6 +346,15 @@ func (d *btrfs) Validate(config map[string]string) error {
 		//  default: `user_subvol_rm_allowed`
 		//  shortdesc: Mount options for block devices
 		"btrfs.mount_options": validate.IsAny,
+
+		// gendoc:generate(entity=storage_btrfs, group=common, key=btrfs.create_options)
+		//
+		// ---
+		//  type: string
+		//  scope: global
+		//  default: -
+		//  shortdesc: Additional options to pass to `mkfs.btrfs` when creating the pool
+		"btrfs.create_options": validate.IsAny,
 	}
 
 	return d.validatePool(config, rules, nil)
@@ -404,7 +396,7 @@ func (d *btrfs) Update(changedConfig map[string]string) error {
 			return err
 		}
 
-		defer func() { _ = f.Close() }()
+		defer logger.WarnOnError(f.Close, "Failed to close file")
 
 		sizeBytes, _ := units.ParseByteSizeString(size)
 
@@ -418,7 +410,7 @@ func (d *btrfs) Update(changedConfig map[string]string) error {
 			return err
 		}
 
-		defer func() { _ = loopDeviceAutoDetach(loopDevPath) }()
+		defer logger.WarnOnError(func() error { return loopDeviceAutoDetach(loopDevPath) }, "Failed to detach loop device")
 
 		err = loopDeviceSetCapacity(loopDevPath)
 		if err != nil {
@@ -454,7 +446,7 @@ func (d *btrfs) Mount() (bool, error) {
 			return false, err
 		}
 
-		defer func() { _ = loopDeviceAutoDetach(mntSrc) }()
+		defer logger.WarnOnError(func() error { return loopDeviceAutoDetach(mntSrc) }, "Failed to detach loop device")
 	} else if filepath.IsAbs(d.config["source"]) {
 		// Bring up an existing device or path.
 		mntSrc = d.config["source"]
@@ -523,7 +515,7 @@ func (d *btrfs) GetResources() (*api.ResourcesStoragePool, error) {
 	return genericVFSGetResources(d)
 }
 
-// MigrationType returns the type of transfer methods to be used when doing migrations between pools in preference order.
+// MigrationTypes returns the type of transfer methods to be used when doing migrations between pools in preference order.
 func (d *btrfs) MigrationTypes(contentType ContentType, refresh bool, copySnapshots bool, clusterMove bool, storageMove bool) []localMigration.Type {
 	var rsyncFeatures []string
 	btrfsFeatures := []string{migration.BTRFSFeatureMigrationHeader, migration.BTRFSFeatureSubvolumes, migration.BTRFSFeatureSubvolumeUUIDs}

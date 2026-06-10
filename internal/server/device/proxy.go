@@ -15,25 +15,25 @@ import (
 
 	liblxc "github.com/lxc/go-lxc"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/apparmor"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/warningtype"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/device/nictype"
-	firewallDrivers "github.com/lxc/incus/v6/internal/server/firewall/drivers"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/ip"
-	"github.com/lxc/incus/v6/internal/server/network"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/warnings"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/apparmor"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/warningtype"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/device/nictype"
+	firewallDrivers "github.com/lxc/incus/v7/internal/server/firewall/drivers"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/ip"
+	"github.com/lxc/incus/v7/internal/server/network"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/warnings"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 type proxy struct {
@@ -348,7 +348,7 @@ func (d *proxy) Start() (*deviceConfig.RunConfig, error) {
 				return err
 			}
 
-			devFileName := fmt.Sprintf("proxy.%s", d.name)
+			devFileName := fmt.Sprintf("proxy.%s", linux.PathNameEncode(d.name))
 			pidPath := filepath.Join(d.inst.DevicesPath(), devFileName)
 			logFileName := fmt.Sprintf("proxy.%s.log", d.name)
 			logPath := filepath.Join(d.inst.LogPath(), logFileName)
@@ -436,7 +436,7 @@ func (d *proxy) checkProcStarted(logPath string) (bool, error) {
 		return false, err
 	}
 
-	defer func() { _ = file.Close() }()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -461,13 +461,13 @@ func (d *proxy) checkProcStarted(logPath string) (bool, error) {
 
 // Stop is run when the device is removed from the instance.
 func (d *proxy) Stop() (*deviceConfig.RunConfig, error) {
-	// Remove possible iptables entries
+	// Remove possible firewall entries.
 	err := d.state.Firewall.InstanceClearProxyNAT(d.inst.Project().Name, d.inst.Name(), d.name)
 	if err != nil {
 		logger.Errorf("Failed to remove proxy NAT filters: %v", err)
 	}
 
-	devFileName := fmt.Sprintf("proxy.%s", d.name)
+	devFileName := fmt.Sprintf("proxy.%s", linux.PathNameEncode(d.name))
 	devPath := filepath.Join(d.inst.DevicesPath(), devFileName)
 
 	if !util.PathExists(devPath) {
@@ -608,25 +608,25 @@ func (d *proxy) setupProxyProcInfo() (*proxyProcInfo, error) {
 		return nil, err
 	}
 
-	defer func() { _ = cc.Release() }()
+	defer logger.WarnOnError(cc.Release, "Failed to release container")
 
 	containerPid := strconv.Itoa(cc.InitPid())
 	daemonPid := strconv.Itoa(os.Getpid())
 
-	containerPidFd := -1
-	daemonPidFd := -1
-	var inheritFd []*os.File
-	if d.state.OS.PidFds {
-		cPidFd, err := cc.InitPidFd()
-		if err == nil {
-			dPidFd, err := linux.PidFdOpen(os.Getpid(), 0)
-			if err == nil {
-				inheritFd = []*os.File{cPidFd, dPidFd}
-				containerPidFd = 3
-				daemonPidFd = 4
-			}
-		}
+	cPidFd, err := cc.InitPidFd()
+	if err != nil {
+		return nil, err
 	}
+
+	dPidFd, err := linux.PidFdOpen(os.Getpid(), 0)
+	if err != nil {
+		_ = cPidFd.Close()
+		return nil, err
+	}
+
+	inheritFd := []*os.File{cPidFd, dPidFd}
+	containerPidFd := 3
+	daemonPidFd := 4
 
 	var listenPid, listenPidFd, connectPid, connectPidFd string
 

@@ -5,10 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdLaunch struct {
@@ -23,27 +23,29 @@ func (c *cmdLaunch) command() *cobra.Command {
 	cmd.Use = cli.U("launch", cmdCreateUsage...)
 	cmd.Short = i18n.G("Create and start instances from images")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Create and start instances from images`))
+		`Create and start instances from images`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
-		`incus launch images:debian/12 u1
+		`incus launch images:debian/12 c1
+    Create and start a container named "c1"
 
-incus launch images:debian/12 u1 < config.yaml
-    Create and start a container with configuration from config.yaml
+incus launch images:debian/12 c2 < config.yaml
+    Create and start a container named "c2" with configuration from config.yaml
 
-incus launch images:debian/12 u2 -t aws:t2.micro
-    Create and start a container using the same size as an AWS t2.micro (1 vCPU, 1GiB of RAM)
+incus launch images:debian/12 c3 -t aws:t2.micro
+    Create and start a container named "c3" using the same size as an AWS t2.micro (1 vCPU, 1GiB of RAM)
 
 incus launch images:debian/12 v1 --vm -c limits.cpu=4 -c limits.memory=4GiB
-    Create and start a virtual machine with 4 vCPUs and 4GiB of RAM
+    Create and start a virtual machine named "v1" with 4 vCPUs and 4GiB of RAM
 
 incus launch images:debian/12 v2 --vm -d root,size=50GiB -d root,io.bus=nvme
-    Create and start a virtual machine, overriding the disk size and bus`))
+    Create and start a virtual machine named "v2", overriding the disk size and bus`,
+	))
 	cmd.Hidden = false
 
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVar(&c.flagConsole, "console", "", i18n.G("Immediately attach to the console")+"``")
-	cmd.Flags().Lookup("console").NoOptDefVal = "console"
+	cli.AddStringFlag(cmd.Flags(), &c.flagConsole, "console", "", "console", i18n.G("Immediately attach to the console"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) != 0 {
@@ -58,7 +60,7 @@ incus launch images:debian/12 v2 --vm -d root,size=50GiB -d root,io.bus=nvme
 
 func (c *cmdLaunch) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdCreateUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -79,6 +81,7 @@ func (c *cmdLaunch) run(cmd *cobra.Command, args []string) error {
 			console := cmdConsole{}
 			console.global = c.global
 			console.flagType = c.flagConsole
+			console.withLog = c.flagConsole == "console"
 
 			consoleErr := console.console(d, instanceName)
 			if consoleErr != nil {
@@ -145,6 +148,7 @@ func (c *cmdLaunch) run(cmd *cobra.Command, args []string) error {
 		console := cmdConsole{}
 		console.global = c.global
 		console.flagType = c.flagConsole
+		console.withLog = c.flagConsole == "console"
 
 		consoleErr := console.console(d, instanceName)
 		if consoleErr != nil {

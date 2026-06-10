@@ -12,13 +12,14 @@ import (
 	"strings"
 	"time"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/db/query"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/shared/api"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/db/query"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 // InstanceArgs is a value object holding all db-related details about an instance.
@@ -111,7 +112,7 @@ SELECT nodes.id, nodes.address
 		return "", err
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	if !rows.Next() {
 		return "", api.StatusErrorf(http.StatusNotFound, "Instance not found")
@@ -164,7 +165,7 @@ func (c *ClusterTx) GetInstancesByMemberAddress(ctx context.Context, offlineThre
 	`)
 
 	// Project filter.
-	q.WriteString(fmt.Sprintf("WHERE projects.name IN %s", query.Params(len(projects))))
+	fmt.Fprintf(&q, "WHERE projects.name IN %s", query.Params(len(projects)))
 	for _, project := range projects {
 		args = append(args, project)
 	}
@@ -176,7 +177,7 @@ func (c *ClusterTx) GetInstancesByMemberAddress(ctx context.Context, offlineThre
 		return nil, err
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	memberAddressInstances := make(map[string][]Instance)
 
@@ -192,7 +193,7 @@ func (c *ClusterTx) GetInstancesByMemberAddress(ctx context.Context, offlineThre
 
 		if memberID == c.nodeID {
 			memberAddress = ""
-		} else if nodeIsOffline(offlineThreshold, memberHeartbeat) {
+		} else if nodeIsOffline(offlineThreshold, memberHeartbeat, time.Time{}) {
 			memberAddress = "0.0.0.0"
 		}
 
@@ -292,7 +293,7 @@ func (c *ClusterTx) InstanceList(ctx context.Context, instanceFunc func(inst Ins
 func (c *ClusterTx) instanceConfigFill(ctx context.Context, snapshotsMode bool, instanceArgs *map[int]InstanceArgs) error {
 	instances := *instanceArgs
 
-	// Don't use query parameters for the IN statement to workaround an issue in Dqlite (apparently)
+	// Don't use query parameters for the IN statement to workaround an issue in Cowsql (apparently)
 	// that means that >255 query parameters causes partial result sets. See #10705
 	// This is safe as the inputs are ints.
 	var q strings.Builder
@@ -323,7 +324,7 @@ func (c *ClusterTx) instanceConfigFill(ctx context.Context, snapshotsMode bool, 
 
 		first = false
 
-		q.WriteString(fmt.Sprintf("%d", instanceID))
+		fmt.Fprintf(&q, "%d", instanceID)
 	}
 
 	q.WriteString(`)`)
@@ -364,7 +365,7 @@ func (c *ClusterTx) instanceConfigFill(ctx context.Context, snapshotsMode bool, 
 func (c *ClusterTx) instanceDevicesFill(ctx context.Context, snapshotsMode bool, instanceArgs *map[int]InstanceArgs) error {
 	instances := *instanceArgs
 
-	// Don't use query parameters for the IN statement to workaround an issue in Dqlite (apparently)
+	// Don't use query parameters for the IN statement to workaround an issue in Cowsql (apparently)
 	// that means that >255 query parameters causes partial result sets. See #10705
 	// This is safe as the inputs are ints.
 	var q strings.Builder
@@ -403,7 +404,7 @@ func (c *ClusterTx) instanceDevicesFill(ctx context.Context, snapshotsMode bool,
 
 		first = false
 
-		q.WriteString(fmt.Sprintf("%d", instanceID))
+		fmt.Fprintf(&q, "%d", instanceID)
 	}
 
 	q.WriteString(`)`)
@@ -455,7 +456,7 @@ func (c *ClusterTx) instanceProfilesFill(ctx context.Context, snapshotsMode bool
 	instances := *instanceArgs
 
 	// Get profiles referenced by instances.
-	// Don't use query parameters for the IN statement to workaround an issue in Dqlite (apparently)
+	// Don't use query parameters for the IN statement to workaround an issue in Cowsql (apparently)
 	// that means that >255 query parameters causes partial result sets. See #10705
 	// This is safe as the inputs are ints.
 	var q strings.Builder
@@ -487,7 +488,7 @@ func (c *ClusterTx) instanceProfilesFill(ctx context.Context, snapshotsMode bool
 
 		first = false
 
-		q.WriteString(fmt.Sprintf("%d", instanceID))
+		fmt.Fprintf(&q, "%d", instanceID)
 	}
 
 	q.WriteString(`)
@@ -729,7 +730,7 @@ func (c *ClusterTx) configUpdate(id int, values map[string]string, insertSQL, de
 
 	// Insert/update keys
 	if len(changes) > 0 {
-		query := insertSQL
+		q := insertSQL
 		exprs := []string{}
 		params := []any{}
 		for key, value := range changes {
@@ -737,8 +738,8 @@ func (c *ClusterTx) configUpdate(id int, values map[string]string, insertSQL, de
 			params = append(params, []any{id, key, value}...)
 		}
 
-		query += strings.Join(exprs, ",")
-		_, err := c.tx.Exec(query, params...)
+		q += strings.Join(exprs, ",")
+		_, err := c.tx.Exec(q, params...)
 		if err != nil {
 			return err
 		}
@@ -746,14 +747,14 @@ func (c *ClusterTx) configUpdate(id int, values map[string]string, insertSQL, de
 
 	// Delete keys
 	if len(deletes) > 0 {
-		query := fmt.Sprintf(deleteSQL, query.Params(len(deletes)))
+		q := fmt.Sprintf(deleteSQL, query.Params(len(deletes)))
 		params := []any{}
 		for _, key := range deletes {
 			params = append(params, key)
 		}
 
 		params = append(params, id)
-		_, err := c.tx.Exec(query, params...)
+		_, err := c.tx.Exec(q, params...)
 		if err != nil {
 			return err
 		}
@@ -858,7 +859,7 @@ func (c *ClusterTx) GetInstancePool(ctx context.Context, projectName string, ins
 	// unique, and their storage volumes carry the same name, their storage
 	// volumes are unique too.
 	poolName := ""
-	query := fmt.Sprintf(`
+	q := fmt.Sprintf(`
 SELECT storage_pools.name FROM storage_pools
   JOIN storage_volumes_all ON storage_pools.id=storage_volumes_all.storage_pool_id
   JOIN instances ON instances.name=storage_volumes_all.name
@@ -875,7 +876,7 @@ SELECT storage_pools.name FROM storage_pools
 		inargs = append(inargs, driver)
 	}
 
-	err := c.tx.QueryRowContext(ctx, query, inargs...).Scan(outargs...)
+	err := c.tx.QueryRowContext(ctx, q, inargs...).Scan(outargs...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", api.StatusErrorf(http.StatusNotFound, "Instance storage pool not found")
@@ -1014,10 +1015,14 @@ ORDER BY instances_snapshots.creation_date, instances_snapshots.id
 		return 0
 	}
 
-	max := 0
+	maxIndex := 0
 
 	for _, r := range results {
-		snapOnlyName := r[0].(string)
+		snapOnlyName, ok := r[0].(string)
+		if !ok {
+			continue
+		}
+
 		fields := strings.SplitN(pattern, "%d", 2)
 
 		var num int
@@ -1026,12 +1031,12 @@ ORDER BY instances_snapshots.creation_date, instances_snapshots.id
 			continue
 		}
 
-		if num >= max {
-			max = num + 1
+		if num >= maxIndex {
+			maxIndex = num + 1
 		}
 	}
 
-	return max
+	return maxIndex
 }
 
 // DeleteReadyStateFromLocalInstances deletes the volatile.last_state.ready config key
@@ -1056,13 +1061,13 @@ WHERE instances_config.id IN (
 
 // CreateInstanceConfig inserts a new config for the instance with the given ID.
 func CreateInstanceConfig(ctx context.Context, tx *sql.Tx, id int, config map[string]string) error {
-	sql := "INSERT INTO instances_config (instance_id, key, value) values (?, ?, ?)"
+	stmt := "INSERT INTO instances_config (instance_id, key, value) values (?, ?, ?)"
 	for k, v := range config {
 		if v == "" {
 			continue
 		}
 
-		_, err := tx.ExecContext(ctx, sql, id, k, v)
+		_, err := tx.ExecContext(ctx, stmt, id, k, v)
 		if err != nil {
 			return fmt.Errorf("Error adding configuration item %q = %q to instance %d: %w", k, v, id, err)
 		}

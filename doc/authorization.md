@@ -46,9 +46,7 @@ The Incus OpenFGA authorization model describes API resources in terms of their 
 The full Incus OpenFGA authorization model is defined in `internal/server/auth/driver_openfga_model.openfga`:
 
 ```{literalinclude} ../internal/server/auth/driver_openfga_model.openfga
----
-language: none
----
+:language: none
 ```
 
 ```{important}
@@ -62,7 +60,7 @@ Users that you do not trust with root access to the host should not be granted t
 - `server -> can_create_certificates`
 - `certificate -> can_edit`
 - `storage_pool -> can_edit`
-- `project -> manager`
+- `project -> admin`
 
 The remaining relations may be granted.
 However, you must apply appropriate {ref}`project-restrictions`.

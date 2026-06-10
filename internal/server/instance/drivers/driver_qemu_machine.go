@@ -10,24 +10,26 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/qemudefault"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/resources"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/qemudefault"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/resources"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 type qemuCPUTopology struct {
-	Sockets int `json:"sockets"`
-	Cores   int `json:"cores"`
-	Threads int `json:"threads"`
-	vCPUs   map[uint64]uint64
-	nodes   map[uint64][]uint64
+	Sockets  int  `json:"sockets"`
+	Cores    int  `json:"cores"`
+	Threads  int  `json:"threads"`
+	Explicit bool `json:"explicit"`
+
+	vCPUs map[uint64]uint64
+	nodes map[uint64][]uint64
 }
 
 // cpuTopology sets up the qemuCPUTopology struct based on configured CPU limits, host system and guest OS.
@@ -39,6 +41,21 @@ func (d *qemu) cpuTopology() (*qemuCPUTopology, error) {
 
 	if limit == "" {
 		limit = "1"
+	}
+
+	// Check if an explicit CPU topology was requested.
+	if strings.Contains(limit, "=") {
+		sockets, cores, threads, err := validate.ParseCPUTopology(limit)
+		if err != nil {
+			return nil, err
+		}
+
+		topology.Sockets = sockets
+		topology.Cores = cores
+		topology.Threads = threads
+		topology.Explicit = true
+
+		return topology, nil
 	}
 
 	// Check if pinned or floating.
@@ -183,11 +200,13 @@ func (d *qemu) cpuType(bs *qemuBootState) (string, error) {
 	cpuExtensions := []string{}
 
 	if d.architecture == osarch.ARCH_64BIT_INTEL_X86 {
-		// If using Linux 5.10 or later, use HyperV optimizations.
-		minVer, _ := version.NewDottedVersion("5.10.0")
-		if d.state.OS.KernelVersion.Compare(minVer) >= 0 && !d.CanLiveMigrate() {
+		// Use HyperV optimizations on x86_64 when not live-migrating.
+		if !d.CanLiveMigrate() {
 			// x86_64 can use hv_time to improve Windows guest performance.
 			cpuExtensions = append(cpuExtensions, "hv_passthrough")
+		} else {
+			// Try to emulate hv_passthrough without the migration limitation. Of this set, particularly hv_time has a strong effect on I/O performance.
+			cpuExtensions = append(cpuExtensions, "hv_relaxed", "hv_vpindex", "hv_runtime", "hv_time", "hv_synic", "hv_stimer", "hv_tlbflush", "hv_ipi", "hv_frequencies", "hv_stimer_direct", "hv_xmm_input", "hv_tlbflush_ext")
 		}
 
 		// x86_64 requires the use of topoext when SMT is used.
@@ -314,7 +333,7 @@ func (d *qemu) memoryTopology(bs *qemuBootState) (*qemuMemoryTopology, error) {
 		}
 	}
 
-	cpuType := strings.Split(bs.CPUType, ",")[0]
+	cpuType, _, _ := strings.Cut(bs.CPUType, ",")
 	if (cpuType == "host" || cpuType == "kvm64") && memoryHotplugEnabled {
 		if !util.IsTrueOrEmpty(limitsMemoryHotplug) {
 			maxMemoryBytes, err = units.ParseByteSizeString(limitsMemoryHotplug)
@@ -350,13 +369,8 @@ func (d *qemu) memoryTopology(bs *qemuBootState) (*qemuMemoryTopology, error) {
 			// Reduce the maximum by one bit to allow QEMU some headroom.
 			cpuPhysBits--
 
-			// Calculate the max memory limit.
-			maxMemoryBytes = int64(math.Pow(2, float64(cpuPhysBits)))
-
-			// Cap to 1TB.
-			if maxMemoryBytes > 1024*1024*1024*1024 {
-				maxMemoryBytes = 1024 * 1024 * 1024 * 1024
-			}
+			// Calculate the max memory limit, capped to 1TB.
+			maxMemoryBytes = min(int64(math.Pow(2, float64(cpuPhysBits))), 1024*1024*1024*1024)
 
 			// On standalone systems, further cap to the system's total memory.
 			if !d.state.ServerClustered {

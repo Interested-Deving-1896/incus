@@ -16,13 +16,14 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/simplestreams"
-	"github.com/lxc/incus/v6/shared/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/simplestreams"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdAdd struct {
@@ -101,6 +102,8 @@ func (c *cmdAdd) parseImage(metaFile *os.File, dataFile *os.File) (*dataItem, er
 		item.FileType = "squashfs"
 	case ".qcow2":
 		item.FileType = "disk-kvm.img"
+	case ".tar.xz":
+		item.FileType = "root.tar.xz"
 	default:
 		return nil, fmt.Errorf("Unsupported data type %q", item.Extension)
 	}
@@ -169,7 +172,7 @@ func (c *cmdAdd) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	defer metaFile.Close()
+	defer logger.WarnOnError(metaFile.Close, "Failed to close file")
 
 	// Read the header.
 	_, _, unpacker, err := archive.DetectCompressionFile(metaFile)
@@ -266,6 +269,7 @@ func (c *cmdAdd) run(cmd *cobra.Command, args []string) error {
 	}
 
 	var data *dataItem
+	imageType := "container"
 	if !isUnifiedTarball {
 		// Open the data.
 		dataFile, err := os.Open(args[1])
@@ -273,12 +277,46 @@ func (c *cmdAdd) run(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		defer dataFile.Close()
+		defer logger.WarnOnError(dataFile.Close, "Failed to close file")
 
 		// Parse the content.
 		data, err = c.parseImage(metaFile, dataFile)
 		if err != nil {
 			return err
+		}
+	} else {
+		// Detect the image type by looking for a VM disk in the unified tarball.
+		_, err = metaFile.Seek(0, 0)
+		if err != nil {
+			return err
+		}
+
+		typeTar, typeTarCancel, err := archive.CompressedTarReader(context.Background(), metaFile, unpacker, "")
+		if err != nil {
+			return err
+		}
+
+		defer typeTarCancel()
+
+		for {
+			hdr, err = typeTar.Next()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+
+				return err
+			}
+
+			if hdr.Name == "rootfs" || hdr.Name == "./rootfs" {
+				imageType = "container"
+				break
+			}
+
+			if hdr.Name == "rootfs.img" || hdr.Name == "./rootfs.img" {
+				imageType = "virtual-machine"
+				break
+			}
 		}
 	}
 
@@ -362,6 +400,19 @@ func (c *cmdAdd) run(cmd *cobra.Command, args []string) error {
 		metaTargetPath = fmt.Sprintf("images/%s.incus_combined.tar.gz", metaSha256)
 	}
 
+	// Prepare the metadata entry.
+	metaVersionItem := simplestreams.ProductVersionItem{
+		FileType:   fileType,
+		HashSha256: metaSha256,
+		Size:       metaSize,
+		Path:       metaTargetPath,
+	}
+
+	if isUnifiedTarball {
+		// Set combined_type for unified images.
+		metaVersionItem.CombinedType = imageType
+	}
+
 	// Check if a version already exists.
 	versionName := time.Unix(metadata.CreationDate, 0).Format("200601021504")
 	version, ok := product.Versions[versionName]
@@ -369,12 +420,7 @@ func (c *cmdAdd) run(cmd *cobra.Command, args []string) error {
 		// Create a new version.
 		version = simplestreams.ProductVersion{
 			Items: map[string]simplestreams.ProductVersionItem{
-				fileKey: {
-					FileType:   fileType,
-					HashSha256: metaSha256,
-					Size:       metaSize,
-					Path:       metaTargetPath,
-				},
+				fileKey: metaVersionItem,
 			},
 		}
 	} else {
@@ -382,12 +428,7 @@ func (c *cmdAdd) run(cmd *cobra.Command, args []string) error {
 		_, ok := version.Items[fileKey]
 		if !ok {
 			// No fileKey found, add it.
-			version.Items[fileKey] = simplestreams.ProductVersionItem{
-				FileType:   fileType,
-				HashSha256: metaSha256,
-				Size:       metaSize,
-				Path:       metaTargetPath,
-			}
+			version.Items[fileKey] = metaVersionItem
 		}
 	}
 
@@ -421,6 +462,8 @@ func (c *cmdAdd) run(cmd *cobra.Command, args []string) error {
 			metaItem.CombinedSha256SquashFs = data.combinedSha256
 		case "disk-kvm.img":
 			metaItem.CombinedSha256DiskKvmImg = data.combinedSha256
+		case "root.tar.xz":
+			metaItem.CombinedSha256RootXz = data.combinedSha256
 		}
 
 		version.Items["incus.tar.xz"] = metaItem

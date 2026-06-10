@@ -11,24 +11,25 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdInfo struct {
 	global *cmdGlobal
 
-	flagShowAccess bool
-	flagShowLog    string
-	flagResources  bool
-	flagTarget     string
+	flagShowAccess    bool
+	flagShowLog       string
+	flagResources     bool
+	flagShowSensitive bool
+	flagTarget        string
 }
 
 var cmdInfoUsage = u.Usage{u.Instance.Optional().Remote()}
@@ -38,20 +39,22 @@ func (c *cmdInfo) command() *cobra.Command {
 	cmd.Use = cli.U("info", cmdInfoUsage...)
 	cmd.Short = i18n.G("Show instance or server information")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Show instance or server information`))
+		`Show instance or server information`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus info [<remote>:]<instance> [--show-log]
     For instance information.
 
 incus info [<remote>:] [--resources]
-    For server information.`))
+    For server information.`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVar(&c.flagShowAccess, "show-access", false, i18n.G("Show the instance's access list"))
-	cmd.Flags().StringVar(&c.flagShowLog, "show-log", "", i18n.G("Show the instance's recent log entries")+"``")
-	cmd.Flags().Lookup("show-log").NoOptDefVal = "default"
-	cmd.Flags().BoolVar(&c.flagResources, "resources", false, i18n.G("Show the resources available to the server"))
-	cmd.Flags().StringVar(&c.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagShowAccess, "show-access", i18n.G("Show the instance's access list"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagShowLog, "show-log", "", "default", i18n.G("Show the instance's recent log entries"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagResources, "resources", i18n.G("Show the resources available to the server"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagShowSensitive, "show-sensitive", i18n.G("Show the server's sensitive information (full certificates, private keys and the API extension list)"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagTarget, "target", "", "", i18n.G("Cluster member name"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -65,7 +68,7 @@ incus info [<remote>:] [--resources]
 }
 
 func (c *cmdInfo) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdInfoUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdInfoUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -620,7 +623,13 @@ func (c *cmdInfo) remoteInfo(d incus.InstanceServer) error {
 		return err
 	}
 
-	data, err := yaml.Dump(&serverStatus, yaml.V2)
+	// Show the filtered output unless --show-sensitive is passed by the user.
+	var out any = &serverStatus
+	if !c.flagShowSensitive {
+		out = serverStatus.Filtered()
+	}
+
+	data, err := yaml.Dump(out, yaml.V2)
 	if err != nil {
 		return err
 	}
@@ -700,18 +709,18 @@ func (c *cmdInfo) instanceInfo(d incus.InstanceServer, name string, showLog stri
 		fmt.Printf("  "+i18n.G("Processes: %d")+"\n", inst.State.Processes)
 
 		// Disk usage
-		diskInfo := ""
+		var diskInfo strings.Builder
 		if inst.State.Disk != nil {
 			for entry, disk := range inst.State.Disk {
-				if disk.Usage != 0 {
-					diskInfo += fmt.Sprintf("    %s: %s\n", entry, units.GetByteSizeStringIEC(disk.Usage, 2))
+				if disk.Usage > 0 {
+					fmt.Fprintf(&diskInfo, "    %s: %s\n", entry, units.GetByteSizeStringIEC(disk.Usage, 2))
 				}
 			}
 		}
 
-		if diskInfo != "" {
+		if diskInfo.String() != "" {
 			fmt.Printf("  %s\n", i18n.G("Disk usage:"))
-			fmt.Print(diskInfo)
+			fmt.Print(diskInfo.String())
 		}
 
 		// CPU usage
@@ -749,7 +758,7 @@ func (c *cmdInfo) instanceInfo(d incus.InstanceServer, name string, showLog stri
 		}
 
 		// Network usage and IP info
-		networkInfo := ""
+		var networkInfo strings.Builder
 		if inst.State.Network != nil {
 			network := inst.State.Network
 
@@ -761,41 +770,41 @@ func (c *cmdInfo) instanceInfo(d incus.InstanceServer, name string, showLog stri
 			sort.Strings(netNames)
 
 			for _, netName := range netNames {
-				networkInfo += fmt.Sprintf("    %s:\n", netName)
-				networkInfo += fmt.Sprintf("      %s: %s\n", i18n.G("Type"), network[netName].Type)
-				networkInfo += fmt.Sprintf("      %s: %s\n", i18n.G("State"), strings.ToUpper(network[netName].State))
+				fmt.Fprintf(&networkInfo, "    %s:\n", netName)
+				fmt.Fprintf(&networkInfo, "      %s: %s\n", i18n.G("Type"), network[netName].Type)
+				fmt.Fprintf(&networkInfo, "      %s: %s\n", i18n.G("State"), strings.ToUpper(network[netName].State))
 				if network[netName].HostName != "" {
-					networkInfo += fmt.Sprintf("      %s: %s\n", i18n.G("Host interface"), network[netName].HostName)
+					fmt.Fprintf(&networkInfo, "      %s: %s\n", i18n.G("Host interface"), network[netName].HostName)
 				}
 
 				if network[netName].Hwaddr != "" {
-					networkInfo += fmt.Sprintf("      %s: %s\n", i18n.G("MAC address"), network[netName].Hwaddr)
+					fmt.Fprintf(&networkInfo, "      %s: %s\n", i18n.G("MAC address"), network[netName].Hwaddr)
 				}
 
 				if network[netName].Mtu != 0 {
-					networkInfo += fmt.Sprintf("      %s: %d\n", i18n.G("MTU"), network[netName].Mtu)
+					fmt.Fprintf(&networkInfo, "      %s: %d\n", i18n.G("MTU"), network[netName].Mtu)
 				}
 
-				networkInfo += fmt.Sprintf("      %s: %s\n", i18n.G("Bytes received"), units.GetByteSizeString(network[netName].Counters.BytesReceived, 2))
-				networkInfo += fmt.Sprintf("      %s: %s\n", i18n.G("Bytes sent"), units.GetByteSizeString(network[netName].Counters.BytesSent, 2))
-				networkInfo += fmt.Sprintf("      %s: %d\n", i18n.G("Packets received"), network[netName].Counters.PacketsReceived)
-				networkInfo += fmt.Sprintf("      %s: %d\n", i18n.G("Packets sent"), network[netName].Counters.PacketsSent)
+				fmt.Fprintf(&networkInfo, "      %s: %s\n", i18n.G("Bytes received"), units.GetByteSizeString(network[netName].Counters.BytesReceived, 2))
+				fmt.Fprintf(&networkInfo, "      %s: %s\n", i18n.G("Bytes sent"), units.GetByteSizeString(network[netName].Counters.BytesSent, 2))
+				fmt.Fprintf(&networkInfo, "      %s: %d\n", i18n.G("Packets received"), network[netName].Counters.PacketsReceived)
+				fmt.Fprintf(&networkInfo, "      %s: %d\n", i18n.G("Packets sent"), network[netName].Counters.PacketsSent)
 
-				networkInfo += fmt.Sprintf("      %s:\n", i18n.G("IP addresses"))
+				fmt.Fprintf(&networkInfo, "      %s:\n", i18n.G("IP addresses"))
 
 				for _, addr := range network[netName].Addresses {
 					if addr.Family == "inet" {
-						networkInfo += fmt.Sprintf("        %s:  %s/%s (%s)\n", addr.Family, addr.Address, addr.Netmask, addr.Scope)
+						fmt.Fprintf(&networkInfo, "        %s:  %s/%s (%s)\n", addr.Family, addr.Address, addr.Netmask, addr.Scope)
 					} else {
-						networkInfo += fmt.Sprintf("        %s: %s/%s (%s)\n", addr.Family, addr.Address, addr.Netmask, addr.Scope)
+						fmt.Fprintf(&networkInfo, "        %s: %s/%s (%s)\n", addr.Family, addr.Address, addr.Netmask, addr.Scope)
 					}
 				}
 			}
 		}
 
-		if networkInfo != "" {
+		if networkInfo.String() != "" {
 			fmt.Printf("  %s\n", i18n.G("Network usage:"))
-			fmt.Print(networkInfo)
+			fmt.Print(networkInfo.String())
 		}
 	}
 

@@ -9,8 +9,8 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 func (c *cmdExec) getTERM() (string, bool) {
@@ -35,7 +35,7 @@ func (c *cmdExec) controlSocketHandler(control *websocket.Conn) {
 		unix.SIGCONT)
 
 	closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
-	defer func() { _ = control.WriteMessage(websocket.CloseMessage, closeMsg) }()
+	defer logger.WarnOnError(func() error { return control.WriteMessage(websocket.CloseMessage, closeMsg) }, "Failed to write close message")
 
 	for {
 		sig := <-ch

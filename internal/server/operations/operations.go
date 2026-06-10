@@ -11,17 +11,17 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/events"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/cancel"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/events"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/cancel"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var debug bool
@@ -208,8 +208,8 @@ func OperationCreate(s *state.State, projectName string, opClass OperationClass,
 }
 
 // SetEventServer allows injection of event server.
-func (op *Operation) SetEventServer(events *events.Server) {
-	op.events = events
+func (op *Operation) SetEventServer(eventServer *events.Server) {
+	op.events = eventServer
 }
 
 // SetRequestor sets a requestor for this operation from an http.Request.
@@ -509,9 +509,7 @@ func (op *Operation) Render() (string, *api.Operation, error) {
 
 	// Make a read-only copy of the metadata to avoid concurrent reads/writes.
 	metadata := map[string]any{}
-	for k, v := range op.metadata {
-		metadata[k] = v
-	}
+	maps.Copy(metadata, op.metadata)
 
 	// Put together the response struct.
 	retOp := &api.Operation{
@@ -674,9 +672,7 @@ func (op *Operation) Metadata() map[string]any {
 
 	// Make a read-only copy of the metadata to avoid concurrent reads/writes.
 	metadata := map[string]any{}
-	for k, v := range op.metadata {
-		metadata[k] = v
-	}
+	maps.Copy(metadata, op.metadata)
 
 	return metadata
 }

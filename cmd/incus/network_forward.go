@@ -12,12 +12,12 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
 )
 
 type cmdNetworkForward struct {
@@ -101,8 +101,8 @@ Default column layout: ldDp
 
 == Columns ==
 The -c option takes a comma separated list of arguments that control
-which instance attributes to output when displaying in table or csv
-format.
+which network forward attributes to output when displaying
+in table or csv format.
 
 Column arguments are either pre-defined shorthand chars (see below),
 or (extended) config keys.
@@ -114,11 +114,12 @@ l - Listen Address
 d - Description
 D - Default Target Address
 p - Port
-L - Location of the network zone (e.g. its cluster member)`))
+L - Location of the network zone (e.g. its cluster member)`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultNetworkForwardColumns, i18n.G("Columns")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultNetworkForwardColumns, "", i18n.G("Columns"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -191,7 +192,7 @@ func (c *cmdNetworkForwardList) locationColumnData(forward api.NetworkForward) s
 }
 
 func (c *cmdNetworkForwardList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -245,7 +246,7 @@ func (c *cmdNetworkForwardShow) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Show network forward configurations"))
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVar(&c.networkForward.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.networkForward.flagTarget, "target", "", "", i18n.G("Cluster member name"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -263,7 +264,7 @@ func (c *cmdNetworkForwardShow) command() *cobra.Command {
 }
 
 func (c *cmdNetworkForwardShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -316,14 +317,14 @@ incus network forward create n1 127.0.0.1 < config.yaml
 
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVar(&c.networkForward.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
-	cmd.Flags().StringVar(&c.flagDescription, "description", "", i18n.G("Network forward description")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.networkForward.flagTarget, "target", "", "", i18n.G("Cluster member name"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagDescription, "description", "", "", i18n.G("Network forward description"))
 
 	return cmd
 }
 
 func (c *cmdNetworkForwardCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -401,7 +402,7 @@ func (c *cmdNetworkForwardGet) command() *cobra.Command {
 	cmd.Short = i18n.G("Get values for network forward configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Get values for network forward configuration keys"))
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Get the key as a network forward property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Get the key as a network forward property"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -424,7 +425,7 @@ func (c *cmdNetworkForwardGet) command() *cobra.Command {
 }
 
 func (c *cmdNetworkForwardGet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardGetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardGetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -477,11 +478,12 @@ func (c *cmdNetworkForwardSet) command() *cobra.Command {
 		`Set network forward keys
 
 For backward compatibility, a single configuration key may still be set with:
-    incus network set [<remote>:]<network> <listen_address> <key> <value>`))
+    incus network set [<remote>:]<network> <listen_address> <key> <value>`,
+	))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Set the key as a network forward property"))
-	cmd.Flags().StringVar(&c.networkForward.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Set the key as a network forward property"))
+	cli.AddStringFlag(cmd.Flags(), &c.networkForward.flagTarget, "target", "", "", i18n.G("Cluster member name"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -548,7 +550,7 @@ func (c *cmdNetworkForwardSet) set(cmd *cobra.Command, parsed []*u.Parsed) error
 }
 
 func (c *cmdNetworkForwardSet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardSetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardSetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -565,7 +567,7 @@ type cmdNetworkForwardUnset struct {
 	flagIsProperty bool
 }
 
-var cmdNetworkForwardUnsetUsage = u.Usage{u.Network.Remote(), u.ListenAddress, u.Key}
+var cmdNetworkForwardUnsetUsage = u.Usage{u.Network.Remote(), u.ListenAddress, u.Key.List(1)}
 
 func (c *cmdNetworkForwardUnset) command() *cobra.Command {
 	cmd := &cobra.Command{}
@@ -574,7 +576,7 @@ func (c *cmdNetworkForwardUnset) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Unset network forward keys"))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Unset the key as a network forward property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Unset the keys as network forward properties"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -596,7 +598,7 @@ func (c *cmdNetworkForwardUnset) command() *cobra.Command {
 }
 
 func (c *cmdNetworkForwardUnset) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardUnsetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardUnsetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -620,7 +622,7 @@ func (c *cmdNetworkForwardEdit) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Edit network forward configurations as YAML"))
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVar(&c.networkForward.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.networkForward.flagTarget, "target", "", "", i18n.G("Cluster member name"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -657,11 +659,12 @@ func (c *cmdNetworkForwardEdit) helpTemplate() string {
 ###   target_port: 80,81,8080-8090
 ### location: server01
 ###
-### Note that the listen_address and location cannot be changed.`)
+### Note that the listen_address and location cannot be changed.`,
+	)
 }
 
 func (c *cmdNetworkForwardEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -761,7 +764,7 @@ func (c *cmdNetworkForwardDelete) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Delete network forwards"))
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVar(&c.networkForward.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.networkForward.flagTarget, "target", "", "", i18n.G("Cluster member name"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -779,7 +782,7 @@ func (c *cmdNetworkForwardDelete) command() *cobra.Command {
 }
 
 func (c *cmdNetworkForwardDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -839,8 +842,8 @@ func (c *cmdNetworkForwardPort) commandAdd() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Add ports to a forward"))
 	cmd.RunE = c.runAdd
 
-	cmd.Flags().StringVar(&c.networkForward.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
-	cmd.Flags().StringVar(&c.flagDescription, "description", "", i18n.G("Port description")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.networkForward.flagTarget, "target", "", "", i18n.G("Cluster member name"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagDescription, "description", "", "", i18n.G("Port description"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -862,7 +865,7 @@ func (c *cmdNetworkForwardPort) commandAdd() *cobra.Command {
 }
 
 func (c *cmdNetworkForwardPort) runAdd(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardPortAddUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardPortAddUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -909,10 +912,10 @@ func (c *cmdNetworkForwardPort) commandRemove() *cobra.Command {
 	cmd.Aliases = []string{"delete", "rm"}
 	cmd.Short = i18n.G("Remove ports from a forward")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Remove ports from a forward"))
-	cmd.Flags().BoolVar(&c.flagRemoveForce, "force", false, i18n.G("Remove all ports that match"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagRemoveForce, "force|f", i18n.G("Remove all ports that match"))
 	cmd.RunE = c.runRemove
 
-	cmd.Flags().StringVar(&c.networkForward.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.networkForward.flagTarget, "target", "", "", i18n.G("Cluster member name"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -934,7 +937,7 @@ func (c *cmdNetworkForwardPort) commandRemove() *cobra.Command {
 }
 
 func (c *cmdNetworkForwardPort) runRemove(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkForwardPortRemoveUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkForwardPortRemoveUsage, cmd, args)
 	if err != nil {
 		return err
 	}

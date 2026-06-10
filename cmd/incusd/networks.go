@@ -8,40 +8,41 @@ import (
 	"maps"
 	"net"
 	"net/http"
-	"net/url"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/gorilla/mux"
+	"golang.org/x/sync/errgroup"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	clusterRequest "github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/warningtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/network"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/server/warnings"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/resources"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	clusterRequest "github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/warningtype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/network"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/server/warnings"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/resources"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // Lock to prevent concurrent networks creation.
@@ -194,6 +195,13 @@ var networkStateCmd = APIEndpoint{
 func networksGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
+	// If a target was specified, forward the request to the relevant node.
+	resp := forwardedResponseIfTargetIsRemote(s, r)
+	if resp != nil {
+		return resp
+	}
+
+	// Track down the project holding networks based on current project configuration.
 	projectName, reqProject, err := project.NetworkProject(s.DB.Cluster, request.ProjectParam(r))
 	if err != nil {
 		return response.SmartError(err)
@@ -885,6 +893,11 @@ func doNetworksCreate(ctx context.Context, s *state.State, n network.Network, cl
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -934,15 +947,12 @@ func networkGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	allNodes := false
-	if s.ServerClustered && request.QueryParam(r, "target") == "" {
-		allNodes = true
-	}
+	allNodes := s.ServerClustered && request.QueryParam(r, "target") == ""
 
 	n, err := doNetworkGet(s, r, allNodes, projectName, reqProject.Config, networkName)
 	if err != nil {
@@ -1110,6 +1120,11 @@ func doNetworkGet(s *state.State, r *http.Request, allNodes bool, projectName st
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1132,7 +1147,7 @@ func networkDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1224,6 +1239,11 @@ func networkDelete(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1263,7 +1283,7 @@ func networkPost(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1364,6 +1384,11 @@ func networkPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1405,7 +1430,7 @@ func networkPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1506,6 +1531,11 @@ func networkPut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1591,6 +1621,11 @@ func doNetworkUpdate(n network.Network, req api.NetworkPut, targetNode string, c
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1637,7 +1672,7 @@ func networkLeasesGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1664,6 +1699,15 @@ func networkLeasesGet(d *Daemon, r *http.Request) response.Response {
 
 func networkStartup(s *state.State) error {
 	var err error
+
+	// Cleanup leftover OVS ports.
+	vswitch, err := s.OVS()
+	if err == nil {
+		err = vswitch.RemoveStaleBridgePorts(s.ShutdownCtx)
+		if err != nil {
+			logger.Warn("Failed to clean up stale OVS ports", logger.Ctx{"err": err})
+		}
+	}
 
 	// Get a list of projects.
 	var projectNames []string
@@ -1712,6 +1756,12 @@ func networkStartup(s *state.State) error {
 
 	loadedNetworks := make(map[network.ProjectNetwork]network.Network)
 
+	// Limit the number of concurrent network starts to one per two runtime threads.
+	numParallel := max(runtime.NumCPU()/2, 1)
+
+	// initNetworksMu protects concurrent access to the initNetworks priority maps.
+	var initNetworksMu sync.Mutex
+
 	initNetwork := func(n network.Network, priority int) error {
 		err = n.Start()
 		if err != nil {
@@ -1732,7 +1782,9 @@ func networkStartup(s *state.State) error {
 			NetworkName: n.Name(),
 		}
 
+		initNetworksMu.Lock()
 		delete(initNetworks[priority], pn)
+		initNetworksMu.Unlock()
 
 		_ = warnings.ResolveWarningsByLocalNodeAndProjectAndTypeAndEntity(s.DB.Cluster, n.Project(), warningtype.NetworkUnvailable, dbCluster.TypeNetwork, int(n.ID()))
 
@@ -1752,7 +1804,9 @@ func networkStartup(s *state.State) error {
 				if api.StatusErrorCheck(err, http.StatusNotFound) {
 					// Network has been deleted since we began trying to start it so delete
 					// entry.
+					initNetworksMu.Lock()
 					delete(initNetworks[priority], pn)
+					initNetworksMu.Unlock()
 
 					return nil
 				}
@@ -1771,15 +1825,19 @@ func networkStartup(s *state.State) error {
 		if netConfig["parent"] != "" && priority != networkPriorityPhysical {
 			// Start networks that depend on physical interfaces existing after
 			// non-dependent networks.
+			initNetworksMu.Lock()
 			delete(initNetworks[priority], pn)
 			initNetworks[networkPriorityPhysical][pn] = struct{}{}
+			initNetworksMu.Unlock()
 
 			return nil
 		} else if netConfig["network"] != "" && priority != networkPriorityLogical {
 			// Start networks that depend on other logical networks after networks after
 			// non-dependent networks and networks that depend on physical interfaces.
+			initNetworksMu.Lock()
 			delete(initNetworks[priority], pn)
 			initNetworks[networkPriorityLogical][pn] = struct{}{}
+			initNetworksMu.Unlock()
 
 			return nil
 		}
@@ -1792,17 +1850,44 @@ func networkStartup(s *state.State) error {
 		return nil
 	}
 
-	// Try initializing networks in priority order.
-	for priority := range initNetworks {
-		for pn := range initNetworks[priority] {
-			err := loadAndInitNetwork(pn, priority, true)
-			if err != nil {
-				logger.Error("Failed initializing network", logger.Ctx{"project": pn.ProjectName, "network": pn.NetworkName, "err": err})
+	// initInPriorityOrder iterates over initNetworks in priority order and starts each
+	// pending network with up to numParallel networks initializing concurrently.
+	// It returns whether at least one network was successfully initialized.
+	initInPriorityOrder := func(firstPass bool) bool {
+		var initialized atomic.Bool
 
-				continue
+		for priority := range initNetworks {
+			// No goroutines from a previous iteration are running here (group.Wait
+			// has returned) so the initNetworks map can be read without holding the
+			// mutex.
+			pns := slices.Collect(maps.Keys(initNetworks[priority]))
+
+			group := new(errgroup.Group)
+			group.SetLimit(numParallel)
+
+			for _, pn := range pns {
+				group.Go(func() error {
+					err := loadAndInitNetwork(pn, priority, firstPass)
+					if err != nil {
+						logger.Error("Failed initializing network", logger.Ctx{"project": pn.ProjectName, "network": pn.NetworkName, "err": err})
+
+						return nil
+					}
+
+					initialized.Store(true)
+
+					return nil
+				})
 			}
+
+			_ = group.Wait()
 		}
+
+		return initialized.Load()
 	}
+
+	// Try initializing networks in priority order.
+	_ = initInPriorityOrder(true)
 
 	loadedNetworks = nil // Don't store loaded networks after first pass.
 
@@ -1825,21 +1910,7 @@ func networkStartup(s *state.State) error {
 				case <-t.C:
 					t.Stop()
 
-					tryInstancesStart := false
-
-					// Try initializing networks in priority order.
-					for priority := range initNetworks {
-						for pn := range initNetworks[priority] {
-							err := loadAndInitNetwork(pn, priority, false)
-							if err != nil {
-								logger.Error("Failed initializing network", logger.Ctx{"project": pn.ProjectName, "network": pn.NetworkName, "err": err})
-
-								continue
-							}
-
-							tryInstancesStart = true // We initialized at least one network.
-						}
-					}
+					tryInstancesStart := initInPriorityOrder(false)
 
 					remainingNetworks := 0
 					for _, networks := range initNetworks {
@@ -1934,7 +2005,15 @@ func networkRestartOVN(s *state.State) error {
 		return fmt.Errorf("Failed to load projects: %w", err)
 	}
 
-	// Go over all the networks in every project.
+	// Collect all OVN networks across all projects.
+	type ovnNetwork struct {
+		n           network.Network
+		projectName string
+		networkName string
+	}
+
+	var ovnNetworks []ovnNetwork
+
 	for _, projectName := range projectNames {
 		var networkNames []string
 
@@ -1959,15 +2038,28 @@ func networkRestartOVN(s *state.State) error {
 				continue
 			}
 
-			// Restart the network.
-			err = n.Start()
-			if err != nil {
-				return fmt.Errorf("Failed to restart network %q in project %q: %w", networkName, projectName, err)
-			}
+			ovnNetworks = append(ovnNetworks, ovnNetwork{n: n, projectName: projectName, networkName: networkName})
 		}
 	}
 
-	return nil
+	// Restart networks concurrently with one concurrent start per two runtime threads.
+	numParallel := max(runtime.NumCPU()/2, 1)
+
+	group := new(errgroup.Group)
+	group.SetLimit(numParallel)
+
+	for _, ovnNet := range ovnNetworks {
+		group.Go(func() error {
+			err := ovnNet.n.Start()
+			if err != nil {
+				return fmt.Errorf("Failed to restart network %q in project %q: %w", ovnNet.networkName, ovnNet.projectName, err)
+			}
+
+			return nil
+		})
+	}
+
+	return group.Wait()
 }
 
 // swagger:operation GET /1.0/networks/{name}/state networks networks_state_get
@@ -1980,6 +2072,11 @@ func networkRestartOVN(s *state.State) error {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -2029,7 +2126,7 @@ func networkStateGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -2049,18 +2146,18 @@ func networkStateGet(d *Daemon, r *http.Request) response.Response {
 		return response.NotFound(errors.New("Network not found"))
 	}
 
-	var state *api.NetworkState
+	var networkState *api.NetworkState
 	if n != nil {
-		state, err = n.State()
+		networkState, err = n.State()
 		if err != nil {
 			return response.SmartError(err)
 		}
 	} else {
-		state, err = resources.GetNetworkState(networkName)
+		networkState, err = resources.GetNetworkState(networkName)
 		if err != nil {
 			return response.SmartError(err)
 		}
 	}
 
-	return response.SyncResponse(true, state)
+	return response.SyncResponse(true, networkState)
 }

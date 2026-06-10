@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/sys"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
+	"github.com/lxc/incus/v7/internal/server/sys"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
 )
 
 // dnsmasqProfile generates the AppArmor profile template from the given network.
 func dnsmasqProfile(sysOS *sys.OS, n network) (string, error) {
 	// Render the profile.
-	var sb *strings.Builder = &strings.Builder{}
+	sb := &strings.Builder{}
 	err := dnsmasqProfileTpl.Execute(sb, map[string]any{
 		"name":        DnsmasqProfileName(n),
 		"networkName": n.Name(),

@@ -11,12 +11,12 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdMonitor struct {
@@ -38,7 +38,8 @@ func (c *cmdMonitor) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
 		`Monitor a local or remote server
 
-By default the monitor will listen to all message types.`))
+By default the monitor will listen to all message types.`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus monitor --type=logging
     Only show log messages.
@@ -47,21 +48,22 @@ incus monitor --pretty --type=logging --loglevel=info
     Show a pretty log of messages with info level or higher.
 
 incus monitor --type=lifecycle
-    Only show lifecycle events.`))
+    Only show lifecycle events.`,
+	))
 	cmd.Hidden = true
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVar(&c.flagPretty, "pretty", false, i18n.G("Pretty rendering (short for --format=pretty)"))
-	cmd.Flags().BoolVar(&c.flagAllProjects, "all-projects", false, i18n.G("Show events from all projects"))
-	cmd.Flags().StringArrayVar(&c.flagType, "type", nil, i18n.G("Event type to listen for")+"``")
-	cmd.Flags().StringVar(&c.flagLogLevel, "loglevel", "", i18n.G("Minimum level for log messages (only available when using pretty format)")+"``")
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", "yaml", i18n.G("Format (json|pretty|yaml)")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagPretty, "pretty", i18n.G("Pretty rendering (short for --format=pretty)"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAllProjects, "all-projects", i18n.G("Show events from all projects"))
+	cli.AddStringArrayFlag(cmd.Flags(), &c.flagType, "type|t", i18n.G("Event type to listen for"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagLogLevel, "loglevel", "", "", i18n.G("Minimum level for log messages (only available when using pretty format)"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", "yaml", "", i18n.G("Format (json|pretty|yaml)"))
 
 	return cmd
 }
 
 func (c *cmdMonitor) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdMonitorUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdMonitorUsage, cmd, args)
 	if err != nil {
 		return err
 	}

@@ -40,53 +40,52 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	internalIO "github.com/lxc/incus/v6/internal/io"
-	"github.com/lxc/incus/v6/internal/jmap"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	"github.com/lxc/incus/v6/internal/netutils"
-	"github.com/lxc/incus/v6/internal/rsync"
-	"github.com/lxc/incus/v6/internal/server/apparmor"
-	"github.com/lxc/incus/v6/internal/server/cgroup"
-	"github.com/lxc/incus/v6/internal/server/daemon"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/device"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/device/nictype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/instance/operationlock"
-	"github.com/lxc/incus/v6/internal/server/ip"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/locking"
-	"github.com/lxc/incus/v6/internal/server/metrics"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/network"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/seccomp"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	storageDrivers "github.com/lxc/incus/v6/internal/server/storage/drivers"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/idmap"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/termios"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/ws"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/internal/jmap"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	"github.com/lxc/incus/v7/internal/netutils"
+	"github.com/lxc/incus/v7/internal/rsync"
+	"github.com/lxc/incus/v7/internal/server/apparmor"
+	"github.com/lxc/incus/v7/internal/server/cgroup"
+	"github.com/lxc/incus/v7/internal/server/daemon"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/device"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/device/nictype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/instance/operationlock"
+	"github.com/lxc/incus/v7/internal/server/ip"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/locking"
+	"github.com/lxc/incus/v7/internal/server/metrics"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/network"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/seccomp"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/idmap"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/termios"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/ws"
 )
 
 // Helper functions.
@@ -154,7 +153,7 @@ func lxcSetConfigItem(c *liblxc.Container, key string, value string) error {
 	return nil
 }
 
-func lxcStatusCode(state liblxc.State) api.StatusCode {
+func lxcStatusCode(lxcState liblxc.State) api.StatusCode {
 	return map[int]api.StatusCode{
 		1: api.Stopped,
 		2: api.Starting,
@@ -165,7 +164,7 @@ func lxcStatusCode(state liblxc.State) api.StatusCode {
 		7: api.Frozen,
 		8: api.Thawed,
 		9: api.Error,
-	}[int(state)]
+	}[int(lxcState)]
 }
 
 // lxcCreate creates the DB storage records and sets up instance devices.
@@ -728,13 +727,8 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 		}
 	}
 
-	if d.state.OS.ContainerCoreScheduling {
+	if d.state.OS.CoreScheduling {
 		err = lxcSetConfigItem(cc, "lxc.sched.core", "1")
-		if err != nil {
-			return nil, err
-		}
-	} else if d.state.OS.CoreScheduling {
-		err = lxcSetConfigItem(cc, "lxc.hook.start-host", fmt.Sprintf("/proc/%d/exe forkcoresched 1", os.Getpid()))
 		if err != nil {
 			return nil, err
 		}
@@ -776,16 +770,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 		mounts = append(mounts, "sys:rw")
 	}
 
-	cgInfo := cgroup.GetInfo()
-	if cgInfo.Namespacing {
-		if cgInfo.Layout == cgroup.CgroupsUnified {
-			mounts = append(mounts, "cgroup:rw:force")
-		} else {
-			mounts = append(mounts, "cgroup:mixed")
-		}
-	} else {
-		mounts = append(mounts, "cgroup:mixed")
-	}
+	mounts = append(mounts, "cgroup:rw:force")
 
 	err = lxcSetConfigItem(cc, "lxc.mount.auto", strings.Join(mounts, " "))
 	if err != nil {
@@ -815,7 +800,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 	}
 
 	// Handle unprivileged binfmt_misc.
-	if d.IsPrivileged() || !d.state.OS.UnprivBinfmt {
+	if d.IsPrivileged() {
 		bindMounts = append(bindMounts, "/proc/sys/fs/binfmt_misc")
 	}
 
@@ -866,13 +851,8 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 	}
 
 	// Configure devices cgroup
-	if d.IsPrivileged() && !d.state.OS.RunningInUserNS && d.state.OS.CGInfo.Supports(cgroup.Devices, cg) {
-		if d.state.OS.CGInfo.Layout == cgroup.CgroupsUnified {
-			err = lxcSetConfigItem(cc, "lxc.cgroup2.devices.deny", "a")
-		} else {
-			err = lxcSetConfigItem(cc, "lxc.cgroup.devices.deny", "a")
-		}
-
+	if d.IsPrivileged() && !d.state.OS.RunningInUserNS {
+		err = lxcSetConfigItem(cc, "lxc.cgroup2.devices.deny", "a")
 		if err != nil {
 			return nil, err
 		}
@@ -898,12 +878,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 		}
 
 		for _, dev := range devices {
-			if d.state.OS.CGInfo.Layout == cgroup.CgroupsUnified {
-				err = lxcSetConfigItem(cc, "lxc.cgroup2.devices.allow", dev)
-			} else {
-				err = lxcSetConfigItem(cc, "lxc.cgroup.devices.allow", dev)
-			}
-
+			err = lxcSetConfigItem(cc, "lxc.cgroup2.devices.allow", dev)
 			if err != nil {
 				return nil, err
 			}
@@ -1078,7 +1053,8 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 		//  shortdesc: Environment variables to export
 		after, ok := strings.CutPrefix(k, "environment.")
 		if ok {
-			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("%s=%s", after, v))
+			// LXC supports quoting the value between " even if the value itself contains ".
+			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("\"%s=%s\"", after, v))
 			if err != nil {
 				return nil, err
 			}
@@ -1124,7 +1100,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 				return nil, err
 			}
 		} else {
-			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("NVIDIA_DRIVER_CAPABILITIES=%s", nvidiaDriver))
+			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("\"NVIDIA_DRIVER_CAPABILITIES=%s\"", nvidiaDriver))
 			if err != nil {
 				return nil, err
 			}
@@ -1132,7 +1108,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 
 		nvidiaRequireCuda := d.expandedConfig["nvidia.require.cuda"]
 		if nvidiaRequireCuda == "" {
-			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("NVIDIA_REQUIRE_CUDA=%s", nvidiaRequireCuda))
+			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("\"NVIDIA_REQUIRE_CUDA=%s\"", nvidiaRequireCuda))
 			if err != nil {
 				return nil, err
 			}
@@ -1140,7 +1116,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 
 		nvidiaRequireDriver := d.expandedConfig["nvidia.require.driver"]
 		if nvidiaRequireDriver == "" {
-			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("NVIDIA_REQUIRE_DRIVER=%s", nvidiaRequireDriver))
+			err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("\"NVIDIA_REQUIRE_DRIVER=%s\"", nvidiaRequireDriver))
 			if err != nil {
 				return nil, err
 			}
@@ -1153,7 +1129,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 	}
 
 	// Memory limits
-	if d.state.OS.CGInfo.Supports(cgroup.Memory, cg) {
+	if cgroup.Supports(cgroup.Memory) {
 		memory := d.expandedConfig["limits.memory"]
 		memoryEnforce := d.expandedConfig["limits.memory.enforce"]
 		memorySwap := d.expandedConfig["limits.memory.swap"]
@@ -1177,29 +1153,19 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 					return nil, err
 				}
 
-				if d.state.OS.CGInfo.Supports(cgroup.MemorySwap, cg) {
-					if util.IsTrueOrEmpty(memorySwap) || util.IsFalse(memorySwap) {
-						err = cg.SetMemorySwapLimit(0)
-						if err != nil {
-							return nil, err
-						}
-					} else {
-						// Additional memory as swap.
-						swapInt, err := units.ParseByteSizeString(memorySwap)
-						if err != nil {
-							return nil, err
-						}
-
-						err = cg.SetMemorySwapLimit(swapInt)
-						if err != nil {
-							return nil, err
-						}
+				if util.IsTrueOrEmpty(memorySwap) || util.IsFalse(memorySwap) {
+					err = cg.SetMemorySwapLimit(0)
+					if err != nil {
+						return nil, err
 					}
-				}
+				} else {
+					// Additional memory as swap.
+					swapInt, err := units.ParseByteSizeString(memorySwap)
+					if err != nil {
+						return nil, err
+					}
 
-				// If on CGroup1, set soft limit to value 10% less than hard limit.
-				if slices.Contains([]cgroup.Layout{cgroup.CgroupsLegacy, cgroup.CgroupsHybrid}, d.state.OS.CGInfo.Layout) {
-					err = cg.SetMemorySoftLimit(int64(float64(valueInt) * 0.9))
+					err = cg.SetMemorySwapLimit(swapInt)
 					if err != nil {
 						return nil, err
 					}
@@ -1207,24 +1173,22 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 			}
 		}
 
-		if d.state.OS.CGInfo.Supports(cgroup.MemorySwappiness, cg) {
-			// Configure the swappiness
-			if util.IsFalse(memorySwap) {
-				err = cg.SetMemorySwappiness(0)
-				if err != nil {
-					return nil, err
-				}
-			} else if memorySwapPriority != "" {
-				priority, err := strconv.Atoi(memorySwapPriority)
-				if err != nil {
-					return nil, err
-				}
+		// Configure the swappiness
+		if util.IsFalse(memorySwap) {
+			err = cg.SetMemorySwappiness(0)
+			if err != nil && !errors.Is(err, cgroup.ErrControllerMissing) {
+				return nil, err
+			}
+		} else if memorySwapPriority != "" {
+			priority, err := strconv.Atoi(memorySwapPriority)
+			if err != nil {
+				return nil, err
+			}
 
-				// Maximum priority (10) should be default swappiness (60).
-				err = cg.SetMemorySwappiness(int64(70 - priority))
-				if err != nil {
-					return nil, err
-				}
+			// Maximum priority (10) should be default swappiness (60).
+			err = cg.SetMemorySwappiness(int64(70 - priority))
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -1233,7 +1197,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 	cpuPriority := d.expandedConfig["limits.cpu.priority"]
 	cpuAllowance := d.expandedConfig["limits.cpu.allowance"]
 
-	if (cpuPriority != "" || cpuAllowance != "") && d.state.OS.CGInfo.Supports(cgroup.CPU, cg) {
+	if (cpuPriority != "" || cpuAllowance != "") && cgroup.Supports(cgroup.CPU) {
 		cpuShares, cpuCfsQuota, cpuCfsPeriod, err := cgroup.ParseCPU(cpuAllowance, cpuPriority)
 		if err != nil {
 			return nil, err
@@ -1257,30 +1221,30 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 	// Disk priority limits.
 	diskPriority := d.ExpandedConfig()["limits.disk.priority"]
 	if diskPriority != "" {
-		if d.state.OS.CGInfo.Supports(cgroup.BlkioWeight, nil) {
-			priorityInt, err := strconv.Atoi(diskPriority)
-			if err != nil {
-				return nil, err
-			}
-
-			priority := priorityInt * 100
-
-			// Minimum valid value is 10
-			if priority == 0 {
-				priority = 10
-			}
-
-			err = cg.SetBlkioWeight(int64(priority))
-			if err != nil {
-				return nil, err
-			}
-		} else {
+		if !cgroup.Supports(cgroup.IO) {
 			return nil, errors.New("Cannot apply limits.disk.priority as blkio.weight cgroup controller is missing")
+		}
+
+		priorityInt, err := strconv.Atoi(diskPriority)
+		if err != nil {
+			return nil, err
+		}
+
+		priority := priorityInt * 100
+
+		// Minimum valid value is 10
+		if priority == 0 {
+			priority = 10
+		}
+
+		err = cg.SetBlkioWeight(int64(priority))
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	// Processes
-	if d.state.OS.CGInfo.Supports(cgroup.Pids, cg) {
+	if cgroup.Supports(cgroup.Pids) {
 		processes := d.expandedConfig["limits.processes"]
 		if processes != "" {
 			valueInt, err := strconv.ParseInt(processes, 10, 64)
@@ -1296,7 +1260,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 	}
 
 	// Hugepages
-	if d.state.OS.CGInfo.Supports(cgroup.Hugetlb, cg) {
+	if cgroup.Supports(cgroup.Hugetlb) {
 		for i, key := range internalInstance.HugePageSizeKeys {
 			value := d.expandedConfig[key]
 			if value != "" {
@@ -1347,12 +1311,7 @@ func (d *lxc) initLXC(config bool) (*liblxc.Container, error) {
 	}
 
 	// Setup shmounts
-	if d.state.OS.LXCFeatures["mount_injection_file"] {
-		err = lxcSetConfigItem(cc, "lxc.mount.auto", fmt.Sprintf("shmounts:%s:/dev/.incus-mounts", d.ShmountsPath()))
-	} else {
-		err = lxcSetConfigItem(cc, "lxc.mount.entry", fmt.Sprintf("%s dev/.incus-mounts none bind,create=dir 0 0", d.ShmountsPath()))
-	}
-
+	err = lxcSetConfigItem(cc, "lxc.mount.auto", fmt.Sprintf("shmounts:%s:/dev/.incus-mounts", d.ShmountsPath()))
 	if err != nil {
 		return nil, err
 	}
@@ -1376,11 +1335,7 @@ var (
 // IdmappedStorage determines if the container can use idmapped mounts.
 func (d *lxc) IdmappedStorage(fspath string, fstype string) idmap.StorageType {
 	var mode idmap.StorageType = idmap.StorageTypeNone
-	var bindMount bool = fstype == "none" || fstype == ""
-
-	if !d.state.OS.LXCFeatures["idmapped_mounts_v2"] || !d.state.OS.IdmappedMounts {
-		return mode
-	}
+	bindMount := fstype == "none" || fstype == ""
 
 	buf := &unix.Statfs_t{}
 
@@ -1543,19 +1498,14 @@ func (d *lxc) deviceStaticShiftMounts(mounts []deviceConfig.MountEntryItem) erro
 
 // deviceAddCgroupRules live adds cgroup rules to a container.
 func (d *lxc) deviceAddCgroupRules(cgroups []deviceConfig.RunConfigItem) error {
-	cc, err := d.initLXC(false)
-	if err != nil {
-		return err
-	}
-
-	cg, err := d.cgroup(cc, true)
+	_, err := d.initLXC(false)
 	if err != nil {
 		return err
 	}
 
 	for _, rule := range cgroups {
 		// Only apply devices cgroup rules if container is running privileged and host has devices cgroup controller.
-		if strings.HasPrefix(rule.Key, "devices.") && (!d.isCurrentlyPrivileged() || d.state.OS.RunningInUserNS || !d.state.OS.CGInfo.Supports(cgroup.Devices, cg)) {
+		if strings.HasPrefix(rule.Key, "devices.") && (!d.isCurrentlyPrivileged() || d.state.OS.RunningInUserNS) {
 			continue
 		}
 
@@ -1574,9 +1524,10 @@ func (d *lxc) deviceAttachNIC(devName string, configCopy map[string]string, netI
 	ctDevName := ""
 	connected := true
 	for _, dev := range netIF {
-		if dev.Key == "link" {
+		switch dev.Key {
+		case "link":
 			ctDevName = dev.Value
-		} else if dev.Key == "connected" {
+		case "connected":
 			connected = util.IsTrueOrEmpty(dev.Value)
 		}
 	}
@@ -1678,7 +1629,7 @@ func (d *lxc) deviceDetachNIC(configCopy map[string]string, netIF []deviceConfig
 			return err
 		}
 
-		defer func() { _ = cc.Release() }()
+		defer logger.WarnOnError(cc.Release, "Failed to release container")
 
 		// Get interfaces inside container.
 		ifaces, err := cc.Interfaces()
@@ -1730,11 +1681,12 @@ func (d *lxc) deviceHandleMounts(mounts []deviceConfig.MountEntryItem) error {
 
 			// Convert options into flags.
 			for _, opt := range mount.Opts {
-				if opt == "bind" {
+				switch opt {
+				case "bind":
 					flags |= unix.MS_BIND
-				} else if opt == "rbind" {
+				case "rbind":
 					flags |= unix.MS_BIND | unix.MS_REC
-				} else if opt == "ro" {
+				case "ro":
 					flags |= unix.MS_RDONLY
 				}
 			}
@@ -1753,30 +1705,37 @@ func (d *lxc) deviceHandleMounts(mounts []deviceConfig.MountEntryItem) error {
 				return fmt.Errorf("Failed to add mount for device inside container: %s", err)
 			}
 		} else {
-			relativeTargetPath := strings.TrimPrefix(mount.TargetPath, "/")
+			err := func() error {
+				relativeTargetPath := strings.TrimPrefix(mount.TargetPath, "/")
 
-			// Connect to files API.
-			files, err := d.FileSFTP()
-			if err != nil {
-				return err
-			}
-
-			defer func() { _ = files.Close() }()
-
-			_, err = files.Lstat(relativeTargetPath)
-			if err == nil {
-				err := d.removeMount(mount.TargetPath)
+				// Connect to files API.
+				files, err := d.FileSFTP()
 				if err != nil {
-					return fmt.Errorf("Error unmounting the device path inside container: %s", err)
+					return err
 				}
 
-				// Only remove mountpoints created in /dev.
-				if strings.HasPrefix(mount.TargetPath, "dev/") {
-					err := files.Remove(relativeTargetPath)
+				defer logger.WarnOnError(files.Close, "Failed to close SFTP connection")
+
+				_, err = files.Lstat(relativeTargetPath)
+				if err == nil {
+					err := d.removeMount(mount.TargetPath)
 					if err != nil {
-						return err
+						return fmt.Errorf("Error unmounting the device path inside container: %s", err)
+					}
+
+					// Only remove mountpoints created in /dev.
+					if strings.HasPrefix(mount.TargetPath, "dev/") {
+						err := files.Remove(relativeTargetPath)
+						if err != nil {
+							return err
+						}
 					}
 				}
+
+				return nil
+			}()
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -1846,12 +1805,12 @@ func (d *lxc) DeviceEventHandler(runConf *deviceConfig.RunConfig) error {
 
 	// Generate uevent inside container if requested.
 	if len(runConf.Uevents) > 0 {
-		pidFd := d.inheritInitPidFd()
-		pidFdNr := "-1"
-		if pidFd != nil {
-			defer func() { _ = pidFd.Close() }()
-			pidFdNr = "3"
+		pidFd, err := d.InitPidFd()
+		if err != nil {
+			return err
 		}
+
+		defer logger.WarnOnError(pidFd.Close, "Failed to close PID fd")
 
 		for _, eventParts := range runConf.Uevents {
 			length := 0
@@ -1864,18 +1823,19 @@ func (d *lxc) DeviceEventHandler(runConf *deviceConfig.RunConfig) error {
 				"inject",
 				"--",
 				fmt.Sprintf("%d", d.InitPID()),
-				pidFdNr,
+				"3",
 				fmt.Sprintf("%d", length),
 			}
 
 			args = append(args, eventParts...)
 
-			_, _, err := subprocess.RunCommandSplit(
+			_, _, err = subprocess.RunCommandSplit(
 				context.TODO(),
 				nil,
 				[]*os.File{pidFd},
 				d.state.OS.ExecPath,
-				args...)
+				args...,
+			)
 			if err != nil {
 				return err
 			}
@@ -1924,11 +1884,12 @@ func (d *lxc) handleIdmappedStorage() (idmap.StorageType, *idmap.Set, error) {
 
 	// Revert the currently applied on-disk idmap.
 	if diskIdmap != nil {
-		if storageType == "zfs" {
+		switch storageType {
+		case "zfs":
 			err = diskIdmap.UnshiftPath(d.RootfsPath(), storageDrivers.ShiftZFSSkipper)
-		} else if storageType == "btrfs" {
+		case "btrfs":
 			err = storageDrivers.UnshiftBtrfsRootfs(d.RootfsPath(), diskIdmap)
-		} else {
+		default:
 			err = diskIdmap.UnshiftPath(d.RootfsPath(), nil)
 		}
 
@@ -1943,11 +1904,12 @@ func (d *lxc) handleIdmappedStorage() (idmap.StorageType, *idmap.Set, error) {
 	// idmap of the container now. Otherwise we will later instruct LXC to
 	// make use of idmapped storage.
 	if nextIdmap != nil && idmapType == idmap.StorageTypeNone {
-		if storageType == "zfs" {
+		switch storageType {
+		case "zfs":
 			err = nextIdmap.ShiftPath(d.RootfsPath(), storageDrivers.ShiftZFSSkipper)
-		} else if storageType == "btrfs" {
+		case "btrfs":
 			err = storageDrivers.ShiftBtrfsRootfs(d.RootfsPath(), nextIdmap)
-		} else {
+		default:
 			err = nextIdmap.ShiftPath(d.RootfsPath(), nil)
 		}
 
@@ -2265,12 +2227,7 @@ func (d *lxc) startCommon() (string, []func() error, error) {
 					continue
 				}
 
-				if d.state.OS.CGInfo.Layout == cgroup.CgroupsUnified {
-					err = lxcSetConfigItem(cc, fmt.Sprintf("lxc.cgroup2.%s", rule.Key), rule.Value)
-				} else {
-					err = lxcSetConfigItem(cc, fmt.Sprintf("lxc.cgroup.%s", rule.Key), rule.Value)
-				}
-
+				err = lxcSetConfigItem(cc, fmt.Sprintf("lxc.cgroup2.%s", rule.Key), rule.Value)
 				if err != nil {
 					return "", nil, fmt.Errorf("Failed to setup device cgroup %q: %w", dev.Name(), err)
 				}
@@ -2279,13 +2236,14 @@ func (d *lxc) startCommon() (string, []func() error, error) {
 
 		// Pass any mounts into LXC.
 		if len(runConf.Mounts) > 0 {
-			escapePathFstab := func(path string) string {
+			escapePathFstab := func(mountPath string) string {
 				r := strings.NewReplacer(
 					" ", "\\040",
 					"\t", "\\011",
 					"\n", "\\012",
-					"\\", "\\\\")
-				return r.Replace(path)
+					"\\", "\\\\",
+				)
+				return r.Replace(mountPath)
 			}
 
 			for _, mount := range runConf.Mounts {
@@ -2362,7 +2320,7 @@ func (d *lxc) startCommon() (string, []func() error, error) {
 
 	// Override NVIDIA_VISIBLE_DEVICES if we have devices that need it.
 	if len(nvidiaDevices) > 0 {
-		err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("NVIDIA_VISIBLE_DEVICES=%s", strings.Join(nvidiaDevices, ",")))
+		err = lxcSetConfigItem(cc, "lxc.environment", fmt.Sprintf("\"NVIDIA_VISIBLE_DEVICES=%s\"", strings.Join(nvidiaDevices, ",")))
 		if err != nil {
 			return "", nil, fmt.Errorf("Unable to set NVIDIA_VISIBLE_DEVICES in LXC environment: %w", err)
 		}
@@ -2387,9 +2345,8 @@ func (d *lxc) startCommon() (string, []func() error, error) {
 			volatileSet["volatile.container.oci"] = "true"
 		}
 
-		// Allow unprivileged users to use ping (requires a 6.6 kernel at least).
-		minVer, _ := version.NewDottedVersion("6.6.0")
-		if !d.state.OS.RunningInUserNS && d.state.OS.KernelVersion.Compare(minVer) >= 0 {
+		// Allow unprivileged users to use ping.
+		if !d.state.OS.RunningInUserNS {
 			maxGid := int64(4294967294)
 
 			if !d.IsPrivileged() {
@@ -2965,7 +2922,8 @@ func (d *lxc) Start(stateful bool) error {
 		name,
 		d.state.OS.LxcPath,
 		configPath,
-		d.LogPath())
+		d.LogPath(),
+	)
 	if err != nil && !d.IsRunning() {
 		// Attempt to extract the LXC errors
 		lxcLog := ""
@@ -3241,10 +3199,10 @@ func (d *lxc) Stop(stateful bool) error {
 	}
 
 	// Fork-bomb mitigation, prevent forking from this point on
-	if d.state.OS.CGInfo.Supports(cgroup.Pids, cg) {
+	if cgroup.Supports(cgroup.Pids) {
 		// Attempt to disable forking new processes
 		_ = cg.SetMaxProcesses(0)
-	} else if d.state.OS.CGInfo.Supports(cgroup.Freezer, cg) {
+	} else {
 		// Attempt to freeze the container
 		freezer := make(chan bool, 1)
 		go func() {
@@ -3678,17 +3636,6 @@ func (d *lxc) Freeze() error {
 		return err
 	}
 
-	cg, err := d.cgroup(cc, true)
-	if err != nil {
-		return err
-	}
-
-	// Check if the CGroup is available
-	if !d.state.OS.CGInfo.Supports(cgroup.Freezer, cg) {
-		d.logger.Warn("Unable to freeze container (lack of kernel support)", ctxMap)
-		return nil
-	}
-
 	// Check that we're not already frozen
 	if d.IsFrozen() {
 		return errors.New("The container is already frozen")
@@ -3729,17 +3676,6 @@ func (d *lxc) Unfreeze() error {
 		return err
 	}
 
-	cg, err := d.cgroup(cc, true)
-	if err != nil {
-		return err
-	}
-
-	// Check if the CGroup is available
-	if !d.state.OS.CGInfo.Supports(cgroup.Freezer, cg) {
-		d.logger.Warn("Unable to unfreeze container (lack of kernel support)", ctxMap)
-		return nil
-	}
-
 	// Check that we're frozen
 	if !d.IsFrozen() {
 		return errors.New("The container is already running")
@@ -3778,8 +3714,8 @@ func (d *lxc) getLxcState() (liblxc.State, error) {
 	}(cc)
 
 	select {
-	case state := <-monitor:
-		return state, nil
+	case lxcState := <-monitor:
+		return lxcState, nil
 	case <-time.After(5 * time.Second):
 		return liblxc.StateMap["FROZEN"], errors.New("Monitor is unresponsive")
 	}
@@ -3811,7 +3747,11 @@ func (d *lxc) RenderWithUsage() (any, any, error) {
 		return resp, etag, nil
 	}
 
-	snapResp.Size = volumeState.Used
+	// A negative usage means the driver couldn't determine it, so leave the size unset.
+	if volumeState.Used >= 0 {
+		snapResp.Size = volumeState.Used
+	}
+
 	return snapResp, etag, nil
 }
 
@@ -3939,6 +3879,11 @@ func (d *lxc) renderState(statusCode api.StatusCode, hostInterfaces []net.Interf
 		StatusCode: statusCode,
 	}
 
+	// If container is in error state, we're done here.
+	if d.isErrorStatusCode(statusCode) {
+		return &status, nil
+	}
+
 	pid := d.InitPID()
 	processesState, _ := d.processesState(pid)
 
@@ -3998,7 +3943,7 @@ func (d *lxc) snapshot(name string, expiry time.Time, stateful bool) error {
 			return err
 		}
 
-		defer func() { _ = os.RemoveAll(stateDir) }()
+		defer logger.WarnOnError(func() error { return os.RemoveAll(stateDir) }, "Failed to remove state directory")
 
 		// Release liblxc container once done.
 		defer func() {
@@ -4071,6 +4016,19 @@ func (d *lxc) Restore(sourceContainer instance.Instance, stateful bool, diskOnly
 
 	defer op.Done(nil)
 
+	// Initialize storage interface for the container.
+	pool, err := storagePools.LoadByInstance(d.state, d)
+	if err != nil {
+		op.Done(err)
+		return err
+	}
+
+	err = pool.CanRestoreInstanceSnapshot(d, sourceContainer)
+	if err != nil {
+		op.Done(err)
+		return err
+	}
+
 	// Stop the container.
 	wasRunning := d.IsRunning()
 	if wasRunning {
@@ -4130,13 +4088,6 @@ func (d *lxc) Restore(sourceContainer instance.Instance, stateful bool, diskOnly
 	// Wait for any file operations to complete.
 	// This is required so we can actually unmount the container and restore its rootfs.
 	d.stopForkfile(false)
-
-	// Initialize storage interface for the container and mount the rootfs for criu state check.
-	pool, err := storagePools.LoadByInstance(d.state, d)
-	if err != nil {
-		op.Done(err)
-		return err
-	}
 
 	d.logger.Debug("Mounting instance to check for CRIU state path existence")
 
@@ -4898,6 +4849,10 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 					continue
 				}
 
+				if newDev["pool"] != "" && newDev["path"] != "/" && strings.Contains(newDev["source"], "/") {
+					continue
+				}
+
 				oldDev, ok := removeDevices[devName]
 				if !ok {
 					return errors.New("New device with initial configuration cannot be added once the instance is created")
@@ -5059,25 +5014,32 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 						return err
 					}
 				} else {
-					// Connect to files API.
-					files, err := d.FileSFTP()
+					err = func() error {
+						// Connect to files API.
+						files, err := d.FileSFTP()
+						if err != nil {
+							return err
+						}
+
+						defer logger.WarnOnError(files.Close, "Failed to close SFTP connection")
+
+						_, err = files.Lstat("/dev/incus")
+						if err == nil {
+							err = d.removeMount("/dev/incus")
+							if err != nil {
+								return err
+							}
+
+							err = files.Remove("/dev/incus")
+							if err != nil {
+								return err
+							}
+						}
+
+						return nil
+					}()
 					if err != nil {
 						return err
-					}
-
-					defer func() { _ = files.Close() }()
-
-					_, err = files.Lstat("/dev/incus")
-					if err == nil {
-						err = d.removeMount("/dev/incus")
-						if err != nil {
-							return err
-						}
-
-						err = files.Remove("/dev/incus")
-						if err != nil {
-							return err
-						}
 					}
 				}
 			} else if key == "linux.kernel_modules" && value != "" {
@@ -5089,7 +5051,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 					}
 				}
 			} else if key == "limits.disk.priority" {
-				if !d.state.OS.CGInfo.Supports(cgroup.Blkio, cg) {
+				if !cgroup.Supports(cgroup.IO) {
 					continue
 				}
 
@@ -5124,7 +5086,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 				}
 			} else if key == "limits.memory" || strings.HasPrefix(key, "limits.memory.") {
 				// Skip if no memory CGroup
-				if !d.state.OS.CGInfo.Supports(cgroup.Memory, cg) {
+				if !cgroup.Supports(cgroup.Memory) {
 					continue
 				}
 
@@ -5146,7 +5108,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 
 				// Store the old values for revert
 				oldMemswLimit := int64(-1)
-				if d.state.OS.CGInfo.Supports(cgroup.MemorySwap, cg) {
+				if cgroup.Supports(cgroup.Memory) {
 					oldMemswLimit, err = cg.GetMemorySwapLimit()
 					if err != nil {
 						oldMemswLimit = -1
@@ -5177,7 +5139,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 				}
 
 				// Reset everything
-				if d.state.OS.CGInfo.Supports(cgroup.MemorySwap, cg) {
+				if cgroup.Supports(cgroup.Memory) {
 					err = cg.SetMemorySwapLimit(-1)
 					if err != nil {
 						revertMemory()
@@ -5212,7 +5174,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 						return err
 					}
 
-					if d.state.OS.CGInfo.Supports(cgroup.MemorySwap, cg) {
+					if cgroup.Supports(cgroup.Memory) {
 						if util.IsTrueOrEmpty(memorySwap) || util.IsFalse(memorySwap) {
 							err = cg.SetMemorySwapLimit(0)
 							if err != nil {
@@ -5234,19 +5196,6 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 							}
 						}
 					}
-
-					// If on Cgroup1, set soft limit to value 10% less than hard limit.
-					if memoryInt > 0 && slices.Contains([]cgroup.Layout{cgroup.CgroupsLegacy, cgroup.CgroupsHybrid}, d.state.OS.CGInfo.Layout) {
-						err = cg.SetMemorySoftLimit(int64(float64(memoryInt) * 0.9))
-						if err != nil {
-							revertMemory()
-							return err
-						}
-					}
-				}
-
-				if !d.state.OS.CGInfo.Supports(cgroup.MemorySwappiness, cg) {
-					continue
 				}
 
 				// Configure the swappiness
@@ -5254,7 +5203,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 					memorySwapPriority := d.expandedConfig["limits.memory.swap.priority"]
 					if util.IsFalse(memorySwap) {
 						err = cg.SetMemorySwappiness(0)
-						if err != nil {
+						if err != nil && !errors.Is(err, cgroup.ErrControllerMissing) {
 							return err
 						}
 					} else {
@@ -5268,7 +5217,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 
 						// Maximum priority (10) should be default swappiness (60).
 						err = cg.SetMemorySwappiness(int64(70 - priority))
-						if err != nil {
+						if err != nil && !errors.Is(err, cgroup.ErrControllerMissing) {
 							return err
 						}
 					}
@@ -5281,7 +5230,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 				defer cgroup.TaskSchedulerTrigger("container", d.name, "changed") //nolint:revive
 			} else if key == "limits.cpu.priority" || key == "limits.cpu.allowance" {
 				// Skip if no cpu CGroup
-				if !d.state.OS.CGInfo.Supports(cgroup.CPU, cg) {
+				if !cgroup.Supports(cgroup.CPU) {
 					continue
 				}
 
@@ -5301,7 +5250,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 					return err
 				}
 			} else if key == "limits.processes" {
-				if !d.state.OS.CGInfo.Supports(cgroup.Pids, cg) {
+				if !cgroup.Supports(cgroup.Pids) {
 					continue
 				}
 
@@ -5322,7 +5271,7 @@ func (d *lxc) Update(args db.InstanceArgs, userRequested bool) error {
 					}
 				}
 			} else if strings.HasPrefix(key, "limits.hugepages.") {
-				if !d.state.OS.CGInfo.Supports(cgroup.Hugetlb, cg) {
+				if !cgroup.Supports(cgroup.Hugetlb) {
 					continue
 				}
 
@@ -5518,21 +5467,21 @@ func (d *lxc) Export(metaWriter io.Writer, rootfsWriter io.Writer, properties ma
 		return nil, err
 	}
 
-	defer func() { _ = d.unmount() }()
+	defer logger.WarnOnError(d.unmount, "Failed to unmount instance")
 
 	// Get IDMap to unshift container as the tarball is created.
-	idmap, err := d.DiskIdmap()
+	diskIdmap, err := d.DiskIdmap()
 	if err != nil {
 		d.logger.Error("Failed exporting instance", ctxMap)
 		return nil, err
 	}
 
 	// Create the tarball.
-	metaTarWriter := instancewriter.NewInstanceTarWriter(metaWriter, idmap)
+	metaTarWriter := instancewriter.NewInstanceTarWriter(metaWriter, diskIdmap)
 
 	var rootfsTarWriter *instancewriter.InstanceTarWriter
 	if rootfsWriter != nil {
-		rootfsTarWriter = instancewriter.NewInstanceTarWriter(rootfsWriter, idmap)
+		rootfsTarWriter = instancewriter.NewInstanceTarWriter(rootfsWriter, diskIdmap)
 	}
 
 	// Keep track of the first path we saw for each path with nlink>1.
@@ -5657,7 +5606,7 @@ func (d *lxc) Export(metaWriter io.Writer, rootfsWriter io.Writer, properties ma
 		return nil, err
 	}
 
-	defer func() { _ = os.RemoveAll(tempDir) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(tempDir) }, "Failed to remove temporary directory")
 
 	data, err := yaml.Dump(&meta, yaml.V2)
 	if err != nil {
@@ -5791,7 +5740,7 @@ func getCRIULogErrors(imagesDir string, method string) (string, error) {
 		return "", err
 	}
 
-	defer func() { _ = f.Close() }()
+	defer logger.WarnOnError(f.Close, "Failed to close file")
 
 	scanner := bufio.NewScanner(f)
 	ret := []string{}
@@ -5877,6 +5826,7 @@ fi
 	return f.Close()
 }
 
+// MigrateSend sends an instance to a target for migration.
 func (d *lxc) MigrateSend(args instance.MigrateSendArgs) error {
 	d.logger.Debug("Migration send starting")
 	defer d.logger.Debug("Migration send stopped")
@@ -5972,7 +5922,7 @@ func (d *lxc) MigrateSend(args instance.MigrateSendArgs) error {
 	} else if idmapset != nil {
 		offerHeader.Idmap = make([]*migration.IDMapType, 0, len(idmapset.Entries))
 		for _, ctnIdmap := range idmapset.Entries {
-			idmap := migration.IDMapType{
+			idmapEntry := migration.IDMapType{
 				Isuid:    proto.Bool(ctnIdmap.IsUID),
 				Isgid:    proto.Bool(ctnIdmap.IsGID),
 				Hostid:   proto.Int32(int32(ctnIdmap.HostID)),
@@ -5980,7 +5930,7 @@ func (d *lxc) MigrateSend(args instance.MigrateSendArgs) error {
 				Maprange: proto.Int32(int32(ctnIdmap.MapRange)),
 			}
 
-			offerHeader.Idmap = append(offerHeader.Idmap, &idmap)
+			offerHeader.Idmap = append(offerHeader.Idmap, &idmapEntry)
 		}
 	}
 
@@ -5991,7 +5941,7 @@ func (d *lxc) MigrateSend(args instance.MigrateSendArgs) error {
 		return err
 	}
 
-	dependentVolumesOffer, err := storagePools.GenerateDependentVolumesOffer(d.state, srcConfig, d.Project().Name, args.Snapshots)
+	dependentVolumesOffer, err := storagePools.GenerateDependentVolumesOffer(d.state, srcConfig, d.Project().Name, args.Snapshots, args.Devices, args.ClusterMoveSourceName != "")
 	if err != nil {
 		err := fmt.Errorf("Failed generating instance depending volumes offer: %w", err)
 		op.Done(err)
@@ -6040,7 +5990,7 @@ func (d *lxc) MigrateSend(args instance.MigrateSendArgs) error {
 		return err
 	}
 
-	volumesWithTypes, err := storagePools.DependentVolumesMatchMigrationType(d.state, respHeader.DependentVolumes, args.Snapshots)
+	volumesWithTypes, err := storagePools.DependentVolumesMatchMigrationType(d.state, respHeader.DependentVolumes, args.Snapshots, nil, true)
 	if err != nil {
 		err := fmt.Errorf("Failed to negotiate migration types for dependent volumes: %w", err)
 		op.Done(err)
@@ -6050,7 +6000,7 @@ func (d *lxc) MigrateSend(args instance.MigrateSendArgs) error {
 	d.logger.Debug("Generate dependent volumes args")
 	dependentVolumes := []localMigration.DependentVolumeArgs{}
 	for _, volWithType := range volumesWithTypes {
-		dependentVolumes = append(dependentVolumes, localMigration.ProtobufToDependentVolume(volWithType.Volume, volWithType.VolumeTypes[0]))
+		dependentVolumes = append(dependentVolumes, localMigration.ProtobufToDependentVolume(volWithType.Volume, volWithType.VolumeTypes[0], nil))
 	}
 
 	volSourceArgs := &localMigration.VolumeSourceArgs{
@@ -6318,7 +6268,7 @@ func (d *lxc) MigrateSend(args instance.MigrateSendArgs) error {
 				}
 			} else {
 				d.logger.Debug("The version of liblxc is older than 2.0.4 and the live migration will probably fail")
-				defer func() { _ = os.RemoveAll(checkpointDir) }()
+				defer logger.WarnOnError(func() error { return os.RemoveAll(checkpointDir) }, "Failed to remove checkpoint directory")
 				criuMigrationArgs := instance.CriuMigrationArgs{
 					Cmd:          liblxc.MIGRATE_DUMP,
 					StateDir:     checkpointDir,
@@ -6445,9 +6395,9 @@ func (d *lxc) migrateSendPreDumpLoop(args *preDumpLoopArgs) (bool, error) {
 
 	// The function readCriuStatsDump() reads the CRIU 'stats-dump' file
 	// in path and returns the pages_written, pages_skipped_parent, error.
-	readCriuStatsDump := func(path string) (uint64, uint64, error) {
+	readCriuStatsDump := func(statsPath string) (uint64, uint64, error) {
 		// Get dump statistics with crit
-		dumpStats, err := crit.GetDumpStats(path)
+		dumpStats, err := crit.GetDumpStats(statsPath)
 		if err != nil {
 			return 0, 0, fmt.Errorf("Failed to parse CRIU's 'stats-dump' file: %w", err)
 		}
@@ -6490,11 +6440,11 @@ func (d *lxc) migrateSendPreDumpLoop(args *preDumpLoopArgs) (bool, error) {
 
 	// If in pre-dump mode, the receiving side expects a message to know if this was the last pre-dump.
 	logger.Debug("Sending another CRIU pre-dump header")
-	sync := migration.MigrationSync{
+	syncMsg := migration.MigrationSync{
 		FinalPreDump: proto.Bool(final),
 	}
 
-	data, err := proto.Marshal(&sync)
+	data, err := proto.Marshal(&syncMsg)
 	if err != nil {
 		return false, err
 	}
@@ -6535,6 +6485,7 @@ func (d *lxc) resetContainerDiskIdmap(srcIdmap *idmap.Set) error {
 	return nil
 }
 
+// MigrateReceive receives an instance being migrated from a source.
 func (d *lxc) MigrateReceive(args instance.MigrateReceiveArgs) error {
 	d.logger.Debug("Migration receive starting")
 	defer d.logger.Debug("Migration receive stopped")
@@ -6629,7 +6580,8 @@ func (d *lxc) MigrateReceive(args instance.MigrateReceiveArgs) error {
 	// Add CRIU info to response.
 	respHeader.Criu = criuType
 
-	volumesWithTypes, err := storagePools.DependentVolumesMatchMigrationType(d.state, offerHeader.DependentVolumes, args.Snapshots)
+	localDevices := d.LocalDevices().CloneNative()
+	volumesWithTypes, err := storagePools.DependentVolumesMatchMigrationType(d.state, offerHeader.DependentVolumes, args.Snapshots, localDevices, false)
 	if err != nil {
 		return fmt.Errorf("Failed to negotiate migration types for dependent volumes: %w", err)
 	}
@@ -6637,7 +6589,8 @@ func (d *lxc) MigrateReceive(args instance.MigrateReceiveArgs) error {
 	dependentVolumes := []localMigration.DependentVolumeArgs{}
 	for _, volWithType := range volumesWithTypes {
 		respHeader.DependentVolumes = append(respHeader.DependentVolumes, volWithType.Volume)
-		dependentVolumes = append(dependentVolumes, localMigration.ProtobufToDependentVolume(volWithType.Volume, volWithType.VolumeTypes[0]))
+		vol := localMigration.ProtobufToDependentVolume(volWithType.Volume, volWithType.VolumeTypes[0], localDevices[*volWithType.Volume.DeviceName])
+		dependentVolumes = append(dependentVolumes, vol)
 	}
 
 	if args.Refresh {
@@ -6952,7 +6905,7 @@ func (d *lxc) MigrateReceive(args instance.MigrateReceiveArgs) error {
 				return err
 			}
 
-			defer func() { _ = os.RemoveAll(imagesDir) }()
+			defer logger.WarnOnError(func() error { return os.RemoveAll(imagesDir) }, "Failed to remove images directory")
 
 			sync := &migration.MigrationSync{
 				FinalPreDump: proto.Bool(false),
@@ -7169,11 +7122,12 @@ func (d *lxc) migrate(args *instance.CriuMigrationArgs) error {
 				return fmt.Errorf("Storage type: %w", err)
 			}
 
-			if storageType == "zfs" {
+			switch storageType {
+			case "zfs":
 				err = idmapset.ShiftPath(args.StateDir, storageDrivers.ShiftZFSSkipper)
-			} else if storageType == "btrfs" {
+			case "btrfs":
 				err = storageDrivers.ShiftBtrfsRootfs(args.StateDir, idmapset)
-			} else {
+			default:
 				err = idmapset.ShiftPath(args.StateDir, nil)
 			}
 
@@ -7348,33 +7302,18 @@ func (d *lxc) templateApplyNow(trigger instance.TemplateTrigger) error {
 		containerMeta["privileged"] = "false"
 	}
 
-	// Setup security check.
-	rootfsPath, err := os.OpenFile(d.RootfsPath(), unix.O_PATH, 0)
+	// Open the container's rootfs as an os.Root. All template
+	// operations will then be relative to this root, avoiding issues with
+	// template files or paths within those templates attempting to access the
+	// fhost rootfs.
+	rootfs, err := os.OpenRoot(d.RootfsPath())
 	if err != nil {
 		return fmt.Errorf("Failed to open instance rootfs path: %w", err)
 	}
 
-	defer func() { _ = rootfsPath.Close() }()
+	defer logger.WarnOnError(rootfs.Close, "Failed to close rootfs")
 
-	checkBeneath := func(targetPath string) error {
-		fd, err := unix.Openat2(int(rootfsPath.Fd()), targetPath, &unix.OpenHow{
-			Flags:   unix.O_PATH | unix.O_CLOEXEC,
-			Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_MAGICLINKS,
-		})
-		if err != nil {
-			if errors.Is(err, unix.EXDEV) {
-				return errors.New("Template is attempting access to path outside of container")
-			}
-
-			return nil
-		}
-
-		_ = unix.Close(fd)
-
-		return nil
-	}
-
-	// Go through the templates
+	// Go through the templates.
 	for tplPath, tpl := range metadata.Templates {
 		err = func(tplPath string, tpl *api.ImageMetadataTemplate) error {
 			var w *os.File
@@ -7386,13 +7325,8 @@ func (d *lxc) templateApplyNow(trigger instance.TemplateTrigger) error {
 				return nil
 			}
 
-			// Perform some security checks.
+			// Perform some early security checks on the template itself.
 			relPath := strings.TrimLeft(tplPath, "/")
-
-			err = checkBeneath(relPath)
-			if err != nil {
-				return err
-			}
 
 			if filepath.Base(tpl.Template) != tpl.Template {
 				return errors.New("Template path is attempting to read outside of template directory")
@@ -7416,15 +7350,47 @@ func (d *lxc) templateApplyNow(trigger instance.TemplateTrigger) error {
 				return errors.New("Template file is a symlink")
 			}
 
-			// Open the file to template, create if needed
-			fullpath := filepath.Join(d.RootfsPath(), relPath)
-			if util.PathExists(fullpath) {
+			// Create the directory hierarchy, this has to be done
+			// somewhat manually as we not only need to create anything that's missing
+			// but also set the correct uid/gid.
+			relDir := path.Dir(relPath)
+
+			parent := ""
+			for _, part := range strings.Split(relDir, "/") {
+				if part == "" || part == "." {
+					continue
+				}
+
+				cur := path.Join(parent, part)
+
+				err = rootfs.Mkdir(cur, 0o755)
+				if err == nil {
+					// Fix ownership of any directory we just created.
+					err = rootfs.Chown(cur, int(rootUID), int(rootGID))
+					if err != nil {
+						return fmt.Errorf("Failed to set ownership on template directory: %w", err)
+					}
+				} else if !errors.Is(err, fs.ErrExist) {
+					return fmt.Errorf("Failed to create template directory: %w", err)
+				}
+
+				parent = cur
+			}
+
+			// Check whether the target file already exists.
+			_, err = rootfs.Stat(relPath)
+			existing := err == nil
+			if err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return fmt.Errorf("Failed to check template file: %w", err)
+			}
+
+			if existing {
 				if tpl.CreateOnly {
 					return nil
 				}
 
 				// Open the existing file
-				w, err = os.Create(fullpath)
+				w, err = rootfs.OpenFile(relPath, os.O_WRONLY|os.O_TRUNC, 0)
 				if err != nil {
 					return fmt.Errorf("Failed to create template file: %w", err)
 				}
@@ -7470,14 +7436,8 @@ func (d *lxc) templateApplyNow(trigger instance.TemplateTrigger) error {
 					fileMode = os.FileMode(mode) & os.ModePerm
 				}
 
-				// Create the directories leading to the file
-				err = internalUtil.MkdirAllOwner(path.Dir(fullpath), 0o755, int(rootUID), int(rootGID))
-				if err != nil {
-					return err
-				}
-
-				// Create the file itself
-				w, err = os.Create(fullpath)
+				// Create the file itself beneath the rootfs.
+				w, err = rootfs.OpenFile(relPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, fileMode.Perm())
 				if err != nil {
 					return err
 				}
@@ -7493,7 +7453,7 @@ func (d *lxc) templateApplyNow(trigger instance.TemplateTrigger) error {
 					return err
 				}
 			}
-			defer func() { _ = w.Close() }()
+			defer logger.WarnOnError(w.Close, "Failed to close file")
 
 			// Read the template
 			tplString, err := os.ReadFile(filepath.Join(d.TemplatesPath(), tpl.Template))
@@ -7534,19 +7494,6 @@ func (d *lxc) templateApplyNow(trigger instance.TemplateTrigger) error {
 	return nil
 }
 
-func (d *lxc) inheritInitPidFd() *os.File {
-	if d.state.OS.PidFds {
-		pidFdFile, err := d.InitPidFd()
-		if err != nil {
-			return nil
-		}
-
-		return pidFdFile
-	}
-
-	return nil
-}
-
 // FileSFTPConn returns a connection to the forkfile handler.
 func (d *lxc) FileSFTPConn() (net.Conn, error) {
 	// Lock to avoid concurrent spawning.
@@ -7569,7 +7516,7 @@ func (d *lxc) FileSFTPConn() (net.Conn, error) {
 		return nil, err
 	}
 
-	defer func() { _ = dirFile.Close() }()
+	defer logger.WarnOnError(dirFile.Close, "Failed to close directory")
 
 	forkfileAddr, err := net.ResolveUnixAddr("unix", fmt.Sprintf("/proc/self/fd/%d/forkfile.sock", dirFile.Fd()))
 	if err != nil {
@@ -7632,7 +7579,7 @@ func (d *lxc) FileSFTPConn() (net.Conn, error) {
 				return
 			}
 
-			defer func() { _ = d.unmount() }()
+			defer logger.WarnOnError(d.unmount, "Failed to unmount instance")
 		}
 
 		// Start building the command.
@@ -7651,7 +7598,7 @@ func (d *lxc) FileSFTPConn() (net.Conn, error) {
 			return
 		}
 
-		defer func() { _ = forkfileFile.Close() }()
+		defer logger.WarnOnError(forkfileFile.Close, "Failed to close forkfile listener")
 
 		args = append(args, "3")
 		extraFiles = append(extraFiles, forkfileFile)
@@ -7663,15 +7610,20 @@ func (d *lxc) FileSFTPConn() (net.Conn, error) {
 			return
 		}
 
-		defer func() { _ = rootfsFile.Close() }()
+		defer logger.WarnOnError(rootfsFile.Close, "Failed to close rootfs")
 
 		args = append(args, "4")
 		extraFiles = append(extraFiles, rootfsFile)
 
-		// Get the pidfd.
-		pidFd := d.inheritInitPidFd()
-		if pidFd != nil {
-			defer func() { _ = pidFd.Close() }()
+		// Get the pidfd if the container is running.
+		if d.IsRunning() {
+			pidFd, err := d.InitPidFd()
+			if err != nil {
+				chReady <- err
+				return
+			}
+
+			defer logger.WarnOnError(pidFd.Close, "Failed to close PID fd")
 			args = append(args, "5")
 			extraFiles = append(extraFiles, pidFd)
 		} else {
@@ -7942,7 +7894,7 @@ func (d *lxc) Exec(req api.InstanceExecPost, stdin *os.File, stdout *os.File, st
 		return nil, err
 	}
 
-	defer func() { _ = logFile.Close() }()
+	defer logger.WarnOnError(logFile.Close, "Failed to close log file")
 
 	// Prepare the subcommand
 	cname := project.Instance(d.Project().Name, d.Name())
@@ -7957,11 +7909,7 @@ func (d *lxc) Exec(req api.InstanceExecPost, stdin *os.File, stdout *os.File, st
 		fmt.Sprintf("%d", req.Group),
 	}
 
-	if d.state.OS.CoreScheduling && !d.state.OS.ContainerCoreScheduling {
-		args = append(args, "1")
-	} else {
-		args = append(args, "0")
-	}
+	args = append(args, "0")
 
 	args = append(args, "--")
 	args = append(args, "env")
@@ -7998,7 +7946,7 @@ func (d *lxc) Exec(req api.InstanceExecPost, stdin *os.File, stdout *os.File, st
 
 	// Setup communication PIPE
 	rStatus, wStatus, err := os.Pipe()
-	defer func() { _ = rStatus.Close() }()
+	defer logger.WarnOnError(rStatus.Close, "Failed to close pipe")
 	if err != nil {
 		return nil, err
 	}
@@ -8030,7 +7978,7 @@ func (d *lxc) Exec(req api.InstanceExecPost, stdin *os.File, stdout *os.File, st
 }
 
 func (d *lxc) cpuStateUsage(cg *cgroup.CGroup) (int64, bool) {
-	if !d.state.OS.CGInfo.Supports(cgroup.CPUAcct, cg) {
+	if !cgroup.Supports(cgroup.CPU) {
 		return -1, false
 	}
 
@@ -8124,13 +8072,13 @@ func (d *lxc) diskState() map[string]api.InstanceStateDisk {
 			continue
 		}
 
-		state := api.InstanceStateDisk{}
+		diskState := api.InstanceStateDisk{}
 		if usage != nil {
-			state.Usage = usage.Used
-			state.Total = usage.Total
+			diskState.Usage = usage.Used
+			diskState.Total = usage.Total
 		}
 
-		disk[dev.Name] = state
+		disk[dev.Name] = diskState
 	}
 
 	return disk
@@ -8149,7 +8097,7 @@ func (d *lxc) memoryState() api.InstanceStateMemory {
 		return memory
 	}
 
-	if !d.state.OS.CGInfo.Supports(cgroup.Memory, cg) {
+	if !cgroup.Supports(cgroup.Memory) {
 		return memory
 	}
 
@@ -8160,11 +8108,9 @@ func (d *lxc) memoryState() api.InstanceStateMemory {
 	}
 
 	// Memory peak in bytes
-	if d.state.OS.CGInfo.Supports(cgroup.MemoryMaxUsage, cg) {
-		value, err = cg.GetMemoryMaxUsage()
-		if err == nil {
-			memory.UsagePeak = value
-		}
+	value, err = cg.GetMemoryMaxUsage()
+	if err == nil {
+		memory.UsagePeak = value
 	}
 
 	// Memory total in bytes
@@ -8173,21 +8119,19 @@ func (d *lxc) memoryState() api.InstanceStateMemory {
 		memory.Total = value
 	}
 
-	if d.state.OS.CGInfo.Supports(cgroup.MemorySwapUsage, cg) {
-		// Swap in bytes
-		if memory.Usage > 0 {
-			value, err := cg.GetMemorySwapUsage()
-			if err == nil {
-				memory.SwapUsage = value
-			}
+	// Swap in bytes
+	if memory.Usage > 0 {
+		value, err := cg.GetMemorySwapUsage()
+		if err == nil {
+			memory.SwapUsage = value
 		}
+	}
 
-		// Swap peak in bytes
-		if memory.UsagePeak > 0 {
-			value, err = cg.GetMemorySwapMaxUsage()
-			if err == nil {
-				memory.SwapUsagePeak = value
-			}
+	// Swap peak in bytes
+	if memory.UsagePeak > 0 {
+		value, err := cg.GetMemorySwapMaxUsage()
+		if err == nil {
+			memory.SwapUsagePeak = value
 		}
 	}
 
@@ -8202,56 +8146,13 @@ func (d *lxc) networkState(hostInterfaces []net.Interface) map[string]api.Instan
 		return result
 	}
 
-	couldUseNetnsGetifaddrs := d.state.OS.NetnsGetifaddrs
-	if couldUseNetnsGetifaddrs {
-		nw, err := netutils.NetnsGetifaddrs(int32(pid), hostInterfaces)
-		if err != nil {
-			couldUseNetnsGetifaddrs = false
-			d.logger.Warn("Failed to retrieve network information via netlink", logger.Ctx{"pid": pid})
-		} else {
-			result = nw
-		}
+	nw, err := netutils.NetnsGetifaddrs(int32(pid), hostInterfaces)
+	if err != nil {
+		d.logger.Error("Failed to retrieve network information via netlink", logger.Ctx{"err": err, "pid": pid})
+		return result
 	}
 
-	if !couldUseNetnsGetifaddrs {
-		pidFd := d.inheritInitPidFd()
-		pidFdNr := "-1"
-		if pidFd != nil {
-			defer func() { _ = pidFd.Close() }()
-			pidFdNr = "3"
-		}
-
-		// Get the network state from the container
-		out, _, err := subprocess.RunCommandSplit(
-			context.TODO(),
-			nil,
-			[]*os.File{pidFd},
-			d.state.OS.ExecPath,
-			"forknet",
-			"info",
-			"--",
-			fmt.Sprintf("%d", pid),
-			pidFdNr)
-		// Process forkgetnet response
-		if err != nil {
-			d.logger.Error("Error calling 'forknet", logger.Ctx{"err": err, "pid": pid})
-			return result
-		}
-
-		// If we can use netns_getifaddrs() but it failed and the setns() +
-		// netns_getifaddrs() succeeded we should just always fallback to the
-		// setns() + netns_getifaddrs() style retrieval.
-		d.state.OS.NetnsGetifaddrs = false
-
-		nw := map[string]api.InstanceStateNetwork{}
-		err = json.Unmarshal([]byte(out), &nw)
-		if err != nil {
-			d.logger.Error("Failure to read forknet json", logger.Ctx{"err": err})
-			return result
-		}
-
-		result = nw
-	}
+	result = nw
 
 	// Get host_name from volatile data if not set already.
 	for name, dev := range result {
@@ -8280,7 +8181,7 @@ func (d *lxc) processesState(pid int) (int64, error) {
 		return 0, err
 	}
 
-	if d.state.OS.CGInfo.Supports(cgroup.Pids, cg) {
+	if cgroup.Supports(cgroup.Pids) {
 		value, err := cg.GetProcessesUsage()
 		if err != nil {
 			return -1, err
@@ -8405,7 +8306,7 @@ func (d *lxc) insertMountGo(source, target, fstype string, flags int, mntnsPID i
 		_ = f.Close()
 	}
 
-	defer func() { _ = os.Remove(tmpMount) }()
+	defer logger.WarnOnError(func() error { return os.Remove(tmpMount) }, "Failed to remove temporary mount")
 
 	// Mount the filesystem
 	err = unix.Mount(source, tmpMount, fstype, uintptr(flags), "")
@@ -8413,7 +8314,7 @@ func (d *lxc) insertMountGo(source, target, fstype string, flags int, mntnsPID i
 		return fmt.Errorf("Failed to setup temporary mount: %s", err)
 	}
 
-	defer func() { _ = unix.Unmount(tmpMount, unix.MNT_DETACH) }()
+	defer logger.WarnOnError(func() error { return unix.Unmount(tmpMount, unix.MNT_DETACH) }, "Failed to unmount temporary mount")
 
 	// Ensure that only flags modifying mount _properties_ make it through.
 	// Strip things such as MS_BIND which would cause the creation of a
@@ -8435,10 +8336,12 @@ func (d *lxc) insertMountGo(source, target, fstype string, flags int, mntnsPID i
 	mntsrc := filepath.Join("/dev/.incus-mounts", filepath.Base(tmpMount))
 	pidStr := fmt.Sprintf("%d", pid)
 
-	pidFdNr, pidFd := seccomp.MakePidFd(pid, d.state)
-	if pidFdNr >= 0 {
-		defer func() { _ = pidFd.Close() }()
+	pidFdNr, pidFd, err := seccomp.MakePidFd(pid)
+	if err != nil {
+		return err
 	}
+
+	defer logger.WarnOnError(pidFd.Close, "Failed to close PID fd")
 
 	if !strings.HasPrefix(target, "/") {
 		target = "/" + target
@@ -8456,7 +8359,8 @@ func (d *lxc) insertMountGo(source, target, fstype string, flags int, mntnsPID i
 		mntsrc,
 		target,
 		string(idmapType),
-		fmt.Sprintf("%d", shiftfsFlags))
+		fmt.Sprintf("%d", shiftfsFlags),
+	)
 	if err != nil {
 		return err
 	}
@@ -8486,7 +8390,8 @@ func (d *lxc) insertMountLXC(source, target, fstype string, flags int) error {
 		source,
 		target,
 		fstype,
-		fmt.Sprintf("%d", flags))
+		fmt.Sprintf("%d", flags),
+	)
 	if err != nil {
 		return err
 	}
@@ -8509,10 +8414,12 @@ func (d *lxc) moveMount(source, target, fstype string, flags int, idmapType idma
 		return errors.New("Invalid idmap value specified")
 	}
 
-	pidFdNr, pidFd := seccomp.MakePidFd(pid, d.state)
-	if pidFdNr >= 0 {
-		defer func() { _ = pidFd.Close() }()
+	pidFdNr, pidFd, err := seccomp.MakePidFd(pid)
+	if err != nil {
+		return err
 	}
+
+	defer logger.WarnOnError(pidFd.Close, "Failed to close PID fd")
 
 	pidStr := fmt.Sprintf("%d", pid)
 
@@ -8520,7 +8427,7 @@ func (d *lxc) moveMount(source, target, fstype string, flags int, idmapType idma
 		target = "/" + target
 	}
 
-	_, err := subprocess.RunCommandInheritFds(
+	_, err = subprocess.RunCommandInheritFds(
 		context.Background(),
 		[]*os.File{pidFd},
 		d.state.OS.ExecPath,
@@ -8533,7 +8440,8 @@ func (d *lxc) moveMount(source, target, fstype string, flags int, idmapType idma
 		source,
 		target,
 		string(idmapType),
-		fmt.Sprintf("%d", flags))
+		fmt.Sprintf("%d", flags),
+	)
 	if err != nil {
 		return err
 	}
@@ -8542,11 +8450,11 @@ func (d *lxc) moveMount(source, target, fstype string, flags int, idmapType idma
 }
 
 func (d *lxc) insertMount(source, target, fstype string, flags int, idmapType idmap.StorageType) error {
-	if d.state.OS.IdmappedMounts && idmapType == idmap.StorageTypeIdmapped {
+	if idmapType == idmap.StorageTypeIdmapped {
 		return d.moveMount(source, target, fstype, flags, idmapType)
 	}
 
-	if d.state.OS.LXCFeatures["mount_injection_file"] && idmapType == idmap.StorageTypeNone {
+	if idmapType == idmap.StorageTypeNone {
 		return d.insertMountLXC(source, target, fstype, flags)
 	}
 
@@ -8555,54 +8463,30 @@ func (d *lxc) insertMount(source, target, fstype string, flags int, idmapType id
 
 func (d *lxc) removeMount(mount string) error {
 	// Get the init PID
-	pid := d.InitPID()
-	if pid == -1 {
+	if d.InitPID() == -1 {
 		// Container isn't running
 		return errors.New("Can't remove mount from stopped container")
 	}
 
-	if d.state.OS.LXCFeatures["mount_injection_file"] {
-		configPath := filepath.Join(d.RunPath(), "lxc.conf")
-		cname := project.Instance(d.Project().Name, d.Name())
+	configPath := filepath.Join(d.RunPath(), "lxc.conf")
+	cname := project.Instance(d.Project().Name, d.Name())
 
-		if !strings.HasPrefix(mount, "/") {
-			mount = "/" + mount
-		}
+	if !strings.HasPrefix(mount, "/") {
+		mount = "/" + mount
+	}
 
-		_, err := subprocess.RunCommand(
-			d.state.OS.ExecPath,
-			"forkmount",
-			"lxc-umount",
-			"--",
-			cname,
-			d.state.OS.LxcPath,
-			configPath,
-			mount)
-		if err != nil {
-			return err
-		}
-	} else {
-		// Remove the mount from the container
-		pidFd := d.inheritInitPidFd()
-		pidFdNr := "-1"
-		if pidFd != nil {
-			defer func() { _ = pidFd.Close() }()
-			pidFdNr = "3"
-		}
-
-		_, err := subprocess.RunCommandInheritFds(
-			context.TODO(),
-			[]*os.File{pidFd},
-			d.state.OS.ExecPath,
-			"forkmount",
-			"go-umount",
-			"--",
-			fmt.Sprintf("%d", pid),
-			pidFdNr,
-			mount)
-		if err != nil {
-			return err
-		}
+	_, err := subprocess.RunCommand(
+		d.state.OS.ExecPath,
+		"forkmount",
+		"lxc-umount",
+		"--",
+		cname,
+		d.state.OS.LxcPath,
+		configPath,
+		mount,
+	)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -8661,7 +8545,7 @@ func (d *lxc) InsertSeccompUnixDevice(prefix string, m deviceConfig.Device, pid 
 	tgtPath := dev.RelativePath
 
 	// Bind-mount it into the container
-	defer func() { _ = os.Remove(devPath) }()
+	defer logger.WarnOnError(func() error { return os.Remove(devPath) }, "Failed to remove device path")
 	return d.insertMountGo(devPath, tgtPath, "none", unix.MS_BIND, pid, idmap.StorageTypeNone)
 }
 
@@ -8734,7 +8618,7 @@ func (d *lxc) FillNetworkDevice(name string, m deviceConfig.Device) (deviceConfi
 		cname := project.Instance(d.Project().Name, d.Name())
 		cc, err := liblxc.NewContainer(cname, d.state.OS.LxcPath)
 		if err == nil {
-			defer func() { _ = cc.Release() }()
+			defer logger.WarnOnError(cc.Release, "Failed to release container")
 
 			interfaces, err := cc.Interfaces()
 			if err == nil {
@@ -8882,12 +8766,12 @@ func (d *lxc) isCurrentlyPrivileged() bool {
 		return d.IsPrivileged()
 	}
 
-	idmap, err := d.CurrentIdmap()
+	currentIdmap, err := d.CurrentIdmap()
 	if err != nil {
 		return d.IsPrivileged()
 	}
 
-	return idmap == nil
+	return currentIdmap == nil
 }
 
 // IsPrivileged returns if instance is privileged.
@@ -8955,10 +8839,6 @@ func (d *lxc) DevptsFd() (*os.File, error) {
 
 	defer d.release()
 
-	if !liblxc.HasAPIExtension("devpts_fd") {
-		return nil, errors.New("Missing devpts_fd extension")
-	}
-
 	return cc.DevptsFd()
 }
 
@@ -9010,12 +8890,12 @@ func (d *lxc) statusCode() api.StatusCode {
 		}
 	}
 
-	state, err := d.getLxcState()
+	lxcState, err := d.getLxcState()
 	if err != nil {
 		return api.Error
 	}
 
-	statusCode := lxcStatusCode(state)
+	statusCode := lxcStatusCode(lxcState)
 
 	if statusCode == api.Running && util.IsTrue(d.LocalConfig()["volatile.last_state.ready"]) {
 		return api.Ready
@@ -9034,6 +8914,7 @@ func (d *lxc) LogFilePath() string {
 	return filepath.Join(d.LogPath(), "lxc.log")
 }
 
+// CGroup returns the cgroup handler for the instance.
 func (d *lxc) CGroup() (*cgroup.CGroup, error) {
 	// Load the go-lxc struct
 	cc, err := d.initLXC(false)
@@ -9053,13 +8934,7 @@ func (d *lxc) cgroup(cc *liblxc.Container, running bool) (*cgroup.CGroup, error)
 	rw.cc = cc
 	rw.running = running
 
-	cg, err := cgroup.New(&rw)
-	if err != nil {
-		return nil, err
-	}
-
-	cg.UnifiedCapable = liblxc.HasAPIExtension("cgroup2")
-	return cg, nil
+	return cgroup.New(&rw)
 }
 
 type lxcCgroupReadWriter struct {
@@ -9067,26 +8942,18 @@ type lxcCgroupReadWriter struct {
 	running bool
 }
 
-func (rw *lxcCgroupReadWriter) Get(version cgroup.Backend, controller string, key string) (string, error) {
+// Get reads the value of a cgroup key.
+func (rw *lxcCgroupReadWriter) Get(controller string, key string) (string, error) {
 	if !rw.running {
-		lxcKey := fmt.Sprintf("lxc.cgroup.%s", key)
-
-		if version == cgroup.V2 {
-			lxcKey = fmt.Sprintf("lxc.cgroup2.%s", key)
-		}
-
-		return strings.Join(rw.cc.ConfigItem(lxcKey), "\n"), nil
+		return strings.Join(rw.cc.ConfigItem(fmt.Sprintf("lxc.cgroup2.%s", key)), "\n"), nil
 	}
 
 	return strings.Join(rw.cc.CgroupItem(key), "\n"), nil
 }
 
-func (rw *lxcCgroupReadWriter) Set(version cgroup.Backend, controller string, key string, value string) error {
+// Set writes a value to a cgroup key.
+func (rw *lxcCgroupReadWriter) Set(controller string, key string, value string) error {
 	if !rw.running {
-		if version == cgroup.V1 {
-			return lxcSetConfigItem(rw.cc, fmt.Sprintf("lxc.cgroup.%s", key), value)
-		}
-
 		return lxcSetConfigItem(rw.cc, fmt.Sprintf("lxc.cgroup2.%s", key), value)
 	}
 
@@ -9122,6 +8989,7 @@ func (d *lxc) Info() instance.Info {
 	}
 }
 
+// Metrics returns the metrics set for the instance.
 func (d *lxc) Metrics(hostInterfaces []net.Interface) (*metrics.MetricSet, error) {
 	out := metrics.NewMetricSet(map[string]string{"project": d.project.Name, "name": d.name, "type": instancetype.Container.String()})
 
@@ -9211,7 +9079,7 @@ func (d *lxc) Metrics(hostInterfaces []net.Interface) (*metrics.MetricSet, error
 	out.AddSamples(metrics.MemoryOOMKillsTotal, metrics.Sample{Value: float64(oomKills)})
 
 	// Handle swap.
-	if d.state.OS.CGInfo.Supports(cgroup.MemorySwapUsage, cg) {
+	if cgroup.Supports(cgroup.Memory) {
 		swapUsage, err := cg.GetMemorySwapUsage()
 		if err != nil {
 			d.logger.Warn("Failed to get swap usage", logger.Ctx{"err": err})
@@ -9267,17 +9135,17 @@ func (d *lxc) Metrics(hostInterfaces []net.Interface) (*metrics.MetricSet, error
 	// Get network stats
 	networkState := d.networkState(hostInterfaces)
 
-	for name, state := range networkState {
+	for name, netState := range networkState {
 		labels := map[string]string{"device": name}
 
-		out.AddSamples(metrics.NetworkReceiveBytesTotal, metrics.Sample{Value: float64(state.Counters.BytesReceived), Labels: labels})
-		out.AddSamples(metrics.NetworkReceivePacketsTotal, metrics.Sample{Value: float64(state.Counters.PacketsReceived), Labels: labels})
-		out.AddSamples(metrics.NetworkTransmitBytesTotal, metrics.Sample{Value: float64(state.Counters.BytesSent), Labels: labels})
-		out.AddSamples(metrics.NetworkTransmitPacketsTotal, metrics.Sample{Value: float64(state.Counters.PacketsSent), Labels: labels})
-		out.AddSamples(metrics.NetworkReceiveErrsTotal, metrics.Sample{Value: float64(state.Counters.ErrorsReceived), Labels: labels})
-		out.AddSamples(metrics.NetworkTransmitErrsTotal, metrics.Sample{Value: float64(state.Counters.ErrorsSent), Labels: labels})
-		out.AddSamples(metrics.NetworkReceiveDropTotal, metrics.Sample{Value: float64(state.Counters.PacketsDroppedInbound), Labels: labels})
-		out.AddSamples(metrics.NetworkTransmitDropTotal, metrics.Sample{Value: float64(state.Counters.PacketsDroppedOutbound), Labels: labels})
+		out.AddSamples(metrics.NetworkReceiveBytesTotal, metrics.Sample{Value: float64(netState.Counters.BytesReceived), Labels: labels})
+		out.AddSamples(metrics.NetworkReceivePacketsTotal, metrics.Sample{Value: float64(netState.Counters.PacketsReceived), Labels: labels})
+		out.AddSamples(metrics.NetworkTransmitBytesTotal, metrics.Sample{Value: float64(netState.Counters.BytesSent), Labels: labels})
+		out.AddSamples(metrics.NetworkTransmitPacketsTotal, metrics.Sample{Value: float64(netState.Counters.PacketsSent), Labels: labels})
+		out.AddSamples(metrics.NetworkReceiveErrsTotal, metrics.Sample{Value: float64(netState.Counters.ErrorsReceived), Labels: labels})
+		out.AddSamples(metrics.NetworkTransmitErrsTotal, metrics.Sample{Value: float64(netState.Counters.ErrorsSent), Labels: labels})
+		out.AddSamples(metrics.NetworkReceiveDropTotal, metrics.Sample{Value: float64(netState.Counters.PacketsDroppedInbound), Labels: labels})
+		out.AddSamples(metrics.NetworkTransmitDropTotal, metrics.Sample{Value: float64(netState.Counters.PacketsDroppedOutbound), Labels: labels})
 	}
 
 	// Get number of processes
@@ -9573,7 +9441,7 @@ func (d *lxc) setupCredentials(update bool) error {
 		return fmt.Errorf("Failed to open the credentials directory: %w", err)
 	}
 
-	defer func() { _ = credsRoot.Close() }()
+	defer logger.WarnOnError(credsRoot.Close, "Failed to close credentials directory")
 
 	for k, v := range credentials {
 		err := credsRoot.WriteFile(k, v, 0o400)
@@ -9621,6 +9489,11 @@ func (d *lxc) ExportQcow2Block(diskName string, diskIndex int) (func(), string, 
 
 // ConnectNBD exports a disk over NBD. Not supported by containers.
 func (d *lxc) ConnectNBD(diskName string, volSize int64, writable bool) (net.Conn, func(), error) {
+	return nil, nil, instance.ErrNotImplemented
+}
+
+// ConnectNBDAllDisks exports all disks over NBD. Not supported by containers.
+func (d *lxc) ConnectNBDAllDisks() (net.Conn, func(), error) {
 	return nil, nil, instance.ErrNotImplemented
 }
 

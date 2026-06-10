@@ -4,21 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
 	"slices"
 	"strings"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/state"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/state"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // common represents a network address set.
@@ -143,6 +145,16 @@ func (d *common) validateAddresses(addresses []string) error {
 			continue
 		}
 
+		// Check if it's a valid IP range (e.g. "10.0.0.120-10.0.0.130").
+		if strings.Contains(addr, "-") {
+			_, err := expandIPRange(addr)
+			if err != nil {
+				return fmt.Errorf("Unsupported address format %q at index %d: %w", addr, i, err)
+			}
+
+			continue
+		}
+
 		// Check if it's a valid MAC address.
 		_, err = net.ParseMAC(addr)
 		if err == nil {
@@ -153,6 +165,72 @@ func (d *common) validateAddresses(addresses []string) error {
 	}
 
 	return nil
+}
+
+// expandIPRange expands a "start-end" IP range into its individual addresses.
+func expandIPRange(value string) ([]string, error) {
+	// Larger ranges should be expressed using CIDR notation instead.
+	const limit = 256
+
+	err := validate.IsNetworkRange(value)
+	if err != nil {
+		return nil, err
+	}
+
+	ips := strings.SplitN(value, "-", 2)
+	startIP := net.ParseIP(ips[0])
+	endIP := net.ParseIP(ips[1])
+
+	// Normalize to the shortest representation per address family.
+	var start, end net.IP
+	if startIP.To4() != nil {
+		start = startIP.To4()
+		end = endIP.To4()
+	} else {
+		start = startIP.To16()
+		end = endIP.To16()
+	}
+
+	startInt := new(big.Int).SetBytes(start)
+	endInt := new(big.Int).SetBytes(end)
+
+	count := new(big.Int).Sub(endInt, startInt)
+	count.Add(count, big.NewInt(1))
+	if count.Cmp(big.NewInt(int64(limit))) > 0 {
+		return nil, fmt.Errorf("IP range %q contains more than %d addresses, use CIDR notation instead", value, limit)
+	}
+
+	addresses := make([]string, 0, count.Int64())
+	cur := new(big.Int).Set(startInt)
+	for cur.Cmp(endInt) <= 0 {
+		b := cur.Bytes()
+		ip := make(net.IP, len(start))
+		copy(ip[len(ip)-len(b):], b)
+		addresses = append(addresses, ip.String())
+		cur.Add(cur, big.NewInt(1))
+	}
+
+	return addresses, nil
+}
+
+// expandAddressSetAddresses expands any IP ranges in the address list into individual addresses.
+func expandAddressSetAddresses(addresses []string) ([]string, error) {
+	expanded := make([]string, 0, len(addresses))
+	for _, addr := range addresses {
+		if !strings.Contains(addr, "-") {
+			expanded = append(expanded, addr)
+			continue
+		}
+
+		ips, err := expandIPRange(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		expanded = append(expanded, ips...)
+	}
+
+	return expanded, nil
 }
 
 // validateConfig checks the entire config including name and addresses.

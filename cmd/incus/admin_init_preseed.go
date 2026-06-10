@@ -9,9 +9,9 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 func (c *cmdAdminInit) runPreseed(p *u.Parsed) (*api.InitPreseed, error) {

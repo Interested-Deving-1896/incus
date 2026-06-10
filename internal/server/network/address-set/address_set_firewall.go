@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	firewallDrivers "github.com/lxc/incus/v6/internal/server/firewall/drivers"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/api"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	firewallDrivers "github.com/lxc/incus/v7/internal/server/firewall/drivers"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 // FirewallApplyAddressSets applies address set rules to the network firewall.
@@ -39,9 +39,14 @@ func FirewallApplyAddressSetsForACLRules(s *state.State, nftTable string, projec
 	// convertAddressSets convert the address set to a Firewall named set.
 	convertAddressSets := func(apiSets []*api.NetworkAddressSet) error {
 		for _, set := range apiSets {
+			addresses, err := expandAddressSetAddresses(set.Addresses)
+			if err != nil {
+				return err
+			}
+
 			firewallAddressSet := firewallDrivers.AddressSet{
 				Name:      set.Name,
-				Addresses: set.Addresses,
+				Addresses: addresses,
 			}
 
 			fwSets = append(fwSets, firewallAddressSet)
@@ -85,9 +90,14 @@ func FirewallAddressSets(s *state.State, addrSetProjectName string) ([]firewallD
 	// convertAddressSets convert the address set to a Firewall named set.
 	convertAddressSets := func(sets []*api.NetworkAddressSet) error {
 		for _, set := range sets {
+			addresses, err := expandAddressSetAddresses(set.Addresses)
+			if err != nil {
+				return err
+			}
+
 			firewallAddressSet := firewallDrivers.AddressSet{
 				Name:      set.Name,
-				Addresses: set.Addresses,
+				Addresses: addresses,
 			}
 
 			addressSets = append(addressSets, firewallAddressSet)

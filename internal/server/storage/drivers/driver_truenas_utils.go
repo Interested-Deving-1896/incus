@@ -12,16 +12,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 const (
 	tnToolName            = "truenas_incus_ctl"
-	tnMinVersion          = "0.7.2" // deactivate --wait with sync functionality
 	tnDefaultVolblockSize = 16 * 1024
 )
 
@@ -553,10 +552,6 @@ func (d *truenas) deactivateIscsiDataset(dataset string) error {
 
 // refreshIscsiBus refreshes the iscsi bus.
 func (d *truenas) refreshIscsiBus() error {
-	if !tnHasIscsiRefresh {
-		return fmt.Errorf("TrueNAS: iSCSI Refresh requires tool version 0.7.5, current version: %s", tnVersion)
-	}
-
 	_, err := d.runTool("share", "iscsi", "refresh")
 	if err != nil {
 		return err

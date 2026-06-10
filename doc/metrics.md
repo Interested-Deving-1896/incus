@@ -248,7 +248,15 @@ To visualize the metrics data, set up [Grafana](https://grafana.com/).
 Incus provides a [Grafana dashboard](https://grafana.com/grafana/dashboards/19727-incus/) that is configured to display the Incus metrics scraped by Prometheus and log entries from Loki.
 
 ```{note}
-The dashboard requires Grafana 8.4 or later.
+The dashboard requires Grafana 8.4 or later with both Prometheus and
+Loki configured as data sources in Grafana.
+
+It's possible to add a placeholder Loki data source in Grafana to make
+it possible to import the dashboard in an environment that doesn't have
+a fully set up Loki server. After import, remove the log sections at the
+bottom of the dashboard and then remove the placeholder Loki data source.
+
+Incus logging to Loki is configured through the [relevant server configuration](server-options-logging).
 ```
 
 See the Grafana documentation for instructions on installing and signing in:
@@ -275,7 +283,7 @@ Complete the following steps to import the [Incus dashboard](https://grafana.com
 
    1. Keep the default configuration for the other fields and click {guilabel}`Save & test`.
 
-1. Configure Loki as a data source:
+1. Configure [Loki](https://grafana.com/oss/loki/) as a data source:
 
    1. Go to {guilabel}`Configuration` > {guilabel}`Data sources`.
    1. Click {guilabel}`Add data source`.

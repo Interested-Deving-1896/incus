@@ -17,18 +17,18 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/sys/unix"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/locking"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/refcount"
-	"github.com/lxc/incus/v6/internal/server/state"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/idmap"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/locking"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/refcount"
+	"github.com/lxc/incus/v7/internal/server/state"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/idmap"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // tmpVolSuffix Suffix to use for any temporary volumes created by Incus.
@@ -239,7 +239,7 @@ func (v Volume) EnsureMountPath(creation bool) error {
 		if v.IsSnapshot() {
 			// Create the parent directory if needed.
 			parentName, _, _ := api.GetParentAndSnapshotName(v.name)
-			err := createParentSnapshotDirIfMissing(v.pool, v.volType, parentName)
+			err := CreateParentSnapshotDirIfMissing(v.pool, v.volType, parentName)
 			if err != nil {
 				return err
 			}
@@ -454,7 +454,7 @@ func (v Volume) UnmountTask(task func(op *operations.Operation) error, keepBlock
 		}
 
 		if ourUnmount {
-			defer func() { _ = v.driver.MountVolumeSnapshot(v, op) }()
+			defer logger.WarnOnError(func() error { return v.driver.MountVolumeSnapshot(v, op) }, "Failed to mount volume snapshot")
 		}
 	} else {
 		ourUnmount, err := v.driver.UnmountVolume(v, keepBlockDev, op)
@@ -463,7 +463,7 @@ func (v Volume) UnmountTask(task func(op *operations.Operation) error, keepBlock
 		}
 
 		if ourUnmount {
-			defer func() { _ = v.driver.MountVolume(v, op) }()
+			defer logger.WarnOnError(func() error { return v.driver.MountVolume(v, op) }, "Failed to mount volume")
 		}
 	}
 
@@ -804,7 +804,7 @@ func (v Volume) FileSFTPConn(s *state.State) (net.Conn, error) {
 		return nil, err
 	}
 
-	defer func() { _ = dirFile.Close() }()
+	defer logger.WarnOnError(dirFile.Close, "Failed to close file")
 
 	forkfileAddr, err := net.ResolveUnixAddr("unix", fmt.Sprintf("/proc/self/fd/%d/forkfile.sock", dirFile.Fd()))
 	if err != nil {
@@ -863,7 +863,7 @@ func (v Volume) FileSFTPConn(s *state.State) (net.Conn, error) {
 				return err
 			}
 
-			defer func() { _ = forkfileFile.Close() }()
+			defer logger.WarnOnError(forkfileFile.Close, "Failed to close file")
 
 			args = append(args, "3")
 			extraFiles = append(extraFiles, forkfileFile)
@@ -874,7 +874,7 @@ func (v Volume) FileSFTPConn(s *state.State) (net.Conn, error) {
 				return err
 			}
 
-			defer func() { _ = rootfsFile.Close() }()
+			defer logger.WarnOnError(rootfsFile.Close, "Failed to close file")
 
 			args = append(args, "4")
 			extraFiles = append(extraFiles, rootfsFile)

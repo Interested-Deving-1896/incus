@@ -8,12 +8,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/logger"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 type cmdAdminWaitready struct {
@@ -34,13 +34,13 @@ func (c *cmdAdminWaitready) command() *cobra.Command {
   is done with early start tasks like re-starting previously started
   containers.`))
 	cmd.RunE = c.run
-	cmd.Flags().IntVarP(&c.flagTimeout, "timeout", "t", 0, "Number of seconds to wait before giving up"+"``")
+	cli.AddIntFlag(cmd.Flags(), &c.flagTimeout, "timeout|t", 0, "Number of seconds to wait before giving up")
 
 	return cmd
 }
 
 func (c *cmdAdminWaitready) run(cmd *cobra.Command, args []string) error {
-	_, err := cmdAdminWaitreadyUsage.Parse(c.global.conf, cmd, args)
+	_, err := c.global.Parse(cmdAdminWaitreadyUsage, cmd, args)
 	if err != nil {
 		return err
 	}

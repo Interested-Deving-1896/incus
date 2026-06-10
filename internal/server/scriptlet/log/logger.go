@@ -7,10 +7,10 @@ import (
 
 	"go.starlark.net/starlark"
 
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
-// createLogger creates a logger for scriptlets.
+// CreateLogger creates a logger for scriptlets.
 func CreateLogger(l logger.Logger, name string) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var sb strings.Builder

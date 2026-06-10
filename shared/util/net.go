@@ -8,9 +8,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/lxc/incus/v6/shared/cancel"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/units"
+	"github.com/lxc/incus/v7/shared/cancel"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/units"
 )
 
 // ErrNotFound is used to explicitly signal error cases, where a resource
@@ -46,7 +47,7 @@ func DownloadFileHash(ctx context.Context, httpClient *http.Client, useragent st
 		return -1, err
 	}
 
-	defer func() { _ = r.Body.Close() }()
+	defer logger.WarnOnError(r.Body.Close, "Failed to close response body")
 	defer close(doneCh)
 
 	if r.StatusCode != http.StatusOK {

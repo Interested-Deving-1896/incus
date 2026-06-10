@@ -12,15 +12,15 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/internal/server/task"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/internal/server/task"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type instanceType struct {
@@ -133,7 +133,7 @@ func instanceRefreshTypes(ctx context.Context, s *state.State) error {
 			return ctx.Err()
 		}
 
-		defer func() { _ = resp.Body.Close() }()
+		defer logger.WarnOnError(resp.Body.Close, "Failed to close response body")
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("Failed to get %s", url)
@@ -250,9 +250,10 @@ func instanceParseType(value string) (map[string]string, error) {
 					return nil, fmt.Errorf("Bad custom instance type: %s", value)
 				}
 
-				if field[0] == 'c' {
+				switch field[0] {
+				case 'c':
 					newLimits.CPU = float32(floatValue)
-				} else if field[0] == 'm' {
+				case 'm':
 					newLimits.Memory = float32(floatValue)
 				}
 			}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -9,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
+	incus "github.com/lxc/incus/v7/client"
 )
 
 type cmdShutdown struct {
@@ -64,7 +65,12 @@ func (c *cmdShutdown) run(_ *cobra.Command, _ []string) error {
 		}
 
 		// Request shutdown, this shouldn't return until daemon has stopped so use a large request timeout.
-		httpTransport := httpClient.Transport.(*http.Transport)
+		httpTransport, ok := httpClient.Transport.(*http.Transport)
+		if !ok {
+			chResult <- errors.New("Unexpected HTTP transport type")
+			return
+		}
+
 		httpTransport.ResponseHeaderTimeout = 3600 * time.Second
 
 		_, _, err = d.RawQuery("PUT", fmt.Sprintf("/internal/shutdown?%s", v.Encode()), nil, "")

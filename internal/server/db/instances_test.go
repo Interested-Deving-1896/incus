@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/shared/api"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 func TestContainerList(t *testing.T) {
@@ -433,7 +433,8 @@ func TestGetInstancesByMemberAddress(t *testing.T) {
 			"":            {{ID: 2, Project: api.ProjectDefaultName, Name: "c2", Location: "none"}},
 			"1.2.3.4:666": {{ID: 1, Project: api.ProjectDefaultName, Name: "c1", Location: "node2"}, {ID: 4, Project: api.ProjectDefaultName, Name: "c4", Location: "node2"}},
 			"0.0.0.0":     {{ID: 3, Project: api.ProjectDefaultName, Name: "c3", Location: "node3"}},
-		}, result)
+		}, result,
+	)
 }
 
 func TestGetInstancePool(t *testing.T) {

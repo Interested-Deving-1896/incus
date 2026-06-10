@@ -9,18 +9,16 @@ import (
 	"net"
 	"os/exec"
 	"slices"
-	"strconv"
 	"strings"
 	"text/template"
 
 	"github.com/google/uuid"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 const (
@@ -33,9 +31,6 @@ const (
 // to contain underscores (where as instance name is not).
 const nftablesChainSeparator = "."
 
-// nftablesMinVersion We need at least 0.9.1 as this was when the arp ether saddr filters were added.
-const nftablesMinVersion = "0.9.1"
-
 // Nftables is an implementation of Incus firewall using nftables.
 type Nftables struct{}
 
@@ -46,60 +41,10 @@ func (d Nftables) String() string {
 
 // Compat returns whether the driver backend is in use, and any host compatibility errors.
 func (d Nftables) Compat() (bool, error) {
-	// Get the kernel version.
-	uname, err := linux.Uname()
-	if err != nil {
-		return false, err
-	}
-
-	// We require a >= 5.2 kernel to avoid weird conflicts with xtables and support for inet table NAT rules.
-	releaseLen := len(uname.Release)
-	if releaseLen > 1 {
-		verErr := errors.New("Kernel version does not meet minimum requirement of 5.2")
-		releaseParts := strings.SplitN(uname.Release, ".", 3)
-		if len(releaseParts) < 2 {
-			return false, fmt.Errorf("Failed parsing kernel version number into parts: %w", err)
-		}
-
-		majorVer := releaseParts[0]
-		majorVerInt, err := strconv.Atoi(majorVer)
-		if err != nil {
-			return false, fmt.Errorf("Failed parsing kernel major version number %q: %w", majorVer, err)
-		}
-
-		if majorVerInt < 5 {
-			return false, verErr
-		}
-
-		if majorVerInt == 5 {
-			minorVer := releaseParts[1]
-			minorVerInt, err := strconv.Atoi(minorVer)
-			if err != nil {
-				return false, fmt.Errorf("Failed parsing kernel minor version number %q: %w", minorVer, err)
-			}
-
-			if minorVerInt < 2 {
-				return false, verErr
-			}
-		}
-	}
-
-	// Check if nftables nft command exists, if not use xtables.
-	_, err = exec.LookPath("nft")
+	// Check if nftables nft command exists.
+	_, err := exec.LookPath("nft")
 	if err != nil {
 		return false, fmt.Errorf("Backend command %q missing", "nft")
-	}
-
-	// Get nftables version.
-	nftVersion, err := d.hostVersion()
-	if err != nil {
-		return false, fmt.Errorf("Failed detecting nft version: %w", err)
-	}
-
-	// Check nft version meets minimum required.
-	minVer, _ := version.NewDottedVersion(nftablesMinVersion)
-	if nftVersion.Compare(minVer) < 0 {
-		return false, fmt.Errorf("nft version %q is too low, need %q or above", nftVersion, nftablesMinVersion)
 	}
 
 	// Check that nftables works at all (some kernels let you list ruleset despite missing support).
@@ -142,7 +87,7 @@ type nftGenericItem struct {
 // nftParseRuleset parses the ruleset and returns the generic parts as a slice of items.
 func (d Nftables) nftParseRuleset() ([]nftGenericItem, error) {
 	// Dump ruleset as JSON. Use -nn flags to avoid doing DNS lookups of IPs mentioned in any rules.
-	cmd := exec.Command("nft", "--json", "-nn", "list", "ruleset")
+	cmd := exec.Command("nft", "--terse", "--json", "-nn", "list", "ruleset")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -153,7 +98,7 @@ func (d Nftables) nftParseRuleset() ([]nftGenericItem, error) {
 		return nil, err
 	}
 
-	defer func() { _ = cmd.Wait() }()
+	defer logger.WarnOnError(cmd.Wait, "Failed to wait for command")
 
 	// This only extracts certain generic parts of the ruleset, see man libnftables-json for more info.
 	v := &struct {
@@ -188,17 +133,6 @@ func (d Nftables) nftParseRuleset() ([]nftGenericItem, error) {
 	}
 
 	return items, nil
-}
-
-// GetVersion returns the version of nftables.
-func (d Nftables) hostVersion() (*version.DottedVersion, error) {
-	output, err := subprocess.RunCommandCLocale("nft", "--version")
-	if err != nil {
-		return nil, fmt.Errorf("Failed to check nftables version: %w", err)
-	}
-
-	lines := strings.Split(string(output), " ")
-	return version.Parse(strings.TrimPrefix(lines[1], "v"))
 }
 
 // networkSetupForwardingPolicy allows forwarding dependent on boolean argument.
@@ -1290,7 +1224,7 @@ func (d Nftables) aclRuleSubjectToACLMatch(direction string, ipVersion uint, sub
 }
 
 // aclRulePortToACLMatch converts protocol (tcp/udp), direction (sports/dports) and port criteria list into
-// xtables args.
+// nftables args.
 func (d Nftables) aclRulePortToACLMatch(direction string, portCriteria ...string) []string {
 	fieldParts := make([]string, 0, len(portCriteria))
 
@@ -1667,7 +1601,7 @@ func (d Nftables) NetworkDeleteAddressSetsIfUnused(nftTable string) error {
 	}
 
 	// List rules to check for usage of sets aka @setName.
-	outputRules, err := subprocess.RunCommand("nft", "list", "ruleset", nftTable)
+	outputRules, err := subprocess.RunCommand("nft", "--terse", "list", "ruleset", nftTable)
 	if err != nil {
 		return fmt.Errorf("Failed to list nft ruleset: %w", err)
 	}

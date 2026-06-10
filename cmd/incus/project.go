@@ -15,14 +15,14 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type projectColumn struct {
@@ -116,8 +116,8 @@ func (c *cmdProjectCreate) command() *cobra.Command {
 incus project create p1 < config.yaml
     Create a project named p1 with configuration from config.yaml`))
 
-	cmd.Flags().StringArrayVarP(&c.flagConfig, "config", "c", nil, i18n.G("Config key/value to apply to the new project")+"``")
-	cmd.Flags().StringVar(&c.flagDescription, "description", "", i18n.G("Project description")+"``")
+	cli.AddStringArrayFlag(cmd.Flags(), &c.flagConfig, "config|c", i18n.G("Config key/value to apply to the new project"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagDescription, "description", "", "", i18n.G("Project description"))
 
 	cmd.RunE = c.run
 
@@ -133,7 +133,7 @@ incus project create p1 < config.yaml
 }
 
 func (c *cmdProjectCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func (c *cmdProjectDelete) command() *cobra.Command {
 	cmd.Short = i18n.G("Delete projects")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Delete projects`))
 
-	cmd.Flags().BoolVarP(&c.flagForce, "force", "f", false, i18n.G("Force delete the project and everything it contains."))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagForce, "force|f", i18n.G("Force delete the project and everything it contains."))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -230,7 +230,7 @@ func (c *cmdProjectDelete) promptConfirmation(p *u.Parsed) error {
 }
 
 func (c *cmdProjectDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -300,10 +300,12 @@ func (c *cmdProjectEdit) command() *cobra.Command {
 	cmd.Use = cli.U("edit", cmdProjectEditUsage...)
 	cmd.Short = i18n.G("Edit project configurations as YAML")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Edit project configurations as YAML`))
+		`Edit project configurations as YAML`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus project edit <project> < project.yaml
-    Update a project using the content of project.yaml`))
+    Update a project using the content of project.yaml`,
+	))
 
 	cmd.RunE = c.run
 
@@ -336,11 +338,12 @@ func (c *cmdProjectEdit) helpTemplate() string {
 ### description: My own project
 ### name: my-project
 ###
-### Note that the name is shown but cannot be changed`)
+### Note that the name is shown but cannot be changed`,
+	)
 }
 
 func (c *cmdProjectEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -428,10 +431,11 @@ func (c *cmdProjectGet) command() *cobra.Command {
 	cmd.Use = cli.U("get", cmdProjectGetUsage...)
 	cmd.Short = i18n.G("Get values for project configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Get values for project configuration keys`))
+		`Get values for project configuration keys`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Get the key as a project property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Get the key as a project property"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -449,7 +453,7 @@ func (c *cmdProjectGet) command() *cobra.Command {
 }
 
 func (c *cmdProjectGet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectGetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectGetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -499,11 +503,11 @@ func (c *cmdProjectList) command() *cobra.Command {
 		`List projects
 
 The -c option takes a (optionally comma-separated) list of arguments
-that control which image attributes to output when displaying in table
+that control which project attributes to output when displaying in table
 or csv format.
 Default column layout is: nipvbwzdu
-Column shorthand chars:
 
+Column shorthand chars:
 n - Project Name
 i - Images
 p - Profiles
@@ -512,11 +516,11 @@ b - Storage Buckets
 w - Networks
 z - Network Zones
 d - Description
-u - Used By`))
+u - Used By`,
+	))
 
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultProjectColumns, i18n.G("Columns")+"``")
-
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultProjectColumns, "", i18n.G("Columns"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -639,7 +643,7 @@ func (c *cmdProjectList) usedByColumnData(project api.Project) string {
 }
 
 func (c *cmdProjectList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -719,7 +723,7 @@ func (c *cmdProjectRename) command() *cobra.Command {
 }
 
 func (c *cmdProjectRename) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectRenameUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectRenameUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -764,10 +768,11 @@ func (c *cmdProjectSet) command() *cobra.Command {
 		`Set project configuration keys
 
 For backward compatibility, a single configuration key may still be set with:
-    incus project set [<remote>:]<project> <key> <value>`))
+    incus project set [<remote>:]<project> <key> <value>`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Set the key as a project property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Set the key as a project property"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -818,7 +823,7 @@ func (c *cmdProjectSet) set(cmd *cobra.Command, parsed []*u.Parsed) error {
 }
 
 func (c *cmdProjectSet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectSetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectSetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -835,7 +840,7 @@ type cmdProjectUnset struct {
 	flagIsProperty bool
 }
 
-var cmdProjectUnsetUsage = u.Usage{u.Project.Remote(), u.Key}
+var cmdProjectUnsetUsage = u.Usage{u.Project.Remote(), u.Key.List(1)}
 
 func (c *cmdProjectUnset) command() *cobra.Command {
 	cmd := &cobra.Command{}
@@ -844,7 +849,7 @@ func (c *cmdProjectUnset) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Unset project configuration keys`))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Unset the key as a project property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Unset the keys as project properties"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -862,7 +867,7 @@ func (c *cmdProjectUnset) command() *cobra.Command {
 }
 
 func (c *cmdProjectUnset) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectUnsetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectUnsetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -899,7 +904,7 @@ func (c *cmdProjectShow) command() *cobra.Command {
 }
 
 func (c *cmdProjectShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -952,7 +957,7 @@ func (c *cmdProjectSwitch) command() *cobra.Command {
 
 func (c *cmdProjectSwitch) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdProjectSwitchUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectSwitchUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -989,9 +994,10 @@ func (c *cmdProjectInfo) command() *cobra.Command {
 	cmd.Use = cli.U("info", cmdProjectInfoUsage...)
 	cmd.Short = i18n.G("Get a summary of resource allocations")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Get a summary of resource allocations`))
-	cmd.Flags().BoolVar(&c.flagShowAccess, "show-access", false, i18n.G("Show the instance's access list"))
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
+		`Get a summary of resource allocations`,
+	))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagShowAccess, "show-access", i18n.G("Show the instance's access list"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -1011,7 +1017,7 @@ func (c *cmdProjectInfo) command() *cobra.Command {
 }
 
 func (c *cmdProjectInfo) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectInfoUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectInfoUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1044,7 +1050,7 @@ func (c *cmdProjectInfo) run(cmd *cobra.Command, args []string) error {
 	byteLimits := []string{"disk", "memory"}
 	data := [][]string{}
 	for k, v := range projectState.Resources {
-		shortKey := strings.SplitN(k, ".", 2)[0]
+		shortKey, _, _ := strings.Cut(k, ".")
 
 		limit := i18n.G("UNLIMITED")
 		if v.Limit >= 0 {
@@ -1102,7 +1108,7 @@ func (c *cmdProjectGetCurrent) command() *cobra.Command {
 }
 
 func (c *cmdProjectGetCurrent) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdProjectGetCurrentUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdProjectGetCurrentUsage, cmd, args)
 	if err != nil {
 		return err
 	}

@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/simplestreams"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/simplestreams"
 )
 
 type cmdPrune struct {
@@ -155,8 +155,7 @@ func (c *cmdPrune) prune() error {
 
 		updatedVersions := map[string]simplestreams.ProductVersion{}
 		iteration := 0
-		for i := len(versionNames) - 1; i >= 0; i-- {
-			version := versionNames[i]
+		for _, version := range slices.Backward(versionNames) {
 			if iteration <= c.flagRetention {
 				updatedVersions[version] = product.Versions[version]
 			} else if c.flagVerbose {

@@ -10,17 +10,11 @@ Otherwise, some network functionality (DHCP, DNS and external network access) mi
 You might also see conflicts between the rules defined by your firewall (or another application) and the firewall rules that Incus adds.
 For example, your firewall might erase Incus rules if it is started after the Incus daemon, which might interrupt network connectivity to the instance.
 
-## `xtables` vs. `nftables`
+## `nftables`
 
-There are different userspace commands to add rules to `netfilter`: `xtables` (`iptables` for IPv4 and `ip6tables` for IPv6) and `nftables`.
-
-`xtables` provides an ordered list of rules, which might cause issues if multiple systems add and remove entries from the list.
-`nftables` adds the ability to separate rules into namespaces, which helps to separate rules from different applications.
+Incus uses `nftables` to manage its `netfilter` rules. It places its rules in their own `nftables` namespace to keep them separated from rules added by other applications.
 However, if a packet is blocked in one namespace, it is not possible for another namespace to allow it.
 Therefore, rules in one namespace can still affect rules in another namespace, and firewall applications can still impact Incus network functionality.
-
-If your system supports and uses `nftables`, Incus detects this and switches to `nftables` mode.
-In this mode, Incus adds its rules into the `nftables`, using its own `nftables` namespace.
 
 ## Use Incus' firewall
 

@@ -6,9 +6,10 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/internal/server/backup/config"
-	"github.com/lxc/incus/v6/internal/server/sys"
-	"github.com/lxc/incus/v6/shared/api"
+	"github.com/lxc/incus/v7/internal/server/backup/config"
+	"github.com/lxc/incus/v7/internal/server/sys"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 // Type indicates the type of backup.
@@ -88,7 +89,7 @@ func GetInfo(r io.ReadSeeker, sysOS *sys.OS, outputPath string) (*Info, error) {
 		}
 
 		if hdr.Name == backupIndexPath {
-			loader, err := yaml.NewLoader(tr)
+			loader, err := yaml.NewLoader(localUtil.MaxBytesReader(tr, 1024*1024))
 			if err != nil {
 				return nil, err
 			}
@@ -121,7 +122,7 @@ func GetInfo(r io.ReadSeeker, sysOS *sys.OS, outputPath string) (*Info, error) {
 
 		// Load old backup data.
 		if result.Config == nil && hdr.Name == "backup/container/backup.yaml" {
-			loader, err := yaml.NewLoader(tr)
+			loader, err := yaml.NewLoader(localUtil.MaxBytesReader(tr, 1024*1024))
 			if err != nil {
 				return nil, err
 			}

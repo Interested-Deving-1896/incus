@@ -10,27 +10,27 @@ import (
 	"os"
 	"strings"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/auth/oidc"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	clusterConfig "github.com/lxc/incus/v6/internal/server/cluster/config"
-	"github.com/lxc/incus/v6/internal/server/config"
-	"github.com/lxc/incus/v6/internal/server/db"
-	instanceDrivers "github.com/lxc/incus/v6/internal/server/instance/drivers"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/node"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	scriptletLoad "github.com/lxc/incus/v6/internal/server/scriptlet/load"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/revert"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/auth/oidc"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	clusterConfig "github.com/lxc/incus/v7/internal/server/cluster/config"
+	"github.com/lxc/incus/v7/internal/server/config"
+	"github.com/lxc/incus/v7/internal/server/db"
+	instanceDrivers "github.com/lxc/incus/v7/internal/server/instance/drivers"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/node"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	scriptletLoad "github.com/lxc/incus/v7/internal/server/scriptlet/load"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/revert"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var api10Cmd = APIEndpoint{
@@ -66,6 +66,7 @@ var api10 = []APIEndpoint{
 	instanceMetadataCmd,
 	instanceMetadataTemplatesCmd,
 	instancesCmd,
+	instanceNBDCmd,
 	instanceRebuildCmd,
 	instanceSFTPCmd,
 	instanceSnapshotCmd,
@@ -78,10 +79,7 @@ var api10 = []APIEndpoint{
 	imageAliasCmd,
 	imageAliasesCmd,
 	imageCmd,
-	imageExportCmd,
-	imageRefreshCmd,
 	imagesCmd,
-	imageSecretCmd,
 	metadataConfigurationCmd,
 	networkCmd,
 	networkLeasesCmd,
@@ -139,6 +137,7 @@ var api10 = []APIEndpoint{
 	storagePoolVolumeTypeCustomBackupsCmd,
 	storagePoolVolumeTypeCustomBackupCmd,
 	storagePoolVolumeTypeCustomBackupExportCmd,
+	storagePoolVolumeTypeRebuildCmd,
 	storagePoolVolumeTypeStateCmd,
 	warningsCmd,
 	warningCmd,
@@ -345,15 +344,7 @@ func api10Get(d *Daemon, r *http.Request) response.Response {
 		Firewall:               s.Firewall.String(),
 	}
 
-	env.KernelFeatures = map[string]string{
-		"netnsid_getifaddrs":        fmt.Sprintf("%v", s.OS.NetnsGetifaddrs),
-		"uevent_injection":          fmt.Sprintf("%v", s.OS.UeventInjection),
-		"unpriv_binfmt":             fmt.Sprintf("%v", s.OS.UnprivBinfmt),
-		"unpriv_fscaps":             fmt.Sprintf("%v", s.OS.VFS3Fscaps),
-		"seccomp_listener":          fmt.Sprintf("%v", s.OS.SeccompListener),
-		"seccomp_listener_continue": fmt.Sprintf("%v", s.OS.SeccompListenerContinue),
-		"idmapped_mounts":           fmt.Sprintf("%v", s.OS.IdmappedMounts),
-	}
+	env.KernelFeatures = map[string]string{}
 
 	drivers := instanceDrivers.DriverStatuses()
 	for _, driver := range drivers {
@@ -384,7 +375,7 @@ func api10Get(d *Daemon, r *http.Request) response.Response {
 	}
 
 	supportedStorageDrivers, usedStorageDrivers := readStoragePoolDriversCache()
-	for driver, version := range usedStorageDrivers {
+	for driver, ver := range usedStorageDrivers {
 		if env.Storage != "" {
 			env.Storage = env.Storage + " | " + driver
 		} else {
@@ -393,9 +384,9 @@ func api10Get(d *Daemon, r *http.Request) response.Response {
 
 		// Get the version of the storage drivers in use.
 		if env.StorageVersion != "" {
-			env.StorageVersion = env.StorageVersion + " | " + version
+			env.StorageVersion = env.StorageVersion + " | " + ver
 		} else {
-			env.StorageVersion = version
+			env.StorageVersion = ver
 		}
 	}
 
@@ -476,10 +467,10 @@ func api10Put(d *Daemon, r *http.Request) response.Response {
 		changed := util.CloneMap(req.Config)
 
 		// Get the current (updated) config.
-		var config *clusterConfig.Config
+		var clusterConf *clusterConfig.Config
 		err := s.DB.Cluster.Transaction(context.Background(), func(ctx context.Context, tx *db.ClusterTx) error {
 			var err error
-			config, err = clusterConfig.Load(ctx, tx)
+			clusterConf, err = clusterConfig.Load(ctx, tx)
 			return err
 		})
 		if err != nil {
@@ -488,11 +479,11 @@ func api10Put(d *Daemon, r *http.Request) response.Response {
 
 		// Update the daemon config.
 		d.globalConfigMu.Lock()
-		d.globalConfig = config
+		d.globalConfig = clusterConf
 		d.globalConfigMu.Unlock()
 
 		// Run any update triggers.
-		err = doApi10UpdateTriggers(d, nil, changed, s.LocalConfig, config)
+		err = doAPI10UpdateTriggers(d, nil, changed, s.LocalConfig, clusterConf)
 		if err != nil {
 			return response.SmartError(err)
 		}
@@ -510,7 +501,7 @@ func api10Put(d *Daemon, r *http.Request) response.Response {
 		return response.PreconditionFailed(err)
 	}
 
-	return doApi10Update(d, r, req, false)
+	return doAPI10Update(d, r, req, false)
 }
 
 // swagger:operation PATCH /1.0 server server_patch
@@ -579,10 +570,10 @@ func api10Patch(d *Daemon, r *http.Request) response.Response {
 		return response.EmptySyncResponse
 	}
 
-	return doApi10Update(d, r, req, true)
+	return doAPI10Update(d, r, req, true)
 }
 
-func doApi10Update(d *Daemon, r *http.Request, req api.ServerPut, patch bool) response.Response {
+func doAPI10Update(d *Daemon, r *http.Request, req api.ServerPut, patch bool) response.Response {
 	s := d.State()
 
 	// First deal with config specific to the local daemon
@@ -801,7 +792,7 @@ func doApi10Update(d *Daemon, r *http.Request, req api.ServerPut, patch bool) re
 	d.globalConfigMu.Unlock()
 
 	// Run any update triggers.
-	err = doApi10UpdateTriggers(d, nodeChanged, clusterChanged, newNodeConfig, newClusterConfig)
+	err = doAPI10UpdateTriggers(d, nodeChanged, clusterChanged, newNodeConfig, newClusterConfig)
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -813,7 +804,7 @@ func doApi10Update(d *Daemon, r *http.Request, req api.ServerPut, patch bool) re
 	return response.EmptySyncResponse
 }
 
-func doApi10UpdateTriggers(d *Daemon, nodeChanged, clusterChanged map[string]string, nodeConfig *node.Config, clusterConfig *clusterConfig.Config) error {
+func doAPI10UpdateTriggers(d *Daemon, nodeChanged, clusterChanged map[string]string, nodeConfig *node.Config, clusterConf *clusterConfig.Config) error {
 	s := d.State()
 
 	acmeChanged := false
@@ -839,7 +830,7 @@ func doApi10UpdateTriggers(d *Daemon, nodeChanged, clusterChanged map[string]str
 			}
 
 		case "cluster.offline_threshold":
-			d.gateway.HeartbeatOfflineThreshold = clusterConfig.OfflineThreshold()
+			d.gateway.HeartbeatOfflineThreshold = clusterConf.OfflineThreshold()
 			d.taskClusterHeartbeat.Reset()
 
 		case "core.bgp_asn":
@@ -849,7 +840,7 @@ func doApi10UpdateTriggers(d *Daemon, nodeChanged, clusterChanged map[string]str
 			s.Endpoints.NetworkUpdateTrustedProxy(clusterChanged[key])
 
 		case "core.proxy_http", "core.proxy_https", "core.proxy_ignore_hosts":
-			daemonConfigSetProxy(d, clusterConfig)
+			daemonConfigSetProxy(d, clusterConf)
 
 		case "images.auto_update_interval", "images.remote_cache_expiry":
 			if !s.OS.MockMode {
@@ -912,7 +903,7 @@ func doApi10UpdateTriggers(d *Daemon, nodeChanged, clusterChanged map[string]str
 			return err
 		}
 
-		s.Endpoints.NetworkUpdateTrustedProxy(clusterConfig.HTTPSTrustedProxy())
+		s.Endpoints.NetworkUpdateTrustedProxy(clusterConf.HTTPSTrustedProxy())
 	}
 
 	value, ok = nodeChanged["cluster.https_address"]
@@ -922,7 +913,7 @@ func doApi10UpdateTriggers(d *Daemon, nodeChanged, clusterChanged map[string]str
 			return err
 		}
 
-		s.Endpoints.NetworkUpdateTrustedProxy(clusterConfig.HTTPSTrustedProxy())
+		s.Endpoints.NetworkUpdateTrustedProxy(clusterConf.HTTPSTrustedProxy())
 	}
 
 	value, ok = nodeChanged["core.debug_address"]
@@ -983,7 +974,7 @@ func doApi10UpdateTriggers(d *Daemon, nodeChanged, clusterChanged map[string]str
 
 	if bgpChanged {
 		address := nodeConfig.BGPAddress()
-		asn := clusterConfig.BGPASN()
+		asn := clusterConf.BGPASN()
 		routerid := nodeConfig.BGPRouterID()
 
 		err := s.BGP.Configure(address, uint32(asn), net.ParseIP(routerid))
@@ -1008,7 +999,7 @@ func doApi10UpdateTriggers(d *Daemon, nodeChanged, clusterChanged map[string]str
 		}
 	}
 	if oidcChanged {
-		oidcIssuer, oidcClientID, oidcScope, oidcAudience, oidcClaim := clusterConfig.OIDCServer()
+		oidcIssuer, oidcClientID, oidcScope, oidcAudience, oidcClaim := clusterConf.OIDCServer()
 
 		if oidcIssuer == "" || oidcClientID == "" {
 			d.oidcVerifier = nil

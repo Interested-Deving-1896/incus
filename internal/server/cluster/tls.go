@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/server/certificate"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/shared/logger"
-	localtls "github.com/lxc/incus/v6/shared/tls"
+	"github.com/lxc/incus/v7/internal/server/certificate"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/shared/logger"
+	localtls "github.com/lxc/incus/v7/shared/tls"
 )
 
 // Return a TLS configuration suitable for establishing intra-member network connections using the server cert.
@@ -71,7 +71,7 @@ func tlsCheckCert(r *http.Request, networkCert *localtls.CertInfo, serverCert *l
 	}
 
 	for _, i := range r.TLS.PeerCertificates {
-		// Trust our own server certificate. This allows Dqlite to start with a connection back to this
+		// Trust our own server certificate. This allows Cowsql to start with a connection back to this
 		// member before the database is available. It also allows us to switch the server certificate to
 		// the network certificate during cluster upgrade to per-server certificates, and it be trusted.
 		trustedServerCert, _ := x509.ParseCertificate(serverCert.KeyPair().Certificate[0])

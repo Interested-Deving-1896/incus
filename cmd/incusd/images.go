@@ -26,41 +26,40 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/kballard/go-shellquote"
 	"go.yaml.in/yaml/v4"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/filter"
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	internalIO "github.com/lxc/incus/v6/internal/io"
-	"github.com/lxc/incus/v6/internal/jmap"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/node"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	projectutils "github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	"github.com/lxc/incus/v6/internal/server/task"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/filter"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/internal/jmap"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/node"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	projectutils "github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	"github.com/lxc/incus/v7/internal/server/task"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 var imagesCmd = APIEndpoint{
@@ -77,25 +76,27 @@ var imageCmd = APIEndpoint{
 	Get:    APIEndpointAction{Handler: imageGet, AllowUntrusted: true},
 	Patch:  APIEndpointAction{Handler: imagePatch, AccessHandler: allowPermission(auth.ObjectTypeImage, auth.EntitlementCanEdit, "fingerprint")},
 	Put:    APIEndpointAction{Handler: imagePut, AccessHandler: allowPermission(auth.ObjectTypeImage, auth.EntitlementCanEdit, "fingerprint")},
-}
 
-var imageExportCmd = APIEndpoint{
-	Path: "images/{fingerprint}/export",
-
-	Get:  APIEndpointAction{Handler: imageExport, AllowUntrusted: true},
-	Post: APIEndpointAction{Handler: imageExportPost, AccessHandler: allowPermission(auth.ObjectTypeImage, auth.EntitlementCanEdit, "fingerprint")},
-}
-
-var imageSecretCmd = APIEndpoint{
-	Path: "images/{fingerprint}/secret",
-
-	Post: APIEndpointAction{Handler: imageSecret, AccessHandler: allowPermission(auth.ObjectTypeImage, auth.EntitlementCanEdit, "fingerprint")},
-}
-
-var imageRefreshCmd = APIEndpoint{
-	Path: "images/{fingerprint}/refresh",
-
-	Post: APIEndpointAction{Handler: imageRefresh, AccessHandler: allowPermission(auth.ObjectTypeImage, auth.EntitlementCanEdit, "fingerprint")},
+	// The export/secret/refresh sub-paths are handled as suffix actions rather
+	// than dedicated routes. Under http.ServeMux a route such as
+	// "images/{fingerprint}/export" would conflict with the multi-segment
+	// "images/aliases/{name...}" route, so the image endpoint is registered as
+	// a subtree and the suffix is matched at dispatch time.
+	SuffixActions: []APIEndpointSuffixAction{
+		{
+			Name: "/export",
+			Get:  APIEndpointAction{Handler: imageExport, AllowUntrusted: true},
+			Post: APIEndpointAction{Handler: imageExportPost, AccessHandler: allowPermission(auth.ObjectTypeImage, auth.EntitlementCanEdit, "fingerprint")},
+		},
+		{
+			Name: "/secret",
+			Post: APIEndpointAction{Handler: imageSecret, AccessHandler: allowPermission(auth.ObjectTypeImage, auth.EntitlementCanEdit, "fingerprint")},
+		},
+		{
+			Name: "/refresh",
+			Post: APIEndpointAction{Handler: imageRefresh, AccessHandler: allowPermission(auth.ObjectTypeImage, auth.EntitlementCanEdit, "fingerprint")},
+		},
+	},
 }
 
 var imageAliasesCmd = APIEndpoint{
@@ -106,7 +107,7 @@ var imageAliasesCmd = APIEndpoint{
 }
 
 var imageAliasCmd = APIEndpoint{
-	Path: "images/aliases/{name:.*}",
+	Path: "images/aliases/{name...}",
 
 	Delete: APIEndpointAction{Handler: imageAliasDelete, AccessHandler: allowPermission(auth.ObjectTypeImageAlias, auth.EntitlementCanEdit, "name")},
 	Get:    APIEndpointAction{Handler: imageAliasGet, AllowUntrusted: true},
@@ -149,8 +150,8 @@ func compressFile(compress string, infile io.Reader, outfile io.Writer) error {
 			return err
 		}
 
-		defer func() { _ = tempfile.Close() }()
-		defer func() { _ = os.Remove(tempfile.Name()) }()
+		defer logger.WarnOnError(tempfile.Close, "Failed to close temporary file")
+		defer logger.WarnOnError(func() error { return os.Remove(tempfile.Name()) }, "Failed to remove temporary file")
 
 		// Prepare 'tar2sqfs' arguments
 		args := []string{"tar2sqfs"}
@@ -259,8 +260,8 @@ func imgPostInstanceInfo(ctx context.Context, s *state.State, r *http.Request, r
 		return nil, err
 	}
 
-	defer func() { _ = os.Remove(metaFile.Name()) }()
-	defer func() { _ = os.Remove(rootfsFile.Name()) }()
+	defer logger.WarnOnError(func() error { return os.Remove(metaFile.Name()) }, "Failed to remove metadata file")
+	defer logger.WarnOnError(func() error { return os.Remove(rootfsFile.Name()) }, "Failed to remove rootfs file")
 
 	// Calculate (close estimate of) total size of input to image
 	totalSize := int64(0)
@@ -578,7 +579,7 @@ func imgPostRemoteInfo(ctx context.Context, s *state.State, r *http.Request, req
 			req.Profiles = []string{api.ProjectDefaultName}
 		}
 
-		profileIds := make([]int64, len(req.Profiles))
+		profileIDs := make([]int64, len(req.Profiles))
 
 		for i, profile := range req.Profiles {
 			profileID, _, err := tx.GetProfile(ctx, project, profile)
@@ -588,12 +589,12 @@ func imgPostRemoteInfo(ctx context.Context, s *state.State, r *http.Request, req
 				return err
 			}
 
-			profileIds[i] = profileID
+			profileIDs[i] = profileID
 		}
 
 		// Update the DB record if needed
 		if req.Public || req.AutoUpdate || req.Filename != "" || len(req.Properties) > 0 || len(req.Profiles) > 0 {
-			err := tx.UpdateImage(ctx, id, req.Filename, info.Size, req.Public, req.AutoUpdate, info.Architecture, info.CreatedAt, info.ExpiresAt, info.Properties, project, profileIds)
+			err := tx.UpdateImage(ctx, id, req.Filename, info.Size, req.Public, req.AutoUpdate, info.Architecture, info.CreatedAt, info.ExpiresAt, info.Properties, project, profileIDs)
 			if err != nil {
 				return err
 			}
@@ -611,16 +612,32 @@ func imgPostRemoteInfo(ctx context.Context, s *state.State, r *http.Request, req
 func imgPostURLInfo(ctx context.Context, s *state.State, r *http.Request, req api.ImagesPost, op *operations.Operation, project string, budget int64) (*api.Image, error) {
 	var err error
 
+	// Check the request.
 	if req.Source.URL == "" {
 		return nil, errors.New("Missing URL")
 	}
 
+	// Validate that the initial image target is allowed.
+	// The imageDownload function will validate the ultimate file download location later.
+	err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
+		err := projectutils.AllowImageDownload(tx, project, req.Source.URL)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the image download headers from the provided URL.
+	// Provide some information about the current server to the target.
 	myhttp, err := localUtil.HTTPClient("", s.Proxy)
 	if err != nil {
 		return nil, err
 	}
 
-	// Resolve the image URL
 	head, err := http.NewRequest("HEAD", req.Source.URL, nil)
 	if err != nil {
 		return nil, err
@@ -645,19 +662,20 @@ func imgPostURLInfo(ctx context.Context, s *state.State, r *http.Request, req ap
 		return nil, err
 	}
 
+	// Get the image fingerprint and download URL.
 	hash := raw.Header.Get("Incus-Image-Hash")
 	if hash == "" {
 		return nil, errors.New("Missing Incus-Image-Hash header")
 	}
 
-	url := raw.Header.Get("Incus-Image-URL")
-	if url == "" {
+	imageURL := raw.Header.Get("Incus-Image-URL")
+	if imageURL == "" {
 		return nil, errors.New("Missing Incus-Image-URL header")
 	}
 
-	// Import the image
+	// Download the image itself.
 	info, _, err := imageDownload(ctx, r, s, op, &imageDownloadArgs{
-		Server:      url,
+		Server:      imageURL,
 		Protocol:    "direct",
 		Alias:       hash,
 		AutoUpdate:  req.AutoUpdate,
@@ -669,6 +687,7 @@ func imgPostURLInfo(ctx context.Context, s *state.State, r *http.Request, req ap
 		return nil, err
 	}
 
+	// Apply user provided attributes and overrides.
 	err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
 		var id int
 
@@ -720,7 +739,7 @@ func getImgPostInfo(ctx context.Context, s *state.State, r *http.Request, buildd
 			return nil, err
 		}
 
-		defer func() { _ = os.Remove(imageTarf.Name()) }()
+		defer logger.WarnOnError(func() error { return os.Remove(imageTarf.Name()) }, "Failed to remove image tarball")
 
 		// Parse the POST data
 		_, err = post.Seek(0, io.SeekStart)
@@ -771,7 +790,7 @@ func getImgPostInfo(ctx context.Context, s *state.State, r *http.Request, buildd
 			return nil, err
 		}
 
-		defer func() { _ = os.Remove(rootfsTarf.Name()) }()
+		defer logger.WarnOnError(func() error { return os.Remove(rootfsTarf.Name()) }, "Failed to remove rootfs tarball")
 
 		size, err = util.SafeCopy(io.MultiWriter(rootfsTarf, hash256), part)
 		info.Size += size
@@ -873,14 +892,20 @@ func getImgPostInfo(ctx context.Context, s *state.State, r *http.Request, buildd
 
 	expiresAt, ok := metadata["expires_at"]
 	if ok {
-		info.ExpiresAt = expiresAt.(time.Time)
+		expiry, ok := expiresAt.(time.Time)
+		if ok {
+			info.ExpiresAt = expiry
+		}
 	} else if imageMeta.ExpiryDate > 0 {
 		info.ExpiresAt = time.Unix(imageMeta.ExpiryDate, 0)
 	}
 
 	properties, ok := metadata["properties"]
 	if ok {
-		info.Properties = properties.(map[string]string)
+		props, ok := properties.(map[string]string)
+		if ok {
+			info.Properties = props
+		}
 	} else {
 		info.Properties = imageMeta.Properties
 	}
@@ -898,7 +923,13 @@ func getImgPostInfo(ctx context.Context, s *state.State, r *http.Request, buildd
 		info.Aliases = []api.ImageAlias{}
 		aliasNames, _ := url.ParseQuery(aliasesHeaders)
 
-		for _, aliasName := range aliasNames["alias"] {
+		// Check if we're using the URL encoded syntax (multiple entries) or just a simple header (single entry).
+		aliases, ok := aliasNames["alias"]
+		if !ok {
+			aliases = []string{aliasesHeaders}
+		}
+
+		for _, aliasName := range aliases {
 			alias := api.ImageAlias{
 				Name: aliasName,
 			}
@@ -907,13 +938,20 @@ func getImgPostInfo(ctx context.Context, s *state.State, r *http.Request, buildd
 		}
 	}
 
-	var profileIds []int64
+	var profileIDs []int64
 	if len(profilesHeaders) > 0 {
-		p, _ := url.ParseQuery(profilesHeaders)
-		profileIds = make([]int64, len(p["profile"]))
+		profileNames, _ := url.ParseQuery(profilesHeaders)
+
+		// Check if we're using the URL encoded syntax (multiple entries) or just a simple header (single entry).
+		profiles, ok := profileNames["profile"]
+		if !ok {
+			profiles = []string{profilesHeaders}
+		}
+
+		profileIDs = make([]int64, len(profiles))
 
 		err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
-			for i, val := range p["profile"] {
+			for i, val := range profiles {
 				profileID, _, err := tx.GetProfile(ctx, project, val)
 				if response.IsNotFoundError(err) {
 					return fmt.Errorf("Profile '%s' doesn't exist", val)
@@ -921,7 +959,7 @@ func getImgPostInfo(ctx context.Context, s *state.State, r *http.Request, buildd
 					return err
 				}
 
-				profileIds[i] = profileID
+				profileIDs[i] = profileID
 			}
 
 			return nil
@@ -945,25 +983,28 @@ func getImgPostInfo(ctx context.Context, s *state.State, r *http.Request, buildd
 	if exists {
 		// Do not create a database entry if the request is coming from the internal
 		// cluster communications for image synchronization
-		if isClusterNotification(r) {
-			err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
-				return tx.AddImageToLocalNode(ctx, project, info.Fingerprint)
-			})
-			if err != nil {
-				return nil, err
-			}
-		} else {
+		if !isClusterNotification(r) {
 			return &info, errors.New("Image with same fingerprint already exists")
+		}
+
+		err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
+			return tx.AddImageToLocalNode(ctx, project, info.Fingerprint)
+		})
+		if err != nil {
+			return nil, err
 		}
 	} else {
 		public, ok := metadata["public"]
 		if ok {
-			info.Public = public.(bool)
+			isPublic, ok := public.(bool)
+			if ok {
+				info.Public = isPublic
+			}
 		}
 
 		err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
 			// Create the database entry
-			return tx.CreateImage(ctx, project, info.Fingerprint, info.Filename, info.Size, info.Public, info.AutoUpdate, info.Architecture, info.CreatedAt, info.ExpiresAt, info.Properties, info.Type, profileIds)
+			return tx.CreateImage(ctx, project, info.Fingerprint, info.Filename, info.Size, info.Public, info.AutoUpdate, info.Architecture, info.CreatedAt, info.ExpiresAt, info.Properties, info.Type, profileIDs)
 		})
 		if err != nil {
 			return nil, err
@@ -1130,18 +1171,18 @@ func imagesPost(d *Daemon, r *http.Request) response.Response {
 	var imageMetadata map[string]any
 	if !trusted && (secret == "" || fingerprint == "") {
 		return response.Forbidden(nil)
-	} else {
-		// We need to invalidate the secret whether the source is trusted or not.
-		op, err := imageValidSecret(s, r, projectName, fingerprint, secret)
-		if err != nil {
-			return response.SmartError(err)
-		}
+	}
 
-		if op != nil {
-			imageMetadata = op.Metadata
-		} else if !trusted {
-			return response.Forbidden(nil)
-		}
+	// We need to invalidate the secret whether the source is trusted or not.
+	validOp, err := imageValidSecret(s, r, projectName, fingerprint, secret)
+	if err != nil {
+		return response.SmartError(err)
+	}
+
+	if validOp != nil {
+		imageMetadata = validOp.Metadata
+	} else if !trusted {
+		return response.Forbidden(nil)
 	}
 
 	// create a directory under which we keep everything while building
@@ -1259,13 +1300,14 @@ func imagesPost(d *Daemon, r *http.Request) response.Response {
 			/* Processing image upload */
 			info, err = getImgPostInfo(context.TODO(), s, r, builddir, projectName, post, imageMetadata)
 		} else {
-			if req.Source.Type == "image" {
+			switch req.Source.Type {
+			case "image":
 				/* Processing image copy from remote */
 				info, err = imgPostRemoteInfo(context.TODO(), s, r, req, op, projectName, budget)
-			} else if req.Source.Type == "url" {
+			case "url":
 				/* Processing image copy from URL */
 				info, err = imgPostURLInfo(context.TODO(), s, r, req, op, projectName, budget)
-			} else {
+			default:
 				/* Processing image creation from container */
 				imagePublishLock.Lock()
 				info, err = imgPostInstanceInfo(context.TODO(), s, r, req, op, builddir, budget)
@@ -1282,7 +1324,10 @@ func imagesPost(d *Daemon, r *http.Request) response.Response {
 			// Keep secret if available
 			secret, ok := op.Metadata()["secret"]
 			if ok {
-				metadata["secret"] = secret.(string)
+				secretStr, ok := secret.(string)
+				if ok {
+					metadata["secret"] = secretStr
+				}
 			}
 
 			_ = op.UpdateMetadata(metadata)
@@ -1395,7 +1440,7 @@ func getImageMetadata(fname string) (*api.ImageMetadata, string, error) {
 		return nil, "unknown", err
 	}
 
-	defer func() { _ = r.Close() }()
+	defer logger.WarnOnError(r.Close, "Failed to close file")
 
 	// Decompress if needed
 	_, algo, unpacker, err := archive.DetectCompressionFile(r)
@@ -1427,17 +1472,17 @@ func getImageMetadata(fname string) (*api.ImageMetadata, string, error) {
 			return nil, "unknown", err
 		}
 
-		defer func() { _ = stdout.Close() }()
+		defer logger.WarnOnError(stdout.Close, "Failed to close stdout pipe")
 
 		err = cmd.Start()
 		if err != nil {
 			return nil, "unknown", err
 		}
 
-		defer func() { _ = cmd.Wait() }()
+		defer logger.WarnOnError(cmd.Wait, "Failed to wait for command")
 
 		// Double close stdout, this is to avoid blocks in Wait()
-		defer func() { _ = stdout.Close() }()
+		defer logger.WarnOnError(stdout.Close, "Failed to close stdout pipe")
 
 		tr = tar.NewReader(stdout)
 	} else {
@@ -1459,7 +1504,7 @@ func getImageMetadata(fname string) (*api.ImageMetadata, string, error) {
 		}
 
 		if hdr.Name == "metadata.yaml" || hdr.Name == "./metadata.yaml" {
-			loader, err := yaml.NewLoader(tr)
+			loader, err := yaml.NewLoader(localUtil.MaxBytesReader(tr, 1024*1024))
 			if err != nil {
 				return nil, "unknown", err
 			}
@@ -1925,11 +1970,11 @@ func autoUpdateImages(ctx context.Context, s *state.State) error {
 		if len(nodes) > 1 {
 			var nodeIDs []int64
 
-			for _, node := range nodes {
+			for _, address := range nodes {
 				err := s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
 					var err error
 
-					nodeInfo, err := tx.GetNodeByAddress(ctx, node)
+					nodeInfo, err := tx.GetNodeByAddress(ctx, address)
 					if err != nil {
 						return err
 					}
@@ -1969,15 +2014,15 @@ func autoUpdateImages(ctx context.Context, s *state.State) error {
 		var newImage *api.Image
 
 		for _, image := range images {
-			filter := dbCluster.ImageFilter{Project: &image.Project}
+			imageFilter := dbCluster.ImageFilter{Project: &image.Project}
 			if image.Public {
-				filter.Public = &image.Public
+				imageFilter.Public = &image.Public
 			}
 
 			var imageInfo *api.Image
 
 			err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
-				_, imageInfo, err = tx.GetImage(ctx, image.Fingerprint, filter)
+				_, imageInfo, err = tx.GetImage(ctx, image.Fingerprint, imageFilter)
 
 				return err
 			})
@@ -2027,7 +2072,6 @@ func autoUpdateImages(ctx context.Context, s *state.State) error {
 
 				return nil
 			})
-
 		}
 	}
 
@@ -2035,61 +2079,16 @@ func autoUpdateImages(ctx context.Context, s *state.State) error {
 }
 
 func distributeImage(ctx context.Context, s *state.State, nodes []string, oldFingerprint string, newImage *api.Image) error {
-	// Get config of all nodes (incl. own) and check for storage.images_volume.
-	// If the setting is missing, distribute the image to the node.
-	// If the option is set, only distribute the image once to nodes with this
-	// specific pool/volume.
-
-	// imageVolumes is a list containing of all image volumes specified by
-	// storage.images_volume. Since this option is node specific, the values
-	// may be different for each cluster member.
-	var imageVolumes []string
-
-	err := s.DB.Node.Transaction(ctx, func(ctx context.Context, tx *db.NodeTx) error {
-		config, err := node.ConfigLoad(ctx, tx)
-		if err != nil {
-			return err
-		}
-
-		vol := config.StorageImagesVolume()
-		if vol != "" {
-			fields := strings.Split(vol, "/")
-
-			var pool *api.StoragePool
-
-			err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
-				_, pool, _, err = tx.GetStoragePool(ctx, fields[0])
-
-				return err
-			})
-			if err != nil {
-				return fmt.Errorf("Failed to get storage pool info: %w", err)
-			}
-
-			// Add the volume to the list if the pool is backed by remote
-			// storage as only then the volumes are shared.
-			if slices.Contains(db.StorageRemoteDriverNames(), pool.Driver) {
-				imageVolumes = append(imageVolumes, vol)
-			}
-		}
-
-		return nil
-	})
-	// No need to return with an error as this is only an optimization in the
-	// distribution process. Instead, only log the error.
-	if err != nil {
-		logger.Error("Failed to load config", logger.Ctx{"err": err})
-	}
-
 	// Skip own node
 	localClusterAddress := s.LocalConfig.ClusterAddress()
 
 	var poolIDs []int64
 	var poolNames []string
 
-	err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
+	err := s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
 		// Get the IDs of all storage pools on which a storage volume
 		// for the requested image currently exists.
+		var err error
 		poolIDs, err = tx.GetPoolsWithImage(ctx, newImage.Fingerprint)
 		if err != nil {
 			logger.Error("Error getting image storage pools", logger.Ctx{"err": err, "fingerprint": oldFingerprint})
@@ -2131,82 +2130,53 @@ func distributeImage(ctx context.Context, s *state.State, nodes []string, oldFin
 
 		client = client.UseTarget(nodeInfo.Name)
 
-		resp, _, err := client.GetServer()
-		if err != nil {
-			logger.Error("Failed to retrieve information about cluster member", logger.Ctx{"err": err, "remote": nodeAddress})
-		} else {
-			vol := resp.Config["storage.images_volume"]
-			skipDistribution := false
+		createImage := func() error {
+			createArgs := &incus.ImageCreateArgs{}
+			imageMetaPath := internalUtil.VarPath("images", newImage.Fingerprint)
+			imageRootfsPath := internalUtil.VarPath("images", newImage.Fingerprint+".rootfs")
 
-			// If storage.images_volume is set on the cluster member, check if
-			// the image has already been downloaded to this volume. If so,
-			// skip distributing the image to this cluster member.
-			// If the option is unset, distribute the image.
-			if vol != "" {
-				if slices.Contains(imageVolumes, vol) {
-					skipDistribution = true
-				}
-
-				if skipDistribution {
-					continue
-				}
-
-				fields := strings.Split(vol, "/")
-
-				pool, _, err := client.GetStoragePool(fields[0])
-				if err != nil {
-					logger.Error("Failed to get storage pool info", logger.Ctx{"err": err, "pool": fields[0]})
-				} else {
-					if slices.Contains(db.StorageRemoteDriverNames(), pool.Driver) {
-						imageVolumes = append(imageVolumes, vol)
-					}
-				}
-			}
-		}
-
-		createArgs := &incus.ImageCreateArgs{}
-		imageMetaPath := internalUtil.VarPath("images", newImage.Fingerprint)
-		imageRootfsPath := internalUtil.VarPath("images", newImage.Fingerprint+".rootfs")
-
-		metaFile, err := os.Open(imageMetaPath)
-		if err != nil {
-			return err
-		}
-
-		defer func() { _ = metaFile.Close() }()
-
-		createArgs.MetaFile = metaFile
-		createArgs.MetaName = filepath.Base(imageMetaPath)
-		createArgs.Type = newImage.Type
-
-		if util.PathExists(imageRootfsPath) {
-			rootfsFile, err := os.Open(imageRootfsPath)
+			metaFile, err := os.Open(imageMetaPath)
 			if err != nil {
 				return err
 			}
 
-			defer func() { _ = rootfsFile.Close() }()
+			defer logger.WarnOnError(metaFile.Close, "Failed to close metadata file")
 
-			createArgs.RootfsFile = rootfsFile
-			createArgs.RootfsName = filepath.Base(imageRootfsPath)
+			createArgs.MetaFile = metaFile
+			createArgs.MetaName = filepath.Base(imageMetaPath)
+			createArgs.Type = newImage.Type
+
+			if util.PathExists(imageRootfsPath) {
+				rootfsFile, err := os.Open(imageRootfsPath)
+				if err != nil {
+					return err
+				}
+
+				defer logger.WarnOnError(rootfsFile.Close, "Failed to close rootfs file")
+
+				createArgs.RootfsFile = rootfsFile
+				createArgs.RootfsName = filepath.Base(imageRootfsPath)
+			}
+
+			image := api.ImagesPost{}
+			image.Filename = createArgs.MetaName
+
+			op, err := client.CreateImage(image, createArgs)
+			if err != nil {
+				return err
+			}
+
+			select {
+			case <-ctx.Done():
+				_ = op.Cancel()
+				return ctx.Err()
+			default:
+			}
+
+			return op.Wait()
 		}
 
-		image := api.ImagesPost{}
-		image.Filename = createArgs.MetaName
-
-		op, err := client.CreateImage(image, createArgs)
-		if err != nil {
-			return err
-		}
-
-		select {
-		case <-ctx.Done():
-			_ = op.Cancel()
-			return ctx.Err()
-		default:
-		}
-
-		err = op.Wait()
+		err = createImage()
 		if err != nil {
 			return err
 		}
@@ -2586,7 +2556,7 @@ func pruneLeftoverImages(s *state.State) {
 
 		// Check and delete leftovers
 		for _, entry := range entries {
-			fp := strings.Split(entry.Name(), ".")[0]
+			fp, _, _ := strings.Cut(entry.Name(), ".")
 			if !slices.Contains(images, fp) {
 				err = os.RemoveAll(internalUtil.VarPath("images", entry.Name()))
 				if err != nil {
@@ -2797,6 +2767,11 @@ func pruneExpiredImages(ctx context.Context, s *state.State, op *operations.Oper
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -2816,7 +2791,7 @@ func imageDelete(d *Daemon, r *http.Request) response.Response {
 
 	projectName := request.ProjectParam(r)
 
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -3019,12 +2994,12 @@ func imageDeleteFromDisk(fingerprint string) {
 }
 
 func doImageGet(ctx context.Context, tx *db.ClusterTx, project, fingerprint string, public bool) (*api.Image, error) {
-	filter := dbCluster.ImageFilter{Project: &project}
+	imageFilter := dbCluster.ImageFilter{Project: &project}
 	if public {
-		filter.Public = &public
+		imageFilter.Public = &public
 	}
 
-	_, imgInfo, err := tx.GetImageByFingerprintPrefix(ctx, fingerprint, filter)
+	_, imgInfo, err := tx.GetImageByFingerprintPrefix(ctx, fingerprint, imageFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -3087,6 +3062,11 @@ func imageValidSecret(s *state.State, r *http.Request, projectName string, finge
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: fingerprint
+//      description: Fingerprint
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -3133,6 +3113,11 @@ func imageValidSecret(s *state.State, r *http.Request, projectName string, finge
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -3167,7 +3152,7 @@ func imageGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -3228,6 +3213,11 @@ func imageGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -3255,7 +3245,7 @@ func imagePut(d *Daemon, r *http.Request) response.Response {
 
 	// Get current value
 	projectName := request.ProjectParam(r)
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -3295,7 +3285,7 @@ func imagePut(d *Daemon, r *http.Request) response.Response {
 		req.Profiles = []string{"default"}
 	}
 
-	profileIds := make([]int64, len(req.Profiles))
+	profileIDs := make([]int64, len(req.Profiles))
 
 	err = s.DB.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
 		for i, profile := range req.Profiles {
@@ -3306,10 +3296,10 @@ func imagePut(d *Daemon, r *http.Request) response.Response {
 				return err
 			}
 
-			profileIds[i] = profileID
+			profileIDs[i] = profileID
 		}
 
-		return tx.UpdateImage(ctx, id, info.Filename, info.Size, req.Public, req.AutoUpdate, info.Architecture, info.CreatedAt, info.ExpiresAt, req.Properties, projectName, profileIds)
+		return tx.UpdateImage(ctx, id, info.Filename, info.Size, req.Public, req.AutoUpdate, info.Architecture, info.CreatedAt, info.ExpiresAt, req.Properties, projectName, profileIDs)
 	})
 	if err != nil {
 		if response.IsNotFoundError(err) {
@@ -3337,6 +3327,11 @@ func imagePut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -3364,7 +3359,7 @@ func imagePatch(d *Daemon, r *http.Request) response.Response {
 
 	// Get current value
 	projectName := request.ProjectParam(r)
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -3695,6 +3690,11 @@ func imageAliasesGet(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: name
+//      description: Alias name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -3736,6 +3736,11 @@ func imageAliasesGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Alias name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -3768,7 +3773,7 @@ func imageAliasesGet(d *Daemon, r *http.Request) response.Response {
 //	    $ref: "#/responses/InternalServerError"
 func imageAliasGet(d *Daemon, r *http.Request) response.Response {
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -3808,6 +3813,11 @@ func imageAliasGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Alias name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -3826,7 +3836,7 @@ func imageAliasDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -3872,6 +3882,11 @@ func imageAliasDelete(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Alias name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -3899,7 +3914,7 @@ func imageAliasPut(d *Daemon, r *http.Request) response.Response {
 
 	// Get current value
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -3963,6 +3978,11 @@ func imageAliasPut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Alias name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -3990,7 +4010,7 @@ func imageAliasPatch(d *Daemon, r *http.Request) response.Response {
 
 	// Get current value
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -4069,6 +4089,11 @@ func imageAliasPatch(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Alias name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -4093,7 +4118,7 @@ func imageAliasPost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -4157,6 +4182,11 @@ func imageAliasPost(d *Daemon, r *http.Request) response.Response {
 //    - application/octet-stream
 //    - multipart/form-data
 //  parameters:
+//    - in: path
+//      name: fingerprint
+//      description: Fingerprint
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -4187,6 +4217,11 @@ func imageAliasPost(d *Daemon, r *http.Request) response.Response {
 //	  - application/octet-stream
 //	  - multipart/form-data
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -4203,7 +4238,7 @@ func imageExport(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -4347,6 +4382,11 @@ func imageExport(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -4369,7 +4409,7 @@ func imageExportPost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -4420,7 +4460,7 @@ func imageExportPost(d *Daemon, r *http.Request) response.Response {
 			return err
 		}
 
-		defer func() { _ = metaFile.Close() }()
+		defer logger.WarnOnError(metaFile.Close, "Failed to close metadata file")
 
 		createArgs.MetaFile = metaFile
 		createArgs.MetaName = filepath.Base(imageMetaPath)
@@ -4431,7 +4471,7 @@ func imageExportPost(d *Daemon, r *http.Request) response.Response {
 				return err
 			}
 
-			defer func() { _ = rootfsFile.Close() }()
+			defer logger.WarnOnError(rootfsFile.Close, "Failed to close rootfs file")
 
 			createArgs.RootfsFile = rootfsFile
 			createArgs.RootfsName = filepath.Base(imageRootfsPath)
@@ -4464,7 +4504,10 @@ func imageExportPost(d *Daemon, r *http.Request) response.Response {
 
 		val, ok := opAPI.Metadata["secret"]
 		if ok {
-			secret = val.(string)
+			secretStr, ok := val.(string)
+			if ok {
+				secret = secretStr
+			}
 		}
 
 		opWaitAPI, _, err := remote.GetOperationWaitSecret(opAPI.ID, secret, -1)
@@ -4501,6 +4544,11 @@ func imageExportPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -4517,7 +4565,7 @@ func imageSecret(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -4543,21 +4591,21 @@ func imageImportFromNode(imagesDir string, client incus.InstanceServer, fingerpr
 		return fmt.Errorf("failed to create temporary directory for download: %w", err)
 	}
 
-	defer func() { _ = os.RemoveAll(buildDir) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(buildDir) }, "Failed to remove build directory")
 
 	metaFile, err := os.CreateTemp(buildDir, "incus_tar_")
 	if err != nil {
 		return err
 	}
 
-	defer func() { _ = metaFile.Close() }()
+	defer logger.WarnOnError(metaFile.Close, "Failed to close metadata file")
 
 	rootfsFile, err := os.CreateTemp(buildDir, "incus_tar_")
 	if err != nil {
 		return err
 	}
 
-	defer func() { _ = rootfsFile.Close() }()
+	defer logger.WarnOnError(rootfsFile.Close, "Failed to close rootfs file")
 
 	getReq := incus.ImageFileRequest{
 		MetaFile:   io.ReadWriteSeeker(metaFile),
@@ -4620,6 +4668,11 @@ func imageImportFromNode(imagesDir string, client incus.InstanceServer, fingerpr
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: fingerprint
+//	    description: Fingerprint
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -4636,7 +4689,7 @@ func imageRefresh(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	fingerprint, err := url.PathUnescape(mux.Vars(r)["fingerprint"])
+	fingerprint, err := pathVar(r, "fingerprint")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -4835,16 +4888,6 @@ func imageSyncBetweenNodes(ctx context.Context, s *state.State, r *http.Request,
 		logger.Info("Sufficient members have image", logger.Ctx{"fingerprint": fingerprint, "project": project, "desiredSyncCount": desiredSyncNodeCount, "syncedCount": len(syncNodeAddresses)})
 		return nil
 	}
-
-	// Pick a random node from that slice as the source.
-	syncNodeAddress := syncNodeAddresses[rand.Intn(len(syncNodeAddresses))]
-
-	source, err := cluster.Connect(syncNodeAddress, s.Endpoints.NetworkCert(), s.ServerCert(), r, true)
-	if err != nil {
-		return fmt.Errorf("Failed to connect to source node for image synchronization: %w", err)
-	}
-
-	source = source.UseProject(project)
 
 	var image *api.Image
 

@@ -10,11 +10,11 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdOperation struct {
@@ -31,7 +31,8 @@ func (c *cmdOperation) command() *cobra.Command {
 	cmd.Use = cli.U("operation")
 	cmd.Short = i18n.G("List, show and delete background operations")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`List, show and delete background operations`))
+		`List, show and delete background operations`,
+	))
 	cmd.Hidden = true
 
 	// Delete
@@ -66,7 +67,8 @@ func (c *cmdOperationDelete) command() *cobra.Command {
 	cmd.Aliases = []string{"cancel", "rm", "remove"}
 	cmd.Short = i18n.G("Delete background operations (will attempt to cancel)")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Delete background operations (will attempt to cancel)`))
+		`Delete background operations (will attempt to cancel)`,
+	))
 
 	cmd.RunE = c.run
 
@@ -74,7 +76,7 @@ func (c *cmdOperationDelete) command() *cobra.Command {
 }
 
 func (c *cmdOperationDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdOperationDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdOperationDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -124,12 +126,12 @@ func (c *cmdOperationList) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
 		`List background operations
 
-Default column layout: itdscCl
+Default column layout: itdscCL
 
 == Columns ==
 The -c option takes a comma separated list of arguments that control
-which instance attributes to output when displaying in table or csv
-format.
+which attributes of background operations to output when displaying
+in table or csv format.
 
 Column arguments are either pre-defined shorthand chars (see below),
 or (extended) config keys.
@@ -143,10 +145,11 @@ Pre-defined column shorthand chars:
   s - State
   c - Cancelable
   C - Created
-  L - Location of the operation (e.g. its cluster member)`))
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().BoolVar(&c.flagAllProjects, "all-projects", false, i18n.G("List operations from all projects")+"``")
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultOperationColumns, i18n.G("Columns")+"``")
+  L - Location of the operation (e.g. its cluster member)`,
+	))
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAllProjects, "all-projects", i18n.G("List operations from all projects"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultOperationColumns, "", i18n.G("Columns"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -229,7 +232,7 @@ func (c *cmdOperationList) locationColumnData(op api.Operation) string {
 }
 
 func (c *cmdOperationList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdOperationListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdOperationListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -288,10 +291,12 @@ func (c *cmdOperationShow) command() *cobra.Command {
 	cmd.Use = cli.U("show", cmdOperationShowUsage...)
 	cmd.Short = i18n.G("Show details on a background operation")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Show details on a background operation`))
+		`Show details on a background operation`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus operation show 344a79e4-d88a-45bf-9c39-c72c26f6ab8a
-    Show details on that operation UUID`))
+    Show details on that operation UUID`,
+	))
 
 	cmd.RunE = c.run
 
@@ -299,7 +304,7 @@ func (c *cmdOperationShow) command() *cobra.Command {
 }
 
 func (c *cmdOperationShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdOperationShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdOperationShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}

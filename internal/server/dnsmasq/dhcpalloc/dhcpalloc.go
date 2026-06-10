@@ -11,15 +11,15 @@ import (
 
 	"github.com/mdlayher/netx/eui64"
 
-	"github.com/lxc/incus/v6/internal/iprange"
-	"github.com/lxc/incus/v6/internal/server/dnsmasq"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/iprange"
+	"github.com/lxc/incus/v7/internal/server/dnsmasq"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // ErrDHCPNotSupported indicates network doesn't support DHCP for this IP protocol.
-var ErrDHCPNotSupported error = errors.New("Network doesn't support DHCP")
+var ErrDHCPNotSupported = errors.New("Network doesn't support DHCP")
 
 // DHCPValidIP returns whether an IP fits inside one of the supplied DHCP ranges and subnet.
 func DHCPValidIP(subnet *net.IPNet, ranges []iprange.Range, IP net.IP) bool {
@@ -54,7 +54,7 @@ func GetIP(subnet *net.IPNet, host int64) net.IP {
 		mask, size := subnet.Mask.Size()
 
 		bigHosts := big.NewFloat(0)
-		bigHosts.SetFloat64((math.Pow(2, float64(size-mask))))
+		bigHosts.SetFloat64(math.Pow(2, float64(size-mask)))
 		bigHostsInt, _ := bigHosts.Int(nil)
 
 		bigCount.Set(bigHostsInt)
@@ -197,10 +197,11 @@ func (t *Transaction) getDHCPFreeIPv4(usedIPs map[[4]byte]dnsmasq.DHCPAllocation
 
 	// If no custom ranges defined, convert subnet pool to a range.
 	if len(dhcpRanges) <= 0 {
-		dhcpRanges = append(dhcpRanges, iprange.Range{
-			Start: GetIP(subnet, 1).To4(),
-			End:   GetIP(subnet, -2).To4(),
-		},
+		dhcpRanges = append(
+			dhcpRanges, iprange.Range{
+				Start: GetIP(subnet, 1).To4(),
+				End:   GetIP(subnet, -2).To4(),
+			},
 		)
 	}
 
@@ -212,11 +213,7 @@ func (t *Transaction) getDHCPFreeIPv4(usedIPs map[[4]byte]dnsmasq.DHCPAllocation
 		endBig := big.NewInt(0)
 		endBig.SetBytes(IPRange.End)
 
-		for {
-			if startBig.Cmp(endBig) >= 0 {
-				break
-			}
-
+		for startBig.Cmp(endBig) < 0 {
 			IP := net.IP(startBig.Bytes())
 
 			// Check IP generated is not Incus's IP.
@@ -287,10 +284,11 @@ func (t *Transaction) getDHCPFreeIPv6(usedIPs map[[16]byte]dnsmasq.DHCPAllocatio
 
 	// If no custom ranges defined, convert subnet pool to a range.
 	if len(dhcpRanges) <= 0 {
-		dhcpRanges = append(dhcpRanges, iprange.Range{
-			Start: GetIP(subnet, 1).To16(),
-			End:   GetIP(subnet, -1).To16(),
-		},
+		dhcpRanges = append(
+			dhcpRanges, iprange.Range{
+				Start: GetIP(subnet, 1).To16(),
+				End:   GetIP(subnet, -1).To16(),
+			},
 		)
 	}
 
@@ -303,11 +301,7 @@ func (t *Transaction) getDHCPFreeIPv6(usedIPs map[[16]byte]dnsmasq.DHCPAllocatio
 		endBig := big.NewInt(0)
 		endBig.SetBytes(IPRange.End)
 
-		for {
-			if startBig.Cmp(endBig) >= 0 {
-				break
-			}
-
+		for startBig.Cmp(endBig) < 0 {
 			IP := net.IP(startBig.Bytes())
 
 			// Check IP generated is not Incus's IP.

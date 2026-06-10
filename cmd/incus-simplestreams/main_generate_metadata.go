@@ -12,10 +12,11 @@ import (
 	"github.com/spf13/cobra"
 	yaml "go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/ask"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/osarch"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/ask"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
 )
 
 type cmdGenerateMetadata struct {
@@ -59,7 +60,7 @@ func (c *cmdGenerateMetadata) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	defer metaFile.Close()
+	defer logger.WarnOnError(metaFile.Close, "Failed to close file")
 
 	// Generate the metadata.
 	timestamp := time.Now().UTC()

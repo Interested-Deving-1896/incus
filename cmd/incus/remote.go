@@ -22,17 +22,18 @@ import (
 	"github.com/spf13/cobra"
 	"software.sslmate.com/src/go-pkcs12"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/internal/ports"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	config "github.com/lxc/incus/v6/shared/cliconfig"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/internal/ports"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	config "github.com/lxc/incus/v7/shared/cliconfig"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/logger"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdRemote struct {
@@ -117,7 +118,7 @@ type cmdRemoteAdd struct {
 	flagCredHelper string
 }
 
-var cmdRemoteAddUsage = u.Usage{u.NewName(u.Remote).Optional(), u.EitherPlaceholder(i18n.G("IP"), i18n.G("FQDN"), i18n.G("URL"), i18n.G("token"))}
+var cmdRemoteAddUsage = u.Usage{u.NewName(u.Remote).Optional(), u.Either(u.Placeholder(i18n.G("IP/FQDN/URL")).List(1), u.Placeholder(i18n.G("token")))}
 
 func (c *cmdRemoteAdd) command() *cobra.Command {
 	cmd := &cobra.Command{}
@@ -130,17 +131,23 @@ URL for remote resources must be HTTPS (https://).
 
 Basic authentication can be used when combined with the "simplestreams" protocol:
   incus remote add some-name https://LOGIN:PASSWORD@example.com/some/path --protocol=simplestreams
-`))
+
+Several remote targets can be provided, to handle switching to other servers if one is down:
+  incus remote add some-name server1.example.com server2.example.com
+
+The remote name can be ignored if a single target is provided.
+`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVar(&c.flagAcceptCert, "accept-certificate", false, i18n.G("Accept certificate"))
-	cmd.Flags().StringVar(&c.flagToken, "token", "", i18n.G("Remote trust token")+"``")
-	cmd.Flags().StringVar(&c.flagProtocol, "protocol", "", i18n.G("Server protocol (incus, oci or simplestreams)")+"``")
-	cmd.Flags().StringVar(&c.flagAuthType, "auth-type", "", i18n.G("Server authentication type (tls or oidc)")+"``")
-	cmd.Flags().BoolVar(&c.flagPublic, "public", false, i18n.G("Public image server"))
-	cmd.Flags().StringVar(&c.flagProject, "project", "", i18n.G("Project to use for the remote")+"``")
-	cmd.Flags().IntVar(&c.flagKeepAlive, "keepalive", 0, i18n.G("Maintain remote connection for faster commands")+"``")
-	cmd.Flags().StringVar(&c.flagCredHelper, "credentials-helper", "", i18n.G("Binary helper for retrieving credentials")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAcceptCert, "accept-certificate", i18n.G("Accept certificate"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagToken, "token", "", "", i18n.G("Remote trust token"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagProtocol, "protocol", "incus", "", i18n.G("Server protocol (incus, oci or simplestreams)"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagAuthType, "auth-type", "", "", i18n.G("Server authentication type (tls or oidc)"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagPublic, "public", i18n.G("Public image server"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagProject, "project", "", "", i18n.G("Project to use for the remote"))
+	cli.AddIntFlag(cmd.Flags(), &c.flagKeepAlive, "keepalive", 0, i18n.G("Maintain remote connection for faster commands"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagCredHelper, "credentials-helper", "", "", i18n.G("Binary helper for retrieving credentials"))
 
 	return cmd
 }
@@ -200,23 +207,22 @@ func (c *cmdRemoteAdd) runToken(server string, token string, rawToken *api.Certi
 		}
 	}
 
-	for _, addr := range rawToken.Addresses {
-		addr = fmt.Sprintf("https://%s", addr)
+	addrs := make([]string, len(rawToken.Addresses))
+	for i, addr := range rawToken.Addresses {
+		addrs[i] = fmt.Sprintf("https://%s", addr)
+	}
 
-		err := c.addRemoteFromToken(addr, server, token, rawToken.Fingerprint)
-		if err != nil {
-			if api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
-				continue
-			}
-
-			return err
-		}
-
+	err := c.addRemoteFromToken(addrs, server, token, rawToken.Fingerprint)
+	if err == nil {
 		return nil
 	}
 
+	if !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
+		return err
+	}
+
 	fmt.Println(i18n.G("All server addresses are unavailable"))
-	fmt.Print(i18n.G("Please provide an alternate server address (empty to abort):") + " ")
+	fmt.Print(i18n.G("Please provide alternate server addresses separated with commas (empty to abort):") + " ")
 
 	buf := bufio.NewReader(os.Stdin)
 	line, _, err := buf.ReadLine()
@@ -228,7 +234,7 @@ func (c *cmdRemoteAdd) runToken(server string, token string, rawToken *api.Certi
 		return errors.New(i18n.G("Failed to add remote"))
 	}
 
-	err = c.addRemoteFromToken(string(line), server, token, rawToken.Fingerprint)
+	err = c.addRemoteFromToken(util.SplitNTrimSpace(string(line), ",", -1, true), server, token, rawToken.Fingerprint)
 	if err != nil {
 		return err
 	}
@@ -236,14 +242,14 @@ func (c *cmdRemoteAdd) runToken(server string, token string, rawToken *api.Certi
 	return nil
 }
 
-func (c *cmdRemoteAdd) addRemoteFromToken(addr string, server string, token string, fingerprint string) error {
+func (c *cmdRemoteAdd) addRemoteFromToken(addrs []string, server string, token string, fingerprint string) error {
 	conf := c.global.conf
 
 	var certificate *x509.Certificate
 	var err error
 
 	conf.Remotes[server] = config.Remote{
-		Addr:      addr,
+		Addrs:     addrs,
 		Protocol:  c.flagProtocol,
 		AuthType:  c.flagAuthType,
 		KeepAlive: c.flagKeepAlive,
@@ -251,9 +257,19 @@ func (c *cmdRemoteAdd) addRemoteFromToken(addr string, server string, token stri
 
 	_, err = conf.GetInstanceServer(server)
 	if err != nil {
-		certificate, err = localtls.GetRemoteCertificate(addr, c.global.conf.UserAgent)
-		if err != nil {
-			return api.StatusErrorf(http.StatusServiceUnavailable, i18n.G("Unavailable remote server")+": %v", err)
+		var errs []error
+		var addr string
+		for _, addr = range addrs {
+			certificate, err = localtls.GetRemoteCertificate(addr, c.global.conf.UserAgent)
+			if err == nil {
+				break
+			}
+
+			errs = append(errs, err)
+		}
+
+		if len(errs) > 0 {
+			return api.StatusErrorf(http.StatusServiceUnavailable, i18n.G("Unavailable remote server")+": %v", errors.Join(errs...))
 		}
 
 		certDigest := localtls.CertFingerprint(certificate)
@@ -312,47 +328,9 @@ func (c *cmdRemoteAdd) addRemoteFromToken(addr string, server string, token stri
 	return conf.SaveConfig(c.global.confPath)
 }
 
-func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
-	conf := c.global.conf
-
-	// Do NOT blindly copy the following parsing line; it performs right-to-left parsing, which in
-	// most cases is NOT what you want.
-	parsed, err := cmdRemoteAddUsage.Parse(conf, cmd, args, true)
-	if err != nil {
-		return err
-	}
-
-	addr := parsed[1].String
-	server := parsed[0].Get(addr)
-
-	// Validate the server name.
-	if strings.Contains(server, ":") {
-		return errors.New(i18n.G("Remote names may not contain colons"))
-	}
-
-	// Check for existing remote
-	remote, ok := conf.Remotes[server]
-	if ok {
-		return fmt.Errorf(i18n.G("Remote %s exists as <%s>"), server, remote.Addr)
-	}
-
-	// Parse the URL
-	var rScheme string
-	var rHost string
-	var rPort string
-
-	if c.flagProtocol == "" {
-		c.flagProtocol = "incus"
-	}
-
-	// Initialize the remotes list if needed
-	if conf.Remotes == nil {
-		conf.Remotes = map[string]config.Remote{}
-	}
-
-	rawToken, err := localtls.CertificateTokenDecode(addr)
-	if err == nil {
-		return c.runToken(server, addr, rawToken)
+func normalizeAddress(addr string) (string, string, error) {
+	if addr == "" {
+		return "", "", errors.New(i18n.G("Addresses cannot be empty"))
 	}
 
 	// Complex remote URL parsing
@@ -361,34 +339,20 @@ func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
 		remoteURL = &url.URL{Host: addr}
 	}
 
-	// Fast track image servers.
-	if slices.Contains([]string{"oci", "simplestreams"}, c.flagProtocol) {
-		if remoteURL.Scheme != "https" {
-			return errors.New(i18n.G("Only https URLs are supported for oci and simplestreams"))
-		}
-
-		conf.Remotes[server] = config.Remote{
-			Addr:       addr,
-			Public:     true,
-			Protocol:   c.flagProtocol,
-			KeepAlive:  c.flagKeepAlive,
-			CredHelper: c.flagCredHelper,
-		}
-
-		return conf.SaveConfig(c.global.confPath)
-	} else if c.flagProtocol != "incus" {
-		return fmt.Errorf(i18n.G("Invalid protocol: %s"), c.flagProtocol)
-	}
-
 	// Fix broken URL parser
 	if !strings.Contains(addr, "://") && remoteURL.Scheme != "" && remoteURL.Scheme != "unix" && remoteURL.Host == "" {
 		remoteURL.Host = addr
 		remoteURL.Scheme = ""
 	}
 
+	// Parse the URL
+	var rScheme string
+	var rHost string
+	var rPort string
+
 	if remoteURL.Scheme != "" {
 		if remoteURL.Scheme != "unix" && remoteURL.Scheme != "https" {
-			return fmt.Errorf(i18n.G("Invalid URL scheme \"%s\" in \"%s\""), remoteURL.Scheme, addr)
+			return "", "", fmt.Errorf(i18n.G("Invalid URL scheme \"%s\" in \"%s\""), remoteURL.Scheme, addr)
 		}
 
 		rScheme = remoteURL.Scheme
@@ -431,13 +395,96 @@ func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
 		addr = rScheme + "://" + rHost
 	}
 
-	// Finally, actually add the remote, almost...  If the remote is a private
-	// HTTPS server then we need to ensure we have a client certificate before
-	// adding the remote server.
-	if rScheme != "unix" && !c.flagPublic && (c.flagAuthType == api.AuthenticationMethodTLS || c.flagAuthType == "") {
-		if !conf.HasClientCertificate() {
+	return addr, rScheme, nil
+}
+
+func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
+	conf := c.global.conf
+
+	// Do NOT blindly copy the following parsing line; it is a dirty hack to disambiguate the parser.
+	parsed, err := c.global.Parse(cmdRemoteAddUsage, cmd, args, len(args) == 1)
+	if err != nil {
+		return err
+	}
+
+	target := parsed[1].String
+	addrs := parsed[1].StringList
+	server := parsed[0].Get(target)
+
+	// Validate the server name.
+	if strings.Contains(server, ":") {
+		if parsed[0].Skipped {
+			return errors.New(i18n.G("Remote names may not contain colons; please provide an explicit one"))
+		}
+
+		return errors.New(i18n.G("Remote names may not contain colons"))
+	}
+
+	// Check for existing remote
+	remote, ok := conf.Remotes[server]
+	if ok {
+		return fmt.Errorf(i18n.G("Remote %s already exists"), server)
+	}
+
+	// Initialize the remotes list if needed
+	if conf.Remotes == nil {
+		conf.Remotes = map[string]config.Remote{}
+	}
+
+	rawToken, err := localtls.CertificateTokenDecode(target)
+	if err == nil {
+		return c.runToken(server, target, rawToken)
+	}
+
+	// Fast track image servers.
+	if slices.Contains([]string{"oci", "simplestreams"}, c.flagProtocol) {
+		for _, addr := range addrs {
+			remoteURL, err := url.Parse(addr)
+			if err != nil || remoteURL.Scheme != "https" {
+				return errors.New(i18n.G("Only https URLs are supported for oci and simplestreams"))
+			}
+		}
+
+		conf.Remotes[server] = config.Remote{
+			Addrs:      addrs,
+			Public:     true,
+			Protocol:   c.flagProtocol,
+			KeepAlive:  c.flagKeepAlive,
+			CredHelper: c.flagCredHelper,
+		}
+
+		return conf.SaveConfig(c.global.confPath)
+	} else if c.flagProtocol != "incus" {
+		return fmt.Errorf(i18n.G("Invalid protocol: %s"), c.flagProtocol)
+	}
+
+	normalizedAddrs := make([]string, len(addrs))
+	allHTTPS := true
+	allUnix := true
+	for i, addr := range addrs {
+		var scheme string
+		normalizedAddrs[i], scheme, err = normalizeAddress(addr)
+		if err != nil {
+			return err
+		}
+
+		if scheme == "unix" {
+			allHTTPS = false
+		} else {
+			allUnix = false
+		}
+	}
+
+	if !allHTTPS && !allUnix {
+		return errors.New(i18n.G("Cannot mix HTTPS and Unix URLs"))
+	}
+
+	// If the remote is made of private HTTPS servers, then we need to ensure we have a client
+	// certificate before adding the remote server.
+	if allHTTPS && !c.flagPublic && (c.flagAuthType == api.AuthenticationMethodTLS || c.flagAuthType == "") {
+		if !c.global.conf.HasClientCertificate() {
 			fmt.Fprint(os.Stderr, i18n.G("Generating a client certificate. This may take a minute...")+"\n")
-			err = conf.GenerateClientCertificate()
+			err = c.global.conf.GenerateClientCertificate()
 			if err != nil {
 				return err
 			}
@@ -445,7 +492,7 @@ func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
 	}
 
 	conf.Remotes[server] = config.Remote{
-		Addr:      addr,
+		Addrs:     normalizedAddrs,
 		Protocol:  c.flagProtocol,
 		AuthType:  c.flagAuthType,
 		KeepAlive: c.flagKeepAlive,
@@ -460,7 +507,7 @@ func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Handle Unix socket connections
-	if strings.HasPrefix(addr, "unix:") {
+	if allUnix {
 		if err != nil {
 			return err
 		}
@@ -484,9 +531,20 @@ func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
 	var certificate *x509.Certificate
 	if err != nil {
 		// Failed to connect using the system CA, so retrieve the remote certificate
-		certificate, err = localtls.GetRemoteCertificate(addr, c.global.conf.UserAgent)
-		if err != nil {
-			return err
+		var errs []error
+		up := false
+		for _, addr := range normalizedAddrs {
+			certificate, err = localtls.GetRemoteCertificate(addr, c.global.conf.UserAgent)
+			if err == nil {
+				up = true
+				break
+			} else {
+				errs = append(errs, err)
+			}
+		}
+
+		if !up {
+			return errors.Join(errs...)
 		}
 	}
 
@@ -549,7 +607,7 @@ func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
 	// Handle public remotes
 	if c.flagPublic {
 		conf.Remotes[server] = config.Remote{
-			Addr:      addr,
+			Addrs:     normalizedAddrs,
 			Public:    true,
 			KeepAlive: c.flagKeepAlive,
 		}
@@ -603,7 +661,7 @@ func (c *cmdRemoteAdd) run(cmd *cobra.Command, args []string) error {
 
 	// Detect public remotes
 	if srv.Public {
-		conf.Remotes[server] = config.Remote{Addr: addr, Public: true, KeepAlive: c.flagKeepAlive}
+		conf.Remotes[server] = config.Remote{Addrs: normalizedAddrs, Public: true, KeepAlive: c.flagKeepAlive}
 		return conf.SaveConfig(c.global.confPath)
 	}
 
@@ -674,7 +732,8 @@ func (c *cmdRemoteGenerateCertificate) command() *cobra.Command {
 	cmd.Use = cli.U("generate-certificate", cmdRemoteGenerateCertificateUsage...)
 	cmd.Short = i18n.G("Generate the client certificate")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Manually trigger the generation of a client certificate`))
+		`Manually trigger the generation of a client certificate`,
+	))
 
 	cmd.RunE = c.run
 
@@ -683,7 +742,7 @@ func (c *cmdRemoteGenerateCertificate) command() *cobra.Command {
 
 func (c *cmdRemoteGenerateCertificate) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	_, err := cmdRemoteGenerateCertificateUsage.Parse(c.global.conf, cmd, args)
+	_, err := c.global.Parse(cmdRemoteGenerateCertificateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -726,7 +785,7 @@ func (c *cmdRemoteGetDefault) command() *cobra.Command {
 }
 
 func (c *cmdRemoteGetDefault) run(cmd *cobra.Command, args []string) error {
-	_, err := cmdRemoteGetDefaultUsage.Parse(c.global.conf, cmd, args)
+	_, err := c.global.Parse(cmdRemoteGetDefaultUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -753,14 +812,14 @@ func (c *cmdRemoteGetClientCertificate) command() *cobra.Command {
 	cmd.Short = i18n.G("Print or retrieve the client certificate used by this Incus client")
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", "pem", i18n.G("Format (pem|pfx)")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", "pem", "", i18n.G("Format (pem|pfx)"))
 
 	return cmd
 }
 
 func (c *cmdRemoteGetClientCertificate) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdRemoteGetClientCertificateUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdRemoteGetClientCertificateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -801,7 +860,7 @@ func (c *cmdRemoteGetClientCertificate) run(cmd *cobra.Command, args []string) e
 			return err
 		}
 
-		defer func() { _ = w.Close() }()
+		defer logger.WarnOnError(w.Close, "Failed to close file")
 
 		switch c.flagFormat {
 		case "pem":
@@ -863,14 +922,15 @@ func (c *cmdRemoteGetClientToken) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
 		`Generate a client trust token derived from the existing client certificate and private key.
 
-This is useful for remote authentication workflows where a token is passed to another Incus server.`))
+This is useful for remote authentication workflows where a token is passed to another Incus server.`,
+	))
 	cmd.RunE = c.run
 	return cmd
 }
 
 func (c *cmdRemoteGetClientToken) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdRemoteGetClientTokenUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdRemoteGetClientTokenUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -953,7 +1013,7 @@ Default column layout: nupaPsg
 
 == Columns ==
 The -c option takes a comma separated list of arguments that control
-which instance attributes to output when displaying in table or csv
+which remote attributes to output when displaying in table or csv
 format.
 
 Column arguments are either pre-defined shorthand chars (see below),
@@ -968,11 +1028,12 @@ Pre-defined column shorthand chars:
   a - Auth Type
   P - Public
   s - Static
-  g - Global`))
+  g - Global`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultRemoteColumns, i18n.G("Columns")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultRemoteColumns, "", i18n.G("Columns"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -1027,7 +1088,16 @@ func (c *cmdRemoteList) remoteNameColumnData(name string, _ config.Remote) strin
 }
 
 func (c *cmdRemoteList) addrColumnData(_ string, rc config.Remote) string {
-	return rc.Addr
+	lines := make([]string, len(rc.Addrs))
+	for i, addr := range rc.Addrs {
+		if len(rc.Addrs) > 1 && addr == rc.LastWorkingAddr {
+			lines[i] = fmt.Sprintf("%s (%s)", addr, i18n.G("last"))
+		} else {
+			lines[i] = addr
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (c *cmdRemoteList) protocolColumnData(_ string, rc config.Remote) string {
@@ -1036,7 +1106,7 @@ func (c *cmdRemoteList) protocolColumnData(_ string, rc config.Remote) string {
 
 func (c *cmdRemoteList) authTypeColumnData(_ string, rc config.Remote) string {
 	if rc.AuthType == "" {
-		if strings.HasPrefix(rc.Addr, "unix:") {
+		if strings.HasPrefix(rc.Addrs[0], "unix:") {
 			rc.AuthType = "file access"
 		} else if rc.Protocol != "incus" {
 			rc.AuthType = "none"
@@ -1077,7 +1147,7 @@ func (c *cmdRemoteList) globalColumnData(_ string, rc config.Remote) string {
 
 func (c *cmdRemoteList) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	_, err := cmdRemoteListUsage.Parse(conf, cmd, args)
+	_, err := c.global.Parse(cmdRemoteListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1138,7 +1208,7 @@ func (c *cmdRemoteRename) command() *cobra.Command {
 
 func (c *cmdRemoteRename) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdRemoteRenameUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdRemoteRenameUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1219,7 +1289,7 @@ func (c *cmdRemoteRemove) command() *cobra.Command {
 
 func (c *cmdRemoteRemove) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdRemoteRemoveUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdRemoteRemoveUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1283,7 +1353,7 @@ func (c *cmdRemoteSwitch) command() *cobra.Command {
 
 func (c *cmdRemoteSwitch) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdRemoteSwitchUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdRemoteSwitchUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1307,13 +1377,14 @@ type cmdRemoteSetURL struct {
 	remote *cmdRemote
 }
 
-var cmdRemoteSetURLUsage = u.Usage{u.Remote, u.URL}
+var cmdRemoteSetURLUsage = u.Usage{u.Remote, u.Placeholder(i18n.G("IP/FQDN/URL")).List(1)}
 
 func (c *cmdRemoteSetURL) command() *cobra.Command {
 	cmd := &cobra.Command{}
-	cmd.Use = cli.U("set-url", cmdRemoteSetURLUsage...)
-	cmd.Short = i18n.G("Set the URL for the remote")
-	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Set the URL for the remote`))
+	cmd.Use = cli.U("set-urls", cmdRemoteSetURLUsage...)
+	cmd.Aliases = []string{"set-url"}
+	cmd.Short = i18n.G("Set the URL(s) for the remote")
+	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Set the URL(s) for the remote`))
 
 	cmd.RunE = c.run
 
@@ -1330,13 +1401,13 @@ func (c *cmdRemoteSetURL) command() *cobra.Command {
 
 func (c *cmdRemoteSetURL) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdRemoteSetURLUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdRemoteSetURLUsage, cmd, args)
 	if err != nil {
 		return err
 	}
 
 	remoteName := parsed[0].String
-	remoteURL := parsed[1].String
+	addrs := parsed[1].StringList
 
 	// Set the URL
 	rc, ok := conf.Remotes[remoteName]
@@ -1359,7 +1430,15 @@ func (c *cmdRemoteSetURL) run(cmd *cobra.Command, args []string) error {
 		conf.Remotes[remoteName] = remote
 	}
 
-	remote.Addr = remoteURL
+	normalizedAddrs := make([]string, len(addrs))
+	for i, addr := range addrs {
+		normalizedAddrs[i], _, err = normalizeAddress(addr)
+		if err != nil {
+			return err
+		}
+	}
+
+	remote.Addrs = normalizedAddrs
 	conf.Remotes[remoteName] = remote
 
 	return conf.SaveConfig(c.global.confPath)

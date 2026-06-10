@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	"github.com/lxc/incus/v6/internal/rsync"
-	"github.com/lxc/incus/v6/shared/ws"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/ws"
 )
 
 // Send an rsync stream of a path over a websocket.
@@ -25,7 +25,7 @@ func rsyncSend(conn *websocket.Conn, path string, rsyncArgs string) error {
 	}
 
 	if dataSocket != nil {
-		defer func() { _ = dataSocket.Close() }()
+		defer logger.WarnOnError(dataSocket.Close, "Failed to close connection")
 	}
 
 	readDone, writeDone := ws.Mirror(conn, dataSocket)
@@ -80,13 +80,7 @@ func rsyncSendSetup(path string, rsyncArgs string) (*exec.Cmd, net.Conn, io.Read
 		"--compress-level=2",
 	}
 
-	if rsync.AtLeast("3.1.3") {
-		args = append(args, "--filter=-x security.selinux")
-	}
-
-	if rsync.AtLeast("3.1.0") {
-		args = append(args, "--ignore-missing-args")
-	}
+	args = append(args, "--filter=-x security.selinux", "--ignore-missing-args")
 
 	if rsyncArgs != "" {
 		args = append(args, strings.Split(rsyncArgs, " ")...)

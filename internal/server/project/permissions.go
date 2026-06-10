@@ -11,16 +11,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	deviceconfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/idmap"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	deviceconfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/idmap"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // HiddenStoragePools returns a list of storage pools that should be hidden from users of the project.
@@ -145,7 +145,8 @@ func AllowInstanceCreation(tx *db.ClusterTx, projectName string, req api.Instanc
 	}
 
 	err = checkRestrictionsOnVolatileConfig(
-		info.Project, instanceType, req.Name, req.Config, map[string]string{}, strip)
+		info.Project, instanceType, req.Name, req.Config, map[string]string{}, strip,
+	)
 	if err != nil {
 		return err
 	}
@@ -347,6 +348,26 @@ func GetImageSpaceBudget(tx *db.ClusterTx, projectName string) (int64, error) {
 		return -1, nil
 	}
 
+	return getSpaceBudget(info)
+}
+
+// GetSpaceBudget returns how much disk space is left in the given project.
+//
+// If no limit is in place, return -1.
+func GetSpaceBudget(tx *db.ClusterTx, projectName string) (int64, error) {
+	info, err := fetchProject(tx, projectName, true)
+	if err != nil {
+		return -1, err
+	}
+
+	if info == nil {
+		return -1, nil
+	}
+
+	return getSpaceBudget(info)
+}
+
+func getSpaceBudget(info *projectInfo) (int64, error) {
 	// If "limits.disk" is not set, the budget is unlimited.
 	if info.Project.Config["limits.disk"] == "" {
 		return -1, nil
@@ -1042,7 +1063,8 @@ func AllowInstanceUpdate(tx *db.ClusterTx, projectName, instanceName string, req
 	// Special case restriction checks on volatile.* keys, since we want to
 	// detect if they were changed or added.
 	err = checkRestrictionsOnVolatileConfig(
-		info.Project, instType, updatedInstance.Name, req.Config, currentConfig, false)
+		info.Project, instType, updatedInstance.Name, req.Config, currentConfig, false,
+	)
 	if err != nil {
 		return err
 	}
@@ -1662,6 +1684,8 @@ func FilterUsedBy(authorizer auth.Authorizer, r *http.Request, entries []string)
 			object = auth.ObjectStorageVolume(projectName, pathArgs[0], pathArgs[1], pathArgs[2], location)
 		case cluster.TypeStorageBucket:
 			object = auth.ObjectStorageBucket(projectName, pathArgs[0], pathArgs[1], location)
+		case cluster.TypeServer:
+			object = auth.ObjectServer()
 		default:
 			continue
 		}

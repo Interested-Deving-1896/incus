@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/api"
-	localtls "github.com/lxc/incus/v6/shared/tls"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/api"
+	localtls "github.com/lxc/incus/v7/shared/tls"
 )
 
 // This is a modified version of https://github.com/grafana/loki/blob/v1.6.1/pkg/promtail/client/.
@@ -350,14 +350,14 @@ func (l *LokiLogger) HandleEvent(event api.Event) {
 			}
 		}
 
-		messagePrefix := ""
+		var messagePrefix strings.Builder
 
 		// Add the remaining context as the message prefix.
 		for k, v := range ctx {
-			messagePrefix += fmt.Sprintf("%s=\"%s\" ", k, v)
+			fmt.Fprintf(&messagePrefix, "%s=\"%s\" ", k, v)
 		}
 
-		entry.Line = fmt.Sprintf("%s%s", messagePrefix, lifecycleEvent.Action)
+		entry.Line = fmt.Sprintf("%s%s", messagePrefix.String(), lifecycleEvent.Action)
 	case api.EventTypeLogging, api.EventTypeNetworkACL:
 		logEvent := api.EventLogging{}
 
@@ -402,7 +402,7 @@ func (l *LokiLogger) HandleEvent(event api.Event) {
 
 		// Add the remaining context as the message prefix. The keys are sorted alphabetically.
 		for _, k := range keys {
-			message.WriteString(fmt.Sprintf("%s=%q ", k, ctx[k]))
+			fmt.Fprintf(&message, "%s=%q ", k, ctx[k])
 		}
 
 		message.WriteString(logEvent.Message)

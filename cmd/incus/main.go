@@ -13,19 +13,19 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/ask"
-	config "github.com/lxc/incus/v6/shared/cliconfig"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/termios"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/ask"
+	config "github.com/lxc/incus/v7/shared/cliconfig"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/termios"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdGlobal struct {
@@ -36,6 +36,7 @@ type cmdGlobal struct {
 	cmd      *cobra.Command
 	ret      int
 
+	flagExplain    bool
 	flagForceLocal bool
 	flagHelp       bool
 	flagHelpAll    bool
@@ -45,6 +46,16 @@ type cmdGlobal struct {
 	flagQuiet      bool
 	flagVersion    bool
 	flagSubCmds    bool
+}
+
+// Parse configures the parser and calls it on the given arguments.
+func (c *cmdGlobal) Parse(usage u.Usage, cmd *cobra.Command, args []string, rtl ...bool) ([]*u.Parsed, error) {
+	conf := u.Config{CLIConfig: c.conf, CLIConfigPath: c.confPath, Command: cmd, ExplainOnly: c.flagExplain}
+	if len(rtl) > 0 {
+		conf.RTL = rtl[0]
+	}
+
+	return usage.Parse(conf, args)
 }
 
 var commandFooter = i18n.G(`Use "{{.CommandPath}} [<command>] --help" for more information about a command.`)
@@ -146,7 +157,8 @@ func createApp() (*cobra.Command, *cmdGlobal, error) {
 All of Incus's features can be driven through the various commands below.
 For help with any of those, simply call them with --help.
 
-Custom commands can be defined through aliases, use "incus alias" to control those.`))
+Custom commands can be defined through aliases, use "incus alias" to control those.`,
+	))
 	app.SilenceUsage = true
 	app.SilenceErrors = true
 	app.CompletionOptions = cobra.CompletionOptions{HiddenDefaultCmd: true}
@@ -164,7 +176,7 @@ Custom commands can be defined through aliases, use "incus alias" to control tho
 	app.PersistentFlags().BoolVarP(&globalCmd.flagLogVerbose, "verbose", "v", false, i18n.G("Show all information messages"))
 	app.PersistentFlags().BoolVarP(&globalCmd.flagQuiet, "quiet", "q", false, i18n.G("Don't show progress information"))
 	app.PersistentFlags().BoolVar(&globalCmd.flagSubCmds, "sub-commands", false, i18n.G("Use with help or --help to view sub-commands"))
-	app.PersistentFlags().BoolVar(&u.ExplainOnly, "explain", false, i18n.G("If the command is valid, explain its parsed arguments instead of running it"))
+	app.PersistentFlags().BoolVar(&globalCmd.flagExplain, "explain", false, i18n.G("If the command is valid, explain its parsed arguments instead of running it"))
 
 	// Wrappers
 	app.PersistentPreRunE = globalCmd.preRun
@@ -349,8 +361,8 @@ Custom commands can be defined through aliases, use "incus alias" to control tho
 	}
 
 	// Help flags
-	app.Flags().BoolVar(&globalCmd.flagHelpAll, "all", false, i18n.G("Show less common commands"))
-	help.Flags().BoolVar(&globalCmd.flagHelpAll, "all", false, i18n.G("Show less common commands"))
+	cli.AddBoolFlag(app.Flags(), &globalCmd.flagHelpAll, "all|a", i18n.G("Show less common commands"))
+	cli.AddBoolFlag(help.Flags(), &globalCmd.flagHelpAll, "all|a", i18n.G("Show less common commands"))
 
 	return app, &globalCmd, nil
 }
@@ -607,16 +619,6 @@ func (c *cmdGlobal) parseServers(remotes ...string) ([]remoteResource, error) {
 	}
 
 	return resources, nil
-}
-
-func (c *cmdGlobal) checkArgs(cmd *cobra.Command, args []string, minArgs int, maxArgs int) (bool, error) {
-	exit, err := cli.CheckArgs(cmd, args, minArgs, maxArgs)
-	if err == cli.ErrBadArgs {
-		// Use translated error message.
-		return exit, errors.New(i18n.G("Invalid number of arguments"))
-	}
-
-	return exit, err
 }
 
 // Return the default list format if the user configured it, otherwise just return "table".

@@ -32,7 +32,7 @@ jobs:
           fetch-depth: 0
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         if: github.event_name == 'pull_request'
         with:
           allow-ghsas: GHSA-4p9m-8gc4-rw2h
@@ -241,6 +241,12 @@ jobs:
           sudo ip link delete docker0
           sudo nft flush ruleset
 
+      - name: Remove pre-installed Java
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get remove --yes --purge temurin.*
+
       - name: Checkout
         uses: actions/checkout@v6
 
@@ -267,14 +273,29 @@ jobs:
       - name: Install dependencies
         run: |
           set -x
-          sudo add-apt-repository ppa:ubuntu-lxc/daily -y --no-update
-          sudo add-apt-repository ppa:cowsql/stable -y --no-update
+
+          # Configure ppa:ubuntu-lxc/daily directly
+          # (apt-add-repository relies on the Launchpad API which is unreliable).
+          sudo install -d -m 0755 /etc/apt/keyrings
+          codename="$(lsb_release -cs)"
+
+          curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0xE9C00C1B1B59A86C2CFEE6990CE27B8C4122B4B7" | sudo tee /etc/apt/keyrings/ubuntu-lxc-daily.asc > /dev/null
+          sudo tee /etc/apt/sources.list.d/ubuntu-lxc-daily.sources > /dev/null <<EOF
+          Types: deb
+          URIs: https://ppa.launchpadcontent.net/ubuntu-lxc/daily/ubuntu
+          Suites: ${codename}
+          Components: main
+          Signed-By: /etc/apt/keyrings/ubuntu-lxc-daily.asc
+          EOF
+
           sudo apt-get update
 
           sudo systemctl mask lxc.service lxc-net.service
 
           sudo apt-get install --no-install-recommends -y \
             apparmor \
+            autoconf \
+            automake \
             bsdextrautils \
             bzip2 \
             curl \
@@ -283,14 +304,15 @@ jobs:
             libacl1-dev \
             libcap-dev \
             libdbus-1-dev \
-            libcowsql-dev \
             libelf-dev \
             liblxc-dev \
+            liblz4-dev \
             libseccomp-dev \
             libselinux-dev \
             libsqlite3-dev \
             libtool \
             libudev-dev \
+            libuv1-dev \
             linux-modules-extra-$(uname -r) \
             llvm \
             make \
@@ -327,15 +349,6 @@ jobs:
           # Reclaim some space
           sudo apt-get clean
 
-          # Download minio.
-          curl -sSfL https://dl.min.io/server/minio/release/linux-$(dpkg --print-architecture)/archive/minio_20240116160738.0.0_$(dpkg --print-architecture).deb --output /tmp/minio.deb
-          sudo apt-get install /tmp/minio.deb --yes
-
-          # Download MinIO client
-          curl -sSfL https://dl.min.io/client/mc/release/linux-$(dpkg --print-architecture)/archive/mc.RELEASE.2024-01-16T16-06-34Z --output /tmp/mc
-          sudo mv /tmp/mc /usr/local/bin/
-          sudo chmod +x /usr/local/bin/mc
-
           # Download latest release of openfga server.
           mkdir -p "$(go env GOPATH)/bin/"
           curl -sSfL https://api.github.com/repos/openfga/openfga/releases/latest | jq -r ".assets | .[] | .browser_download_url | select(. | test(\"_linux_$(dpkg --print-architecture).tar.gz$\"))" | xargs -I {} curl -sSfL {} -o openfga.tar.gz
@@ -349,9 +362,21 @@ jobs:
         run: |
           go mod download
 
+      - name: Build cowsql and raft
+        run: |
+          set -x
+          make deps
+
+          raft_path="$(go env GOPATH)/deps/raft"
+          cowsql_path="$(go env GOPATH)/deps/cowsql"
+          {
+            echo "CGO_CFLAGS=-I${raft_path}/include/ -I${cowsql_path}/include/"
+            echo "CGO_LDFLAGS=-L${raft_path}/.libs -L${cowsql_path}/.libs/"
+            echo "LD_LIBRARY_PATH=${raft_path}/.libs/:${cowsql_path}/.libs/"
+            echo "CGO_LDFLAGS_ALLOW=(-Wl,-wrap,pthread_create)|(-Wl,-z,now)"
+          } >> "$GITHUB_ENV"
+
       - name: Run Incus build
-        env:
-          CGO_LDFLAGS_ALLOW: "(-Wl,-wrap,pthread_create)|(-Wl,-z,now)"
         run: |
           make
 
@@ -418,7 +443,18 @@ jobs:
         run: |
           set -x
 
-          sudo add-apt-repository ppa:linbit/linbit-drbd9-stack -y
+          # Configure ppa:linbit/linbit-drbd9-stack directly
+          # (apt-add-repository relies on the Launchpad API which is unreliable).
+          sudo install -d -m 0755 /etc/apt/keyrings
+          curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0xCC1B5A793C04BB3905AD837734893610CEAA9512" | sudo tee /etc/apt/keyrings/linbit-drbd9-stack.asc > /dev/null
+          sudo tee /etc/apt/sources.list.d/linbit-drbd9-stack.sources > /dev/null <<EOF
+          Types: deb
+          URIs: https://ppa.launchpadcontent.net/linbit/linbit-drbd9-stack/ubuntu
+          Suites: $(lsb_release -cs)
+          Components: main
+          Signed-By: /etc/apt/keyrings/linbit-drbd9-stack.asc
+          EOF
+          sudo apt-get update
 
           # Install everything required to compile DRBD and run LINSTOR tools.
           sudo apt-get install --no-install-recommends -y \
@@ -468,7 +504,7 @@ jobs:
           chmod +x ~
           echo "root:1000000:1000000000" | sudo tee /etc/subuid /etc/subgid
           cd test
-          sudo --preserve-env=PATH,GOPATH,GITHUB_ACTIONS,INCUS_VERBOSE,INCUS_BACKEND,INCUS_CEPH_CLUSTER,INCUS_CEPH_CEPHFS,INCUS_CEPH_CEPHOBJECT_RADOSGW,INCUS_LINSTOR_LOCAL_SATELLITE,INCUS_LINSTOR_CLUSTER,INCUS_OFFLINE,INCUS_SKIP_TESTS,INCUS_REQUIRED_TESTS, INCUS_BACKEND=${{ matrix.backend }} ./main.sh ${{ matrix.suite }}
+          sudo --preserve-env=PATH,GOPATH,GITHUB_ACTIONS,INCUS_VERBOSE,INCUS_BACKEND,INCUS_CEPH_CLUSTER,INCUS_CEPH_CEPHFS,INCUS_CEPH_CEPHOBJECT_RADOSGW,INCUS_LINSTOR_LOCAL_SATELLITE,INCUS_LINSTOR_CLUSTER,INCUS_OFFLINE,INCUS_SKIP_TESTS,INCUS_REQUIRED_TESTS, INCUS_BACKEND=${{ matrix.backend }} env LD_LIBRARY_PATH=${LD_LIBRARY_PATH} JAVA_HOME= ./main.sh ${{ matrix.suite }}
 
   client:
     name: Client
@@ -533,14 +569,6 @@ jobs:
           GOARCH=amd64 go build -o bin/incus-migrate.x86_64 ./cmd/incus-migrate
           GOARCH=arm64 go build -o bin/incus-migrate.aarch64 ./cmd/incus-migrate
 
-      - name: Build static lxd-to-incus
-        if: runner.os == 'Linux'
-        env:
-          CGO_ENABLED: 0
-        run: |
-          GOARCH=amd64 go build -o bin/lxd-to-incus.x86_64 ./cmd/lxd-to-incus
-          GOARCH=arm64 go build -o bin/lxd-to-incus.aarch64 ./cmd/lxd-to-incus
-
       - name: Unit tests (client)
         env:
           CGO_ENABLED: 0
@@ -578,8 +606,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get install aspell aspell-en
-          sudo snap install mdl
+          sudo apt-get install -y aspell aspell-en ruby
+          sudo gem install --no-document mdl
 
       - name: Run markdown linter
         run: |

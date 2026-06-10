@@ -13,12 +13,12 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
 )
 
 type cmdNetworkZone struct {
@@ -96,7 +96,7 @@ func (c *cmdNetworkZoneList) command() *cobra.Command {
 	cmd.Aliases = []string{"ls"}
 	cmd.Short = i18n.G("List available network zones")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`List available network zone
+		`List available network zones
 
 Default column layout: nDSdus
 
@@ -114,12 +114,13 @@ Pre-defined column shorthand chars:
   d - Description
   e - Project name
   n - Name
-  u - Used by`))
+  u - Used by`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().BoolVar(&c.flagAllProjects, "all-projects", false, i18n.G("Display network zones from all projects"))
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultNetworkZoneColumns, i18n.G("Columns")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAllProjects, "all-projects", i18n.G("Display network zones from all projects"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultNetworkZoneColumns, "", i18n.G("Columns"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -188,7 +189,7 @@ func (c *cmdNetworkZoneList) usedByColumnData(networkZone api.NetworkZone) strin
 }
 
 func (c *cmdNetworkZoneList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -261,7 +262,7 @@ func (c *cmdNetworkZoneShow) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -304,7 +305,7 @@ func (c *cmdNetworkZoneGet) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Get values for network zone configuration keys"))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Get the key as a network zone property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Get the key as a network zone property"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -322,7 +323,7 @@ func (c *cmdNetworkZoneGet) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneGet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneGetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneGetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -372,13 +373,14 @@ func (c *cmdNetworkZoneCreate) command() *cobra.Command {
 	cmd.Short = i18n.G("Create new network zones")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Create new network zones"))
 	cmd.Example = cli.FormatSection("", i18n.G(`incus network zone create z1
+    Create network zone z1
 
 incus network zone create z1 < config.yaml
     Create network zone z1 with configuration from config.yaml`))
 
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVar(&c.flagDescription, "description", "", i18n.G("Zone description")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagDescription, "description", "", "", i18n.G("Zone description"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -392,7 +394,7 @@ incus network zone create z1 < config.yaml
 }
 
 func (c *cmdNetworkZoneCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -464,10 +466,11 @@ func (c *cmdNetworkZoneSet) command() *cobra.Command {
 		`Set network zone configuration keys
 
 For backward compatibility, a single configuration key may still be set with:
-    incus network set [<remote>:]<Zone> <key> <value>`))
+    incus network set [<remote>:]<Zone> <key> <value>`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Set the key as a network zone property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Set the key as a network zone property"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -518,7 +521,7 @@ func (c *cmdNetworkZoneSet) set(cmd *cobra.Command, parsed []*u.Parsed) error {
 }
 
 func (c *cmdNetworkZoneSet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneSetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneSetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -535,7 +538,7 @@ type cmdNetworkZoneUnset struct {
 	flagIsProperty bool
 }
 
-var cmdNetworkZoneUnsetUsage = u.Usage{u.Zone.Remote(), u.Key}
+var cmdNetworkZoneUnsetUsage = u.Usage{u.Zone.Remote(), u.Key.List(1)}
 
 func (c *cmdNetworkZoneUnset) command() *cobra.Command {
 	cmd := &cobra.Command{}
@@ -544,7 +547,7 @@ func (c *cmdNetworkZoneUnset) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Unset network zone configuration keys"))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Unset the key as a network zone property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Unset the keys as network zone properties"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -562,7 +565,7 @@ func (c *cmdNetworkZoneUnset) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneUnset) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneUnsetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneUnsetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -610,11 +613,12 @@ func (c *cmdNetworkZoneEdit) helpTemplate() string {
 ### description: Internal domain
 ### config:
 ###  user.foo: bah
-`)
+`,
+	)
 }
 
 func (c *cmdNetworkZoneEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -713,7 +717,7 @@ func (c *cmdNetworkZoneDelete) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -815,7 +819,7 @@ func (c *cmdNetworkZoneRecordList) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("List available network zone records"))
 
 	cmd.RunE = c.run
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -833,7 +837,7 @@ func (c *cmdNetworkZoneRecordList) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneRecordList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -906,7 +910,7 @@ func (c *cmdNetworkZoneRecordShow) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneRecordShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -948,7 +952,7 @@ func (c *cmdNetworkZoneRecordGet) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Get values for network zone record configuration keys"))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Get the key as a network zone record property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Get the key as a network zone record property"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -970,7 +974,7 @@ func (c *cmdNetworkZoneRecordGet) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneRecordGet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordGetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordGetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1021,13 +1025,14 @@ func (c *cmdNetworkZoneRecordCreate) command() *cobra.Command {
 	cmd.Short = i18n.G("Create new network zone record")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Create new network zone record"))
 	cmd.Example = cli.FormatSection("", i18n.G(`incus network zone record create z1 r1
+    Create record r1 for zone z1
 
 incus network zone record create z1 r1 < config.yaml
     Create record r1 for zone z1 with configuration from config.yaml`))
 
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVar(&c.flagDescription, "description", "", i18n.G("Record description")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagDescription, "description", "", "", i18n.G("Record description"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -1045,7 +1050,7 @@ incus network zone record create z1 r1 < config.yaml
 }
 
 func (c *cmdNetworkZoneRecordCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1115,11 +1120,12 @@ func (c *cmdNetworkZoneRecordSet) command() *cobra.Command {
 	cmd.Use = cli.U("set", cmdNetworkZoneRecordSetUsage...)
 	cmd.Short = i18n.G("Set network zone record configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Set network zone record configuration keys`))
+		`Set network zone record configuration keys`,
+	))
 
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Set the key as a network zone record property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Set the key as a network zone record property"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -1175,7 +1181,7 @@ func (c *cmdNetworkZoneRecordSet) set(cmd *cobra.Command, parsed []*u.Parsed) er
 }
 
 func (c *cmdNetworkZoneRecordSet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordSetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordSetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1192,7 +1198,7 @@ type cmdNetworkZoneRecordUnset struct {
 	flagIsProperty bool
 }
 
-var cmdNetworkZoneRecordUnsetUsage = u.Usage{u.Zone.Remote(), u.Record, u.Key}
+var cmdNetworkZoneRecordUnsetUsage = u.Usage{u.Zone.Remote(), u.Record, u.Key.List(1)}
 
 func (c *cmdNetworkZoneRecordUnset) command() *cobra.Command {
 	cmd := &cobra.Command{}
@@ -1201,7 +1207,7 @@ func (c *cmdNetworkZoneRecordUnset) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Unset network zone record configuration keys"))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Unset the key as a network zone record property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Unset the keys as network zone record properties"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -1223,7 +1229,7 @@ func (c *cmdNetworkZoneRecordUnset) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneRecordUnset) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordUnsetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordUnsetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1275,11 +1281,12 @@ func (c *cmdNetworkZoneRecordEdit) helpTemplate() string {
 ### description: SPF record
 ### config:
 ###  user.foo: bah
-`)
+`,
+	)
 }
 
 func (c *cmdNetworkZoneRecordEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1387,7 +1394,7 @@ func (c *cmdNetworkZoneRecordDelete) command() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneRecordDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1441,7 +1448,7 @@ func (c *cmdNetworkZoneRecordEntry) commandAdd() *cobra.Command {
 	cmd.Short = i18n.G("Add a network zone record entry")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Add entries to a network zone record"))
 	cmd.RunE = c.runAdd
-	cmd.Flags().Uint64Var(&c.flagTTL, "ttl", 0, i18n.G("Entry TTL")+"``")
+	cli.AddUint64Flag(cmd.Flags(), &c.flagTTL, "ttl", i18n.G("Entry TTL"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -1459,7 +1466,7 @@ func (c *cmdNetworkZoneRecordEntry) commandAdd() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneRecordEntry) runAdd(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordEntryAddUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordEntryAddUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1511,7 +1518,7 @@ func (c *cmdNetworkZoneRecordEntry) commandRemove() *cobra.Command {
 }
 
 func (c *cmdNetworkZoneRecordEntry) runRemove(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkZoneRecordEntryRemoveUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkZoneRecordEntryRemoveUsage, cmd, args)
 	if err != nil {
 		return err
 	}

@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/shared/idmap"
+	"github.com/lxc/incus/v7/shared/idmap"
 )
 
 type cmdShift struct {

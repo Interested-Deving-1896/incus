@@ -9,19 +9,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/db/query"
-	"github.com/lxc/incus/v6/internal/server/db/schema"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/db/query"
+	"github.com/lxc/incus/v7/internal/server/db/schema"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // Schema for the local database.
 func Schema() *schema.Schema {
-	schema := schema.NewFromMap(updates)
-	schema.Fresh(freshSchema)
-	return schema
+	sch := schema.NewFromMap(updates)
+	sch.Fresh(freshSchema)
+	return sch
 }
 
 // FreshSchema returns the fresh schema definition of the local database.
@@ -103,7 +103,7 @@ var updates = map[int]schema.Update{
 }
 
 // UpdateFromPreClustering is the last schema version where clustering support
-// was not available, and hence no cluster dqlite database is used.
+// was not available, and hence no cluster cowsql database is used.
 const UpdateFromPreClustering = 36
 
 // Schema updates begin here
@@ -156,9 +156,9 @@ func updateFromV39(ctx context.Context, tx *sql.Tx) error {
 		Address string
 	}
 
-	sql := "SELECT id, address FROM raft_nodes"
+	stmt := "SELECT id, address FROM raft_nodes"
 	nodes := []node{}
-	err := query.Scan(ctx, tx, sql, func(scan func(dest ...any) error) error {
+	err := query.Scan(ctx, tx, stmt, func(scan func(dest ...any) error) error {
 		n := node{}
 
 		err := scan(&n.ID, &n.Address)
@@ -235,14 +235,14 @@ INSERT INTO config (key, value)
 }
 
 // Add a raft_nodes table to be used when running in clustered mode. It lists
-// the current nodes in the cluster that are participating in the dqlite
+// the current nodes in the cluster that are participating in the cowsql
 // database Raft cluster.
 //
 // The 'id' column contains the raft server ID of the database node, and the
 // 'address' column its network address. Both are used internally by the raft
 // Go package to manage the cluster.
 //
-// Typical setups will have 3 cluster members that participate to the dqlite
+// Typical setups will have 3 cluster members that participate to the cowsql
 // database Raft cluster, and an arbitrary number of additional cluster
 // members that don't. Non-database nodes are not tracked in this table, but rather
 // in the nodes table of the cluster database itself.
@@ -498,7 +498,7 @@ func updateFromV18(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	for rows.Next() {
 		err := rows.Scan(&id, &value)
@@ -544,7 +544,7 @@ func updateFromV18(ctx context.Context, tx *sql.Tx) error {
 		return err
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	for rows.Next() {
 		err := rows.Scan(&id, &value)
@@ -864,7 +864,7 @@ PRAGMA foreign_keys=ON; -- Make sure we turn integrity checks back on.`
 		return err
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	var tablestodelete []string
 	var rowidtodelete []int
@@ -920,7 +920,7 @@ CREATE TABLE IF NOT EXISTS config (
 	passOut, err := os.Open(passfname)
 	oldPassword := ""
 	if err == nil {
-		defer func() { _ = passOut.Close() }()
+		defer logger.WarnOnError(passOut.Close, "Failed to close file")
 		buff := make([]byte, 96)
 		_, err = passOut.Read(buff)
 		if err != nil {

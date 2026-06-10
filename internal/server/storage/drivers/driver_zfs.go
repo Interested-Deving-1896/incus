@@ -11,20 +11,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 const zfsDefaultVdevType = "stripe"
@@ -39,9 +39,6 @@ var zfsSupportedVdevTypes = []string{
 var (
 	zfsVersion  string
 	zfsLoaded   bool
-	zfsDirectIO bool
-	zfsTrim     bool
-	zfsRaw      bool
 	zfsDelegate bool
 )
 
@@ -91,30 +88,17 @@ func (d *zfs) load() error {
 
 	// Get the version information.
 	if zfsVersion == "" {
-		version, err := d.version()
+		ver, err := d.version()
 		if err != nil {
 			return err
 		}
 
-		zfsVersion = version
-	}
-
-	// Decide whether we can use features added by 0.8.0.
-	ver080, err := version.Parse("0.8.0")
-	if err != nil {
-		return err
+		zfsVersion = ver
 	}
 
 	ourVer, err := version.Parse(zfsVersion)
 	if err != nil {
 		return err
-	}
-
-	// If running 0.8.0 or newer, we can use direct I/O, trim and raw.
-	if ourVer.Compare(ver080) >= 0 {
-		zfsDirectIO = true
-		zfsTrim = true
-		zfsRaw = true
 	}
 
 	// Detect support for ZFS delegation.
@@ -145,7 +129,7 @@ func (d *zfs) Info() Info {
 		VolumeMultiNode:              d.isRemote(),
 		BlockBacking:                 util.IsTrue(d.config["volume.zfs.block_mode"]),
 		RunningCopyFreeze:            util.IsTrue(d.config["volume.zfs.block_mode"]),
-		DirectIO:                     zfsDirectIO,
+		DirectIO:                     true,
 		MountedRoot:                  false,
 		Buckets:                      true,
 	}
@@ -406,12 +390,10 @@ func (d *zfs) Create() error {
 			return err
 		}
 
-		// Apply auto-trim if supported.
-		if zfsTrim {
-			_, err := subprocess.RunCommand("zpool", "set", "autotrim=on", d.config["zfs.pool_name"])
-			if err != nil {
-				return err
-			}
+		// Apply auto-trim.
+		_, err = subprocess.RunCommand("zpool", "set", "autotrim=on", d.config["zfs.pool_name"])
+		if err != nil {
+			return err
 		}
 	} else {
 		// At this moment, we have assurance from FillConfig that all devices are existing block devices
@@ -448,12 +430,10 @@ func (d *zfs) Create() error {
 			return err
 		}
 
-		// Apply auto-trim if supported.
-		if zfsTrim {
-			_, err := subprocess.RunCommand("zpool", "set", "autotrim=on", d.config["zfs.pool_name"])
-			if err != nil {
-				return err
-			}
+		// Apply auto-trim.
+		_, err = subprocess.RunCommand("zpool", "set", "autotrim=on", d.config["zfs.pool_name"])
+		if err != nil {
+			return err
 		}
 
 		// We don't need to keep the original source path around for import.
@@ -625,7 +605,7 @@ func (d *zfs) Update(changedConfig map[string]string) error {
 			return err
 		}
 
-		defer func() { _ = f.Close() }()
+		defer logger.WarnOnError(f.Close, "Failed to close file")
 
 		sizeBytes, _ := units.ParseByteSizeString(size)
 
@@ -660,7 +640,7 @@ func (d *zfs) importPool() (bool, error) {
 	}
 
 	// Check if the pool exists.
-	poolName := strings.Split(d.config["zfs.pool_name"], "/")[0]
+	poolName, _, _ := strings.Cut(d.config["zfs.pool_name"], "/")
 	exists, err = d.datasetExists(poolName)
 	if err != nil {
 		return false, err
@@ -752,7 +732,7 @@ func (d *zfs) Unmount() (bool, error) {
 	}
 
 	// Export the pool.
-	poolName := strings.Split(d.config["zfs.pool_name"], "/")[0]
+	poolName, _, _ := strings.Cut(d.config["zfs.pool_name"], "/")
 	_, err = subprocess.RunCommand("zpool", "export", poolName)
 	if err != nil {
 		return false, err
@@ -761,25 +741,22 @@ func (d *zfs) Unmount() (bool, error) {
 	return true, nil
 }
 
+// GetResources returns the pool resource usage information.
 func (d *zfs) GetResources() (*api.ResourcesStoragePool, error) {
-	// Get the total amount of space.
-	availableStr, err := d.getDatasetProperty(d.config["zfs.pool_name"], "available")
+	// Get both properties in a single call, bypassing the per-dataset cache so
+	// we don't trigger a recursive `zfs list` over every volume and snapshot in
+	// the pool just to read the root dataset's usage.
+	props, err := d.getDatasetProperties(d.config["zfs.pool_name"], "available", "used")
 	if err != nil {
 		return nil, err
 	}
 
-	available, err := strconv.ParseUint(strings.TrimSpace(availableStr), 10, 64)
+	available, err := strconv.ParseUint(strings.TrimSpace(props["available"]), 10, 64)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the used amount of space.
-	usedStr, err := d.getDatasetProperty(d.config["zfs.pool_name"], "used")
-	if err != nil {
-		return nil, err
-	}
-
-	used, err := strconv.ParseUint(strings.TrimSpace(usedStr), 10, 64)
+	used, err := strconv.ParseUint(strings.TrimSpace(props["used"]), 10, 64)
 	if err != nil {
 		return nil, err
 	}
@@ -793,7 +770,7 @@ func (d *zfs) GetResources() (*api.ResourcesStoragePool, error) {
 	return &res, nil
 }
 
-// MigrationType returns the type of transfer methods to be used when doing migrations between pools in preference order.
+// MigrationTypes returns the type of transfer methods to be used when doing migrations between pools in preference order.
 func (d *zfs) MigrationTypes(contentType ContentType, refresh bool, copySnapshots bool, clusterMove bool, storageMove bool) []localMigration.Type {
 	var rsyncFeatures []string
 

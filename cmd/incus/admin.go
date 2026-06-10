@@ -5,9 +5,9 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdAdmin struct {
@@ -43,6 +43,10 @@ func (c *cmdAdmin) command() *cobra.Command {
 	// sql sub-command
 	sqlCmd := cmdAdminSQL{global: c.global}
 	cmd.AddCommand(sqlCmd.command())
+
+	// update-certificate sub-command
+	updateCertCmd := cmdAdminUpdateCertificate{global: c.global}
+	cmd.AddCommand(updateCertCmd.command())
 
 	// waitready sub-command
 	adminWaitreadyCmd := cmdAdminWaitready{global: c.global}

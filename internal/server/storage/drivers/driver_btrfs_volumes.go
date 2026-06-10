@@ -18,21 +18,21 @@ import (
 	"github.com/google/uuid"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // CreateVolume creates an empty volume and can optionally fill it by executing the supplied filler function.
@@ -231,7 +231,7 @@ func (d *btrfs) CreateVolumeFromBackup(vol Volume, srcBackup backup.Info, srcDat
 		return nil, nil, fmt.Errorf("Failed to create temporary directory %q: %w", tmpUnpackDir, err)
 	}
 
-	defer func() { _ = os.RemoveAll(tmpUnpackDir) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(tmpUnpackDir) }, "Failed to remove temporary directory")
 
 	err = os.Chmod(tmpUnpackDir, 0o100)
 	if err != nil {
@@ -324,7 +324,7 @@ func (d *btrfs) CreateVolumeFromBackup(vol Volume, srcBackup backup.Info, srcDat
 
 	if len(srcBackup.Snapshots) > 0 {
 		// Create new snapshots directory.
-		err := createParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
+		err := CreateParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -334,12 +334,14 @@ func (d *btrfs) CreateVolumeFromBackup(vol Volume, srcBackup backup.Info, srcDat
 			snapVol, _ := vol.NewSnapshot(snapName)
 			snapDir := "snapshots"
 			srcFilePrefix := snapName
-			if vol.volType == VolumeTypeVM {
+			switch vol.volType {
+			case VolumeTypeVM:
 				snapDir = "virtual-machine-snapshots"
 				if vol.contentType == ContentTypeFS {
 					srcFilePrefix = fmt.Sprintf("%s-config", snapName)
 				}
-			} else if vol.volType == VolumeTypeCustom {
+
+			case VolumeTypeCustom:
 				snapDir = "volume-snapshots"
 			}
 
@@ -353,13 +355,15 @@ func (d *btrfs) CreateVolumeFromBackup(vol Volume, srcBackup backup.Info, srcDat
 
 	// Extract main volume.
 	srcFilePrefix := "container"
-	if vol.volType == VolumeTypeVM {
+	switch vol.volType {
+	case VolumeTypeVM:
 		if vol.contentType == ContentTypeFS {
 			srcFilePrefix = "virtual-machine-config"
 		} else {
 			srcFilePrefix = "virtual-machine"
 		}
-	} else if vol.volType == VolumeTypeCustom {
+
+	case VolumeTypeCustom:
 		srcFilePrefix = "volume"
 	}
 
@@ -471,7 +475,7 @@ func (d *btrfs) CreateVolumeFromCopy(vol Volume, srcVol Volume, copySnapshots bo
 	// Copy any snapshots needed.
 	if len(snapshots) > 0 {
 		// Create the parent directory.
-		err = createParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
+		err = CreateParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
 		if err != nil {
 			return err
 		}
@@ -684,7 +688,7 @@ func (d *btrfs) createVolumeFromMigrationOptimized(vol Volume, conn io.ReadWrite
 		return fmt.Errorf("Failed to create temporary directory under %q: %w", instancesPath, err)
 	}
 
-	defer func() { _ = os.RemoveAll(tmpVolumesMountPoint) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(tmpVolumesMountPoint) }, "Failed to remove temporary directory")
 
 	err = os.Chmod(tmpVolumesMountPoint, 0o100)
 	if err != nil {
@@ -694,7 +698,7 @@ func (d *btrfs) createVolumeFromMigrationOptimized(vol Volume, conn io.ReadWrite
 	// Handle btrfs send/receive migration.
 	if !volTargetArgs.VolumeOnly && len(volTargetArgs.Snapshots) > 0 {
 		// Create the parent directory.
-		err := createParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
+		err := CreateParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
 		if err != nil {
 			return err
 		}
@@ -1055,7 +1059,7 @@ func (d *btrfs) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: Size/quota of the storage volume
 
 	// gendoc:generate(entity=storage_volume_btrfs, group=common, key=snapshots.expiry)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -1063,7 +1067,7 @@ func (d *btrfs) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: {{snapshot_expiry_format}}
 
 	// gendoc:generate(entity=storage_volume_btrfs, group=common, key=snapshots.expiry.manual)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -1496,6 +1500,14 @@ func (d *btrfs) migrateVolumeOptimized(vol Volume, conn io.ReadWriteCloser, volS
 
 		sentVols := 0
 
+		// Track subvolumes we set readonly so we can reset them once done.
+		var resetReadonly []string
+		defer func() {
+			for _, resetPath := range resetReadonly {
+				_ = d.setSubvolumeReadonlyProperty(resetPath, false)
+			}
+		}()
+
 		// Send volume (and any subvolumes if supported) to target.
 		for _, subVolume := range subvolumes {
 			if subVolume.Snapshot != snapName {
@@ -1518,7 +1530,7 @@ func (d *btrfs) migrateVolumeOptimized(vol Volume, conn io.ReadWriteCloser, volS
 						return err
 					}
 
-					defer func() { _ = d.setSubvolumeReadonlyProperty(parentPath, false) }()
+					resetReadonly = append(resetReadonly, parentPath)
 				}
 			}
 
@@ -1530,7 +1542,7 @@ func (d *btrfs) migrateVolumeOptimized(vol Volume, conn io.ReadWriteCloser, volS
 					return err
 				}
 
-				defer func() { _ = d.setSubvolumeReadonlyProperty(sourcePath, false) }()
+				resetReadonly = append(resetReadonly, sourcePath)
 			}
 
 			d.logger.Debug("Sending subvolume", logger.Ctx{"name": v.name, "source": sourcePath, "parent": parentPath, "path": subVolume.Path})
@@ -1601,7 +1613,7 @@ func (d *btrfs) migrateVolumeOptimized(vol Volume, conn io.ReadWriteCloser, volS
 		return fmt.Errorf("Failed to create temporary directory under %q: %w", instancesPath, err)
 	}
 
-	defer func() { _ = os.RemoveAll(tmpVolumesMountPoint) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(tmpVolumesMountPoint) }, "Failed to remove temporary directory")
 
 	err = os.Chmod(tmpVolumesMountPoint, 0o100)
 	if err != nil {
@@ -1615,7 +1627,7 @@ func (d *btrfs) migrateVolumeOptimized(vol Volume, conn io.ReadWriteCloser, volS
 		return err
 	}
 
-	defer func() { _ = d.deleteSubvolume(migrationSendSnapshotPrefix, true) }()
+	defer logger.WarnOnError(func() error { return d.deleteSubvolume(migrationSendSnapshotPrefix, true) }, "Failed to delete subvolume")
 
 	// Send main volume (and any subvolumes if supported) to target.
 	return sendVolume(vol, migrationSendSnapshotPrefix, lastVolPath)
@@ -1699,8 +1711,8 @@ func (d *btrfs) BackupVolume(vol Volume, writer instancewriter.InstanceWriter, b
 			return fmt.Errorf("Failed to open temporary file for BTRFS backup: %w", err)
 		}
 
-		defer func() { _ = tmpFile.Close() }()
-		defer func() { _ = os.Remove(tmpFile.Name()) }()
+		defer logger.WarnOnError(tmpFile.Close, "Failed to close temporary file")
+		defer logger.WarnOnError(func() error { return os.Remove(tmpFile.Name()) }, "Failed to remove temporary file")
 
 		// Write the subvolume to the file.
 		d.logger.Debug("Generating optimized volume file", logger.Ctx{"sourcePath": path, "parent": parent, "file": tmpFile.Name(), "name": fileName})
@@ -1735,6 +1747,14 @@ func (d *btrfs) BackupVolume(vol Volume, writer instancewriter.InstanceWriter, b
 
 		sentVols := 0
 
+		// Track subvolumes we set readonly so we can reset them once done.
+		var resetReadonly []string
+		defer func() {
+			for _, resetPath := range resetReadonly {
+				_ = d.setSubvolumeReadonlyProperty(resetPath, false)
+			}
+		}()
+
 		// Add volume (and any subvolumes if supported) to backup file.
 		for _, subVolume := range optimizedHeader.Subvolumes {
 			if subVolume.Snapshot != snapName {
@@ -1753,7 +1773,7 @@ func (d *btrfs) BackupVolume(vol Volume, writer instancewriter.InstanceWriter, b
 						return err
 					}
 
-					defer func() { _ = d.setSubvolumeReadonlyProperty(parentPath, false) }()
+					resetReadonly = append(resetReadonly, parentPath)
 				}
 			}
 
@@ -1765,7 +1785,7 @@ func (d *btrfs) BackupVolume(vol Volume, writer instancewriter.InstanceWriter, b
 					return err
 				}
 
-				defer func() { _ = d.setSubvolumeReadonlyProperty(sourcePath, false) }()
+				resetReadonly = append(resetReadonly, sourcePath)
 			}
 
 			// Default to no subvolume name for root subvolume to maintain backwards compatibility
@@ -1803,12 +1823,14 @@ func (d *btrfs) BackupVolume(vol Volume, writer instancewriter.InstanceWriter, b
 		// Make a binary btrfs backup.
 		snapDir := "snapshots"
 		fileName := snapName
-		if vol.volType == VolumeTypeVM {
+		switch vol.volType {
+		case VolumeTypeVM:
 			snapDir = "virtual-machine-snapshots"
 			if vol.contentType == ContentTypeFS {
 				fileName = fmt.Sprintf("%s-config", snapName)
 			}
-		} else if vol.volType == VolumeTypeCustom {
+
+		case VolumeTypeCustom:
 			snapDir = "volume-snapshots"
 		}
 
@@ -1830,7 +1852,7 @@ func (d *btrfs) BackupVolume(vol Volume, writer instancewriter.InstanceWriter, b
 		return fmt.Errorf("Failed to create temporary directory under %q: %w", instancesPath, err)
 	}
 
-	defer func() { _ = os.RemoveAll(tmpInstanceMntPoint) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(tmpInstanceMntPoint) }, "Failed to remove temporary directory")
 
 	err = os.Chmod(tmpInstanceMntPoint, 0o100)
 	if err != nil {
@@ -1844,7 +1866,7 @@ func (d *btrfs) BackupVolume(vol Volume, writer instancewriter.InstanceWriter, b
 		return err
 	}
 
-	defer func() { _ = d.deleteSubvolume(targetVolume, true) }()
+	defer logger.WarnOnError(func() error { return d.deleteSubvolume(targetVolume, true) }, "Failed to delete subvolume")
 
 	err = d.setSubvolumeReadonlyProperty(targetVolume, true)
 	if err != nil {
@@ -1853,13 +1875,15 @@ func (d *btrfs) BackupVolume(vol Volume, writer instancewriter.InstanceWriter, b
 
 	// Dump the instance to a file.
 	fileNamePrefix := "container"
-	if vol.volType == VolumeTypeVM {
+	switch vol.volType {
+	case VolumeTypeVM:
 		if vol.contentType == ContentTypeFS {
 			fileNamePrefix = "virtual-machine-config"
 		} else {
 			fileNamePrefix = "virtual-machine"
 		}
-	} else if vol.volType == VolumeTypeCustom {
+
+	case VolumeTypeCustom:
 		fileNamePrefix = "volume"
 	}
 
@@ -1884,7 +1908,7 @@ func (d *btrfs) CreateVolumeSnapshot(snapVol Volume, op *operations.Operation) e
 	snapPath := snapVol.MountPath()
 
 	// Create the parent directory.
-	err := createParentSnapshotDirIfMissing(d.name, snapVol.volType, parentName)
+	err := CreateParentSnapshotDirIfMissing(d.name, snapVol.volType, parentName)
 	if err != nil {
 		return err
 	}

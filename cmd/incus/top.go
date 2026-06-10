@@ -14,12 +14,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/units"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/units"
 )
 
 type topColumn struct {
@@ -61,12 +61,13 @@ Column shorthand chars:
   e - Project name
   m - Memory usage
   n - Instance name
-  u - CPU usage (in seconds)`))
+  u - CPU usage (in seconds)`,
+	))
 
-	cmd.Flags().BoolVar(&c.flagAllProjects, "all-projects", false, i18n.G("Display instances from all projects"))
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultTopColumns, i18n.G("Columns")+"``")
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G("Format (table|compact)")+"``")
-	cmd.Flags().IntVar(&c.flagRefresh, "refresh", 10, i18n.G("Configure the refresh delay in seconds")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAllProjects, "all-projects", i18n.G("Display instances from all projects"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultTopColumns, "", i18n.G("Columns"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G("Format (table|compact)"))
+	cli.AddIntFlag(cmd.Flags(), &c.flagRefresh, "refresh", 10, i18n.G("Configure the refresh delay in seconds"))
 
 	cmd.RunE = c.run
 	return cmd
@@ -139,7 +140,7 @@ func (c *cmdTop) diskUsageColumnData(dd displayData) string {
 // This function implements the `top` command. It queries the metrics API at (/1.0/metrics) and renders a list of
 // instances with their CPU, memory and disk usage columns.
 func (c *cmdTop) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdTopUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdTopUsage, cmd, args)
 	if err != nil {
 		return err
 	}

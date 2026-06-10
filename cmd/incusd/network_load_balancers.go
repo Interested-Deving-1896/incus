@@ -5,23 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	clusterRequest "github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/network"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
+	"github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	clusterRequest "github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/network"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 var networkLoadBalancersCmd = APIEndpoint{
@@ -58,6 +55,11 @@ var networkLoadBalancerStateCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: networkName
+//      description: Network name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -112,6 +114,11 @@ var networkLoadBalancerStateCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: networkName
+//      description: Network name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -159,7 +166,7 @@ func networkLoadBalancersGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -287,6 +294,11 @@ func networkLoadBalancersGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -329,7 +341,7 @@ func networkLoadBalancersPost(d *Daemon, r *http.Request) response.Response {
 
 	req.Normalise() // So we handle the request in normalised/canonical form.
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -371,6 +383,16 @@ func networkLoadBalancersPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: listenAddress
+//	    description: Listen address
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -398,7 +420,7 @@ func networkLoadBalancerDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -417,7 +439,7 @@ func networkLoadBalancerDelete(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Network driver %q does not support load balancers", n.Type()))
 	}
 
-	listenAddress, err := url.PathUnescape(mux.Vars(r)["listenAddress"])
+	listenAddress, err := pathVar(r, "listenAddress")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -444,6 +466,16 @@ func networkLoadBalancerDelete(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: listenAddress
+//	    description: Listen address
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -487,7 +519,7 @@ func networkLoadBalancerGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -506,7 +538,7 @@ func networkLoadBalancerGet(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Network driver %q does not support load balancers", n.Type()))
 	}
 
-	listenAddress, err := url.PathUnescape(mux.Vars(r)["listenAddress"])
+	listenAddress, err := pathVar(r, "listenAddress")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -555,6 +587,16 @@ func networkLoadBalancerGet(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: networkName
+//      description: Network name
+//      type: string
+//      required: true
+//    - in: path
+//      name: listenAddress
+//      description: Listen address
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -590,6 +632,16 @@ func networkLoadBalancerGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: listenAddress
+//	    description: Listen address
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -625,7 +677,7 @@ func networkLoadBalancerPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -644,7 +696,7 @@ func networkLoadBalancerPut(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Network driver %q does not support load balancers", n.Type()))
 	}
 
-	listenAddress, err := url.PathUnescape(mux.Vars(r)["listenAddress"])
+	listenAddress, err := pathVar(r, "listenAddress")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -733,6 +785,16 @@ func networkLoadBalancerPut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: listenAddress
+//	    description: Listen address
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -776,7 +838,7 @@ func networkLoadBalancerStateGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -795,7 +857,7 @@ func networkLoadBalancerStateGet(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Network driver %q does not support load balancers", n.Type()))
 	}
 
-	listenAddress, err := url.PathUnescape(mux.Vars(r)["listenAddress"])
+	listenAddress, err := pathVar(r, "listenAddress")
 	if err != nil {
 		return response.SmartError(err)
 	}

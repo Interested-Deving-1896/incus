@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/internal/eagain"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/eagain"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type cmdNetcat struct {
@@ -53,13 +53,11 @@ func (c *cmdNetcat) run(cmd *cobra.Command, args []string) error {
 
 	// We'll wait until we're done reading from the socket
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
+	wg.Go(func() {
 		_, err = util.SafeCopy(eagain.Writer{Writer: os.Stdout}, eagain.Reader{Reader: conn})
 		_ = conn.Close()
-		wg.Done()
-	}()
+	})
 
 	go func() {
 		_, _ = util.SafeCopy(eagain.Writer{Writer: conn}, eagain.Reader{Reader: os.Stdin})

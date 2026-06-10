@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/simplestreams"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/simplestreams"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // Image handling functions
@@ -117,7 +117,7 @@ func (r *ProtocolSimpleStreams) GetImageFile(fingerprint string, req ImageFileRe
 	// Download function
 	download := func(path string, filename string, hash string, target io.WriteSeeker) (int64, error) {
 		// Try over http
-		uri, err := url.JoinPath(fmt.Sprintf("http://%s", strings.TrimPrefix(r.httpHost, "https://")), path)
+		uri, err := urlJoinPathAbsolute(fmt.Sprintf("http://%s", strings.TrimPrefix(r.httpHost, "https://")), path)
 		if err != nil {
 			return -1, err
 		}
@@ -130,7 +130,7 @@ func (r *ProtocolSimpleStreams) GetImageFile(fingerprint string, req ImageFileRe
 			}
 
 			// Try over https
-			uri, err := url.JoinPath(r.httpHost, path)
+			uri, err := urlJoinPathAbsolute(r.httpHost, path)
 			if err != nil {
 				return -1, err
 			}
@@ -176,9 +176,9 @@ func (r *ProtocolSimpleStreams) GetImageFile(fingerprint string, req ImageFileRe
 					return -1, err
 				}
 
-				defer func() { _ = deltaFile.Close() }()
+				defer logger.WarnOnError(deltaFile.Close, "Failed to close temporary file")
 
-				defer func() { _ = os.Remove(deltaFile.Name()) }()
+				defer logger.WarnOnError(func() error { return os.Remove(deltaFile.Name()) }, "Failed to remove temporary file")
 
 				// Download the delta
 				_, err = download(file.Path, "rootfs delta", file.Sha256, deltaFile)
@@ -192,9 +192,9 @@ func (r *ProtocolSimpleStreams) GetImageFile(fingerprint string, req ImageFileRe
 					return -1, err
 				}
 
-				defer func() { _ = patchedFile.Close() }()
+				defer logger.WarnOnError(patchedFile.Close, "Failed to close temporary file")
 
-				defer func() { _ = os.Remove(patchedFile.Name()) }()
+				defer logger.WarnOnError(func() error { return os.Remove(patchedFile.Name()) }, "Failed to remove temporary file")
 
 				// Apply it
 				_, err = subprocess.RunCommand("xdelta3", "-f", "-d", "-s", srcPath, deltaFile.Name(), patchedFile.Name())
@@ -373,4 +373,21 @@ func (r *ProtocolSimpleStreams) GetImageAliasArchitectures(imageType string, nam
 // ExportImage exports (copies) an image to a remote server.
 func (r *ProtocolSimpleStreams) ExportImage(_ string, _ api.ImageExportPost) (Operation, error) {
 	return nil, errors.New("Exporting images is not supported by the simplestreams protocol")
+}
+
+func urlJoinPathAbsolute(baseHost string, path string) (result string, err error) {
+	if strings.HasPrefix("/", path) {
+		// absolute path
+		baseHostURL, err := url.ParseRequestURI(baseHost)
+		if err != nil {
+			return "", err
+		}
+
+		baseHostURL.Path = path
+
+		return baseHostURL.String(), nil
+	}
+
+	// relative path
+	return url.JoinPath(baseHost, path)
 }

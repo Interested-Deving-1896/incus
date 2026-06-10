@@ -7,33 +7,31 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"sort"
 	"strconv"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/filter"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 var storagePoolBucketsCmd = APIEndpoint{
@@ -79,6 +77,11 @@ var storagePoolBucketKeyCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: poolName
+//      description: Storage pool name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -138,6 +141,11 @@ var storagePoolBucketKeyCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: poolName
+//      description: Storage pool name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -192,6 +200,11 @@ var storagePoolBucketKeyCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: poolName
+//      description: Storage pool name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -247,7 +260,7 @@ func storagePoolBucketsGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -388,6 +401,16 @@ func storagePoolBucketsGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -429,6 +452,16 @@ func storagePoolBucketsGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -472,7 +505,7 @@ func storagePoolBucketGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -486,7 +519,7 @@ func storagePoolBucketGet(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(errors.New("Storage pool does not support buckets"))
 	}
 
-	bucketName, err := url.PathUnescape(mux.Vars(r)["bucketName"])
+	bucketName, err := pathVar(r, "bucketName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -579,6 +612,11 @@ func getBucketFull(ctx context.Context, s *state.State, pool storagePools.Pool, 
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -612,7 +650,7 @@ func storagePoolBucketsPost(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -693,6 +731,16 @@ func storagePoolBucketsPost(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: name
+//      description: Resource name
+//      type: string
+//      required: true
+//    - in: path
+//      name: bucketName
+//      description: Storage bucket name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -733,6 +781,16 @@ func storagePoolBucketsPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Resource name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -773,7 +831,7 @@ func storagePoolBucketPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -783,7 +841,7 @@ func storagePoolBucketPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Failed loading storage pool: %w", err))
 	}
 
-	bucketName, err := url.PathUnescape(mux.Vars(r)["bucketName"])
+	bucketName, err := pathVar(r, "bucketName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -838,6 +896,16 @@ func storagePoolBucketPut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Resource name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -870,7 +938,7 @@ func storagePoolBucketDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -880,7 +948,7 @@ func storagePoolBucketDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Failed loading storage pool: %w", err))
 	}
 
-	bucketName, err := url.PathUnescape(mux.Vars(r)["bucketName"])
+	bucketName, err := pathVar(r, "bucketName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -907,6 +975,16 @@ func storagePoolBucketDelete(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: poolName
+//      description: Storage pool name
+//      type: string
+//      required: true
+//    - in: path
+//      name: bucketName
+//      description: Storage bucket name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -956,6 +1034,16 @@ func storagePoolBucketDelete(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1002,7 +1090,7 @@ func storagePoolBucketKeysGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1017,7 +1105,7 @@ func storagePoolBucketKeysGet(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Storage pool driver %q does not support buckets", driverInfo.Name))
 	}
 
-	bucketName, err := url.PathUnescape(mux.Vars(r)["bucketName"])
+	bucketName, err := pathVar(r, "bucketName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1074,6 +1162,16 @@ func storagePoolBucketKeysGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1107,12 +1205,12 @@ func storagePoolBucketKeysPost(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	bucketName, err := url.PathUnescape(mux.Vars(r)["bucketName"])
+	bucketName, err := pathVar(r, "bucketName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1150,6 +1248,21 @@ func storagePoolBucketKeysPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Resource name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: keyName
+//	    description: Storage bucket key name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1182,7 +1295,7 @@ func storagePoolBucketKeyDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1192,12 +1305,12 @@ func storagePoolBucketKeyDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Failed loading storage pool: %w", err))
 	}
 
-	bucketName, err := url.PathUnescape(mux.Vars(r)["bucketName"])
+	bucketName, err := pathVar(r, "bucketName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	keyName, err := url.PathUnescape(mux.Vars(r)["keyName"])
+	keyName, err := pathVar(r, "keyName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1222,6 +1335,21 @@ func storagePoolBucketKeyDelete(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: keyName
+//	    description: Storage bucket key name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1265,7 +1393,7 @@ func storagePoolBucketKeyGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1279,12 +1407,12 @@ func storagePoolBucketKeyGet(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(errors.New("Storage pool does not support buckets"))
 	}
 
-	bucketName, err := url.PathUnescape(mux.Vars(r)["bucketName"])
+	bucketName, err := pathVar(r, "bucketName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	keyName, err := url.PathUnescape(mux.Vars(r)["keyName"])
+	keyName, err := pathVar(r, "keyName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1325,6 +1453,21 @@ func storagePoolBucketKeyGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Resource name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: bucketName
+//	    description: Storage bucket name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: keyName
+//	    description: Storage bucket key name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -1365,7 +1508,7 @@ func storagePoolBucketKeyPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1375,12 +1518,12 @@ func storagePoolBucketKeyPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(fmt.Errorf("Failed loading storage pool: %w", err))
 	}
 
-	bucketName, err := url.PathUnescape(mux.Vars(r)["bucketName"])
+	bucketName, err := pathVar(r, "bucketName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
-	keyName, err := url.PathUnescape(mux.Vars(r)["keyName"])
+	keyName, err := pathVar(r, "keyName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1412,11 +1555,26 @@ func createStoragePoolBucketFromBackup(s *state.State, r *http.Request, requestP
 		return response.InternalError(err)
 	}
 
-	defer func() { _ = os.Remove(backupFile.Name()) }()
+	defer logger.WarnOnError(func() error { return os.Remove(backupFile.Name()) }, "Failed to remove backup file")
 	reverter.Add(func() { _ = backupFile.Close() })
 
+	// Get disk budget for the project if any.
+	var budget int64
+
+	err = s.DB.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
+		budget, err = project.GetSpaceBudget(tx, projectName)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return response.InternalError(err)
+	}
+
 	// Stream uploaded backup data into temporary file.
-	_, err = util.SafeCopy(backupFile, data)
+	_, err = util.SafeCopy(internalIO.NewQuotaWriter(backupFile, budget), data)
 	if err != nil {
 		return response.InternalError(err)
 	}
@@ -1456,7 +1614,7 @@ func createStoragePoolBucketFromBackup(s *state.State, r *http.Request, requestP
 	runRevert := reverter.Clone()
 
 	run := func(op *operations.Operation) error {
-		defer func() { _ = backupFile.Close() }()
+		defer logger.WarnOnError(backupFile.Close, "Failed to close backup file")
 		defer runRevert.Fail()
 
 		pool, err := storagePools.LoadByName(s, bInfo.Pool)

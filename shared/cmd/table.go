@@ -13,7 +13,7 @@ import (
 	"github.com/olekukonko/tablewriter/tw"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/internal/i18n"
+	"github.com/lxc/incus/v7/internal/i18n"
 )
 
 // Table list format.

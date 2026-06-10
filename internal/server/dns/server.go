@@ -9,11 +9,11 @@ import (
 
 	"github.com/miekg/dns"
 
-	"github.com/lxc/incus/v6/internal/ports"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/internal/ports"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 // ZoneRetriever is a function which fetches a DNS zone.
@@ -53,9 +53,9 @@ type serverCmdInfo struct {
 }
 
 // NewServer returns a new server instance.
-func NewServer(db *db.Cluster, retriever ZoneRetriever) *Server {
+func NewServer(cluster *db.Cluster, retriever ZoneRetriever) *Server {
 	// Setup new struct.
-	s := &Server{db: db, zoneRetriever: retriever}
+	s := &Server{db: cluster, zoneRetriever: retriever}
 	return s
 }
 

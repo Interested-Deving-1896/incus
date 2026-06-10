@@ -11,28 +11,28 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	"github.com/lxc/incus/v6/internal/server/storage/drivers"
-	"github.com/lxc/incus/v6/internal/server/task"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/idmap"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	"github.com/lxc/incus/v7/internal/server/storage/drivers"
+	"github.com/lxc/incus/v7/internal/server/task"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/idmap"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // Create a new backup.
@@ -141,12 +141,16 @@ func backupCreate(s *state.State, args db.InstanceBackup, sourceInst instance.In
 		tarFileWriter = writer
 	}
 
-	defer func() { _ = tarFileWriter.Close() }()
+	defer logger.WarnOnError(tarFileWriter.Close, "Failed to close tarball file writer")
 
 	// Get IDMap to unshift container as the tarball is created.
 	var idmapSet *idmap.Set
 	if sourceInst.Type() == instancetype.Container {
-		c := sourceInst.(instance.Container)
+		c, ok := sourceInst.(instance.Container)
+		if !ok {
+			return errors.New("Instance is not container type")
+		}
+
 		idmapSet, err = c.DiskIdmap()
 		if err != nil {
 			return fmt.Errorf("Error getting container IDMAP: %w", err)
@@ -155,7 +159,7 @@ func backupCreate(s *state.State, args db.InstanceBackup, sourceInst instance.In
 
 	// Create the tarball.
 	tarPipeReader, tarPipeWriter := io.Pipe()
-	defer func() { _ = tarPipeWriter.Close() }() // Ensure that go routine below always ends.
+	defer logger.WarnOnError(tarPipeWriter.Close, "Failed to close tarball pipe writer") // Ensure that go routine below always ends.
 	tarWriter := instancewriter.NewInstanceTarWriter(tarPipeWriter, idmapSet)
 
 	// Setup tar writer go routine, with optional compression.
@@ -502,7 +506,7 @@ func volumeBackupCreate(s *state.State, args db.StoragePoolVolumeBackup, project
 		fileWriter = writer
 	}
 
-	defer func() { _ = fileWriter.Close() }()
+	defer logger.WarnOnError(fileWriter.Close, "Failed to close backup file writer")
 
 	// If dealing with an ISO volume, we want to return it unaltered.
 	if contentType == drivers.ContentTypeISO {
@@ -513,7 +517,7 @@ func volumeBackupCreate(s *state.State, args db.StoragePoolVolumeBackup, project
 	} else {
 		// Create the tarball.
 		tarPipeReader, tarPipeWriter := io.Pipe()
-		defer func() { _ = tarPipeWriter.Close() }() // Ensure that go routine below always ends.
+		defer logger.WarnOnError(tarPipeWriter.Close, "Failed to close tarball pipe writer") // Ensure that go routine below always ends.
 
 		tarWriter := instancewriter.NewInstanceTarWriter(tarPipeWriter, nil)
 
@@ -769,11 +773,11 @@ func bucketBackupCreate(s *state.State, args db.StoragePoolBucketBackup, project
 		tarFileWriter = writer
 	}
 
-	defer func() { _ = tarFileWriter.Close() }()
+	defer logger.WarnOnError(tarFileWriter.Close, "Failed to close tarball file writer")
 
 	// Create the tarball.
 	tarPipeReader, tarPipeWriter := io.Pipe()
-	defer func() { _ = tarPipeWriter.Close() }() // Ensure that go routine below always ends.
+	defer logger.WarnOnError(tarPipeWriter.Close, "Failed to close tarball pipe writer") // Ensure that go routine below always ends.
 	tarWriter := instancewriter.NewInstanceTarWriter(tarPipeWriter, nil)
 
 	// Setup tar writer go routine, with optional compression.

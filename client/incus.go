@@ -16,9 +16,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/tcp"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/tcp"
 )
 
 // ProtocolIncus represents an Incus API server.
@@ -327,7 +327,7 @@ func (r *ProtocolIncus) rawQuery(method string, url string, data any, ETag strin
 		return nil, "", err
 	}
 
-	defer func() { _ = resp.Body.Close() }()
+	defer logger.WarnOnError(resp.Body.Close, "Failed to close response body")
 
 	return incusParseResponse(resp)
 }

@@ -9,9 +9,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/sftp"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/cancel"
-	"github.com/lxc/incus/v6/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/cancel"
+	"github.com/lxc/incus/v7/shared/ioprogress"
 )
 
 // The Operation type represents a currently running operation.
@@ -124,6 +124,8 @@ type InstanceServer interface {
 	ConsoleInstance(instanceName string, console api.InstanceConsolePost, args *InstanceConsoleArgs) (op Operation, err error)
 	ConsoleInstanceDynamic(instanceName string, console api.InstanceConsolePost, args *InstanceConsoleArgs) (Operation, func(io.ReadWriteCloser) error, error)
 
+	CreateInstanceBitmap(name string, bitmap api.StorageVolumeBitmapsPost) error
+
 	GetInstanceConsoleLog(instanceName string, args *InstanceConsoleLogArgs) (content io.ReadCloser, err error)
 	DeleteInstanceConsoleLog(instanceName string, args *InstanceConsoleLogArgs) (err error)
 
@@ -133,6 +135,8 @@ type InstanceServer interface {
 
 	GetInstanceFileSFTPConn(instanceName string) (net.Conn, error)
 	GetInstanceFileSFTP(instanceName string) (*sftp.Client, error)
+
+	GetInstanceNBDConn(instanceName string) (net.Conn, error)
 
 	GetInstanceSnapshotNames(instanceName string) (names []string, err error)
 	GetInstanceSnapshots(instanceName string) (snapshots []api.InstanceSnapshot, err error)
@@ -380,6 +384,9 @@ type InstanceServer interface {
 	MoveStoragePoolVolume(pool string, source InstanceServer, sourcePool string, volume api.StorageVolume, args *StoragePoolVolumeMoveArgs) (op RemoteOperation, err error)
 	MigrateStoragePoolVolume(pool string, volume api.StorageVolumePost) (op Operation, err error)
 
+	// Storage volume rebuild ("storage_volumes_rebuild" API extension)
+	RebuildStoragePoolVolume(pool string, volType string, name string, volume api.StorageVolumeRebuildPost) (op Operation, err error)
+
 	// Storage volume snapshot functions ("storage_api_volume_snapshots" API extension)
 	CreateStoragePoolVolumeSnapshot(pool string, volumeType string, volumeName string, snapshot api.StorageVolumeSnapshotsPost) (op Operation, err error)
 	DeleteStoragePoolVolumeSnapshot(pool string, volumeType string, volumeName string, snapshotName string) (op Operation, err error)
@@ -399,6 +406,12 @@ type InstanceServer interface {
 	GetStorageVolumeBackupFile(pool string, volName string, name string, req *BackupFileRequest) (resp *BackupFileResponse, err error)
 	CreateStorageVolumeBackupStream(pool string, volName string, backup api.StorageVolumeBackupsPost, req *BackupFileRequest) (err error)
 	CreateStoragePoolVolumeFromBackup(pool string, args StorageVolumeBackupArgs) (op Operation, err error)
+
+	// Storage volume bitmaps manipulations functions ("storage_volume_nbd" API extension)
+	GetStorageVolumeBitmapNames(pool string, volumeType string, volumeName string) ([]string, error)
+	GetStorageVolumeBitmaps(pool string, volumeType string, volumeName string) ([]api.StorageVolumeBitmap, error)
+	CreateStorageVolumeBitmap(pool string, volumeType string, volumeName string, bitmap api.StorageVolumeBitmapsPost) error
+	DeleteStorageVolumeBitmap(pool string, volumeType string, volumeName string, bitmapName string) error
 
 	// Storage volume ISO import function ("custom_volume_iso" API extension)
 	CreateStoragePoolVolumeFromISO(pool string, args StorageVolumeBackupArgs) (op Operation, err error)

@@ -7,33 +7,31 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/pkg/sftp"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/util"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 func instanceFileHandler(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	projectName := request.ProjectParam(r)
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -93,6 +91,11 @@ func instanceFileHandler(d *Daemon, r *http.Request) response.Response {
 //	  - application/json
 //	  - application/octet-stream
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: path
 //	    description: Path to the file
@@ -175,6 +178,11 @@ func instanceFileGet(s *state.State, inst instance.Instance, path string, r *htt
 //
 //	---
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: path
 //	    description: Path to the file
@@ -244,6 +252,11 @@ func instanceFileHead(_ *state.State, inst instance.Instance, path string, _ *ht
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: path
 //	    description: Path to the file
@@ -305,7 +318,7 @@ func instanceFilePost(s *state.State, inst instance.Instance, path string, r *ht
 		return response.InternalError(err)
 	}
 
-	defer func() { _ = client.Close() }()
+	defer logger.WarnOnError(client.Close, "Failed to close SFTP client")
 
 	return fileSFTPPost(client, path, r, func() {
 		s.Events.SendLifecycle(inst.Project().Name, lifecycle.InstanceFilePushed.Event(inst, logger.Ctx{"path": path}))
@@ -322,6 +335,11 @@ func instanceFilePost(s *state.State, inst instance.Instance, path string, r *ht
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Instance name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: path
 //	    description: Path to the file
@@ -356,7 +374,7 @@ func instanceFileDelete(s *state.State, inst instance.Instance, path string, r *
 		return response.InternalError(err)
 	}
 
-	defer func() { _ = client.Close() }()
+	defer logger.WarnOnError(client.Close, "Failed to close SFTP client")
 
 	return fileSFTPDelete(client, path, r, func() {
 		s.Events.SendLifecycle(inst.Project().Name, lifecycle.InstanceFileDeleted.Event(inst, logger.Ctx{"path": path}))
@@ -517,7 +535,7 @@ func fileSFTPHead(client *sftp.Client, path string) response.Response {
 
 func fileSFTPPost(client *sftp.Client, path string, r *http.Request, onSuccess func()) response.Response {
 	// Extract file ownership and mode from headers
-	uid, gid, mode, type_, write := api.ParseFileHeaders(r.Header)
+	uid, gid, mode, fileType, write := api.ParseFileHeaders(r.Header)
 
 	if !slices.Contains([]string{"overwrite", "append"}, write) {
 		return response.BadRequest(fmt.Errorf("Bad file write mode: %s", write))
@@ -527,7 +545,8 @@ func fileSFTPPost(client *sftp.Client, path string, r *http.Request, onSuccess f
 	_, err := client.Stat(path)
 	exists := err == nil
 
-	if type_ == "file" {
+	switch fileType {
+	case "file":
 		fileMode := os.O_RDWR
 
 		if write == "overwrite" {
@@ -540,7 +559,7 @@ func fileSFTPPost(client *sftp.Client, path string, r *http.Request, onSuccess f
 			return response.SmartError(err)
 		}
 
-		defer func() { _ = file.Close() }()
+		defer logger.WarnOnError(file.Close, "Failed to close file")
 
 		// Go to the end of the file.
 		_, err = file.Seek(0, io.SeekEnd)
@@ -574,7 +593,7 @@ func fileSFTPPost(client *sftp.Client, path string, r *http.Request, onSuccess f
 
 		onSuccess()
 		return response.EmptySyncResponse
-	} else if type_ == "symlink" {
+	case "symlink":
 		// Figure out target.
 		target, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -595,7 +614,7 @@ func fileSFTPPost(client *sftp.Client, path string, r *http.Request, onSuccess f
 
 		onSuccess()
 		return response.EmptySyncResponse
-	} else if type_ == "directory" {
+	case "directory":
 		// Check if it already exists.
 		if exists {
 			return response.EmptySyncResponse
@@ -628,8 +647,8 @@ func fileSFTPPost(client *sftp.Client, path string, r *http.Request, onSuccess f
 
 		onSuccess()
 		return response.EmptySyncResponse
-	} else {
-		return response.BadRequest(fmt.Errorf("Bad file type: %s", type_))
+	default:
+		return response.BadRequest(fmt.Errorf("Bad file type: %s", fileType))
 	}
 }
 

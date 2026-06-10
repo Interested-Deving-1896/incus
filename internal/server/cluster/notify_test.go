@@ -12,39 +12,40 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/node"
-	"github.com/lxc/incus/v6/internal/server/state"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/shared/api"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/tls/tlstest"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/node"
+	"github.com/lxc/incus/v7/internal/server/state"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/shared/api"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/tls/tlstest"
 )
 
 // The returned notifier connects to all nodes.
 func TestNewNotifier(t *testing.T) {
-	state, cleanup := state.NewTestState(t)
+	s, cleanup := state.NewTestState(t)
 	defer cleanup()
 
 	cert := tlstest.TestingKeyPair(t)
 
-	f := notifyFixtures{t: t, state: state}
-	defer f.Nodes(cert, 3)()
+	f := notifyFixtures{t: t, state: s}
+	nodesCleanup := f.Nodes(cert, 3)
+	defer nodesCleanup()
 
 	// Populate state.LocalConfig after nodes created above.
 	var err error
 	var nodeConfig *node.Config
-	err = state.DB.Node.Transaction(context.TODO(), func(ctx context.Context, tx *db.NodeTx) error {
+	err = s.DB.Node.Transaction(context.TODO(), func(ctx context.Context, tx *db.NodeTx) error {
 		nodeConfig, err = node.ConfigLoad(ctx, tx)
 		return err
 	})
 	require.NoError(t, err)
 
-	state.LocalConfig = nodeConfig
+	s.LocalConfig = nodeConfig
 
-	notifier, err := cluster.NewNotifier(state, cert, cert, cluster.NotifyAll)
+	notifier, err := cluster.NewNotifier(s, cert, cert, cluster.NotifyAll)
 	require.NoError(t, err)
 
 	peers := make(chan string, 2)
@@ -73,28 +74,29 @@ func TestNewNotifier(t *testing.T) {
 // Creating a new notifier fails if the policy is set to NotifyAll and one of
 // the nodes is down.
 func TestNewNotify_NotifyAllError(t *testing.T) {
-	state, cleanup := state.NewTestState(t)
+	s, cleanup := state.NewTestState(t)
 	defer cleanup()
 
 	cert := tlstest.TestingKeyPair(t)
 
-	f := notifyFixtures{t: t, state: state}
-	defer f.Nodes(cert, 3)()
+	f := notifyFixtures{t: t, state: s}
+	nodesCleanup := f.Nodes(cert, 3)
+	defer nodesCleanup()
 
 	f.Down(1)
 
 	// Populate state.LocalConfig after nodes created above.
 	var err error
 	var nodeConfig *node.Config
-	err = state.DB.Node.Transaction(context.TODO(), func(ctx context.Context, tx *db.NodeTx) error {
+	err = s.DB.Node.Transaction(context.TODO(), func(ctx context.Context, tx *db.NodeTx) error {
 		nodeConfig, err = node.ConfigLoad(ctx, tx)
 		return err
 	})
 	require.NoError(t, err)
 
-	state.LocalConfig = nodeConfig
+	s.LocalConfig = nodeConfig
 
-	notifier, err := cluster.NewNotifier(state, cert, cert, cluster.NotifyAll)
+	notifier, err := cluster.NewNotifier(s, cert, cert, cluster.NotifyAll)
 	assert.Nil(t, notifier)
 	require.Error(t, err)
 	assert.Regexp(t, "peer node .+ is down", err.Error())
@@ -103,28 +105,29 @@ func TestNewNotify_NotifyAllError(t *testing.T) {
 // Creating a new notifier does not fail if the policy is set to NotifyAlive
 // and one of the nodes is down, however dead nodes are ignored.
 func TestNewNotify_NotifyAlive(t *testing.T) {
-	state, cleanup := state.NewTestState(t)
+	s, cleanup := state.NewTestState(t)
 	defer cleanup()
 
 	cert := tlstest.TestingKeyPair(t)
 
-	f := notifyFixtures{t: t, state: state}
-	defer f.Nodes(cert, 3)()
+	f := notifyFixtures{t: t, state: s}
+	nodesCleanup := f.Nodes(cert, 3)
+	defer nodesCleanup()
 
 	f.Down(1)
 
 	// Populate state.LocalConfig after nodes created above.
 	var err error
 	var nodeConfig *node.Config
-	err = state.DB.Node.Transaction(context.TODO(), func(ctx context.Context, tx *db.NodeTx) error {
+	err = s.DB.Node.Transaction(context.TODO(), func(ctx context.Context, tx *db.NodeTx) error {
 		nodeConfig, err = node.ConfigLoad(ctx, tx)
 		return err
 	})
 	require.NoError(t, err)
 
-	state.LocalConfig = nodeConfig
+	s.LocalConfig = nodeConfig
 
-	notifier, err := cluster.NewNotifier(state, cert, cert, cluster.NotifyAlive)
+	notifier, err := cluster.NewNotifier(s, cert, cert, cluster.NotifyAlive)
 	assert.NoError(t, err)
 
 	i := 0

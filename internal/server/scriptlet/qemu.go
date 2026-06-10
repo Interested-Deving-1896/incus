@@ -8,13 +8,13 @@ import (
 
 	"go.starlark.net/starlark"
 
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/cfg"
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/qmp"
-	scriptletLoad "github.com/lxc/incus/v6/internal/server/scriptlet/load"
-	"github.com/lxc/incus/v6/internal/server/scriptlet/log"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/scriptlet"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/cfg"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/qmp"
+	scriptletLoad "github.com/lxc/incus/v7/internal/server/scriptlet/load"
+	"github.com/lxc/incus/v7/internal/server/scriptlet/log"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/scriptlet"
 )
 
 // marshalQEMUConf marshals a configuration into a []map[string]any.
@@ -258,9 +258,10 @@ func QEMURun(l logger.Logger, instance *api.Instance, cmdArgs *[]string, conf *[
 
 			newCmdArgs = append(newCmdArgs, arg)
 
-			if arg == "-bios" {
+			switch arg {
+			case "-bios":
 				newFoundBios = true
-			} else if arg == "-kernel" {
+			case "-kernel":
 				newFoundKernel = true
 			}
 		}
@@ -268,9 +269,10 @@ func QEMURun(l logger.Logger, instance *api.Instance, cmdArgs *[]string, conf *[
 		// Check whether -bios or -kernel are in the current arguments
 		var foundBios, foundKernel bool
 		for _, arg := range *cmdArgs {
-			if arg == "-bios" {
+			switch arg {
+			case "-bios":
 				foundBios = true
-			} else if arg == "-kernel" {
+			case "-kernel":
 				foundKernel = true
 			}
 

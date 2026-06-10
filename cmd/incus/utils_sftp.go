@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -11,14 +11,14 @@ import (
 
 	"github.com/pkg/sftp"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/i18n"
-	internalIO "github.com/lxc/incus/v6/internal/io"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/i18n"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 func sftpSetOwnerMode(sftpConn *sftp.Client, targetPath string, args incus.InstanceFileArgs) error {
@@ -74,7 +74,7 @@ func sftpCreateFile(sftpConn *sftp.Client, targetPath string, args incus.Instanc
 			return fmt.Errorf(i18n.G("Failed to open target file %q: %w"), targetPath, err)
 		}
 
-		defer func() { _ = file.Close() }()
+		defer logger.WarnOnError(file.Close, "Failed to close file")
 
 		if push {
 			_, err = util.SafeCopy(file, args.Content)
@@ -123,7 +123,7 @@ func sftpCreateFile(sftpConn *sftp.Client, targetPath string, args incus.Instanc
 	return nil
 }
 
-func sftpRecursivePullFile(sftpConn *sftp.Client, fInfo os.FileInfo, p string, targetDir string, quiet bool, dereference bool, createRoot bool) error {
+func sftpRecursivePullFile(sftpConn *sftp.Client, fInfo os.FileInfo, source string, normalizedSource string, targetDir string, quiet bool, dereference bool, createRoot bool) error {
 	var fileType string
 	if fInfo.IsDir() {
 		fileType = "directory"
@@ -134,25 +134,44 @@ func sftpRecursivePullFile(sftpConn *sftp.Client, fInfo os.FileInfo, p string, t
 	}
 
 	target := targetDir
-	if createRoot || fileType != "directory" {
-		target = filepath.Join(targetDir, filepath.Base(p))
-	}
-
-	logger.Infof("Pulling %s from %s (%s)", target, p, fileType)
-
-	if fileType == "directory" {
-		err := os.Mkdir(target, fInfo.Mode())
-		if err != nil {
-			return err
+	if createRoot {
+		root := filepath.Base(source)
+		// `cp` has a special behavior with the following paths.
+		if root == "." || root == ".." {
+			root = ""
 		}
 
-		entries, err := sftpConn.ReadDir(p)
+		target = filepath.Join(targetDir, root)
+	}
+
+	logger.Infof("Pulling %s from %s (%s)", target, normalizedSource, fileType)
+
+	switch fileType {
+	case "directory":
+		err := os.Mkdir(target, fInfo.Mode())
+		if err != nil {
+			// If the error isn’t that the path already exists, there’s nothing we can do about it.
+			if !errors.Is(err, os.ErrExist) {
+				return err
+			}
+
+			// The error is pretty wide, so we must check whether the existing path it a directory (in
+			// which case we can continue) or not (in which case we must fail).
+			stat, statErr := os.Stat(target)
+			if statErr != nil || !stat.IsDir() {
+				// Even if the stat error can contain interesting data, the actual error that led us here in
+				// the first place is `err`.
+				return err
+			}
+		}
+
+		entries, err := sftpConn.ReadDir(normalizedSource)
 		if err != nil {
 			return err
 		}
 
 		for _, ent := range entries {
-			nextP := filepath.Join(p, ent.Name())
+			nextP := filepath.Join(normalizedSource, ent.Name())
 			stat := sftpConn.Lstat
 			if dereference {
 				stat = sftpConn.Stat
@@ -163,25 +182,25 @@ func sftpRecursivePullFile(sftpConn *sftp.Client, fInfo os.FileInfo, p string, t
 				return err
 			}
 
-			err = sftpRecursivePullFile(sftpConn, nextInfo, nextP, target, quiet, dereference, true)
+			err = sftpRecursivePullFile(sftpConn, nextInfo, nextP, nextP, target, quiet, dereference, true)
 			if err != nil {
 				return err
 			}
 		}
-	} else if fileType == "file" {
-		src, err := sftpConn.Open(p)
+	case "file":
+		src, err := sftpConn.Open(normalizedSource)
 		if err != nil {
 			return err
 		}
 
-		defer func() { _ = src.Close() }()
+		defer logger.WarnOnError(src.Close, "Failed to close source file")
 
 		dst, err := os.Create(target)
 		if err != nil {
 			return err
 		}
 
-		defer func() { _ = dst.Close() }()
+		defer logger.WarnOnError(dst.Close, "Failed to close target file")
 
 		err = os.Chmod(target, fInfo.Mode())
 		if err != nil {
@@ -189,7 +208,7 @@ func sftpRecursivePullFile(sftpConn *sftp.Client, fInfo os.FileInfo, p string, t
 		}
 
 		progress := cli.ProgressRenderer{
-			Format: fmt.Sprintf(i18n.G("Pulling %s from %s: %%s"), p, target),
+			Format: fmt.Sprintf(i18n.G("Pulling %s from %s: %%s"), normalizedSource, target),
 			Quiet:  quiet,
 		}
 
@@ -225,8 +244,8 @@ func sftpRecursivePullFile(sftpConn *sftp.Client, fInfo os.FileInfo, p string, t
 		}
 
 		progress.Done("")
-	} else if fileType == "symlink" {
-		linkTarget, err := sftpConn.ReadLink(p)
+	case "symlink":
+		linkTarget, err := sftpConn.ReadLink(normalizedSource)
 		if err != nil {
 			return err
 		}
@@ -235,24 +254,25 @@ func sftpRecursivePullFile(sftpConn *sftp.Client, fInfo os.FileInfo, p string, t
 		if err != nil {
 			return err
 		}
-	} else {
+
+	default:
 		return fmt.Errorf(i18n.G("Unknown file type '%s'"), fileType)
 	}
 
 	return nil
 }
 
-func sftpRecursivePushFile(sftpConn *sftp.Client, source string, target string, quiet bool) error {
-	source = filepath.Clean(source)
-
-	sourceDir, _ := filepath.Split(source)
-	sourceLen := len(sourceDir)
-
-	// Special handling for relative paths.
-	if source == ".." {
-		sourceLen = 1
+func sftpRecursivePushFile(sftpConn *sftp.Client, walkableSource string, source string, target string, args incus.InstanceFileArgs, quiet bool, dereference bool, createRoot bool) error {
+	root := ""
+	if createRoot {
+		root = filepath.Base(source)
+		// `cp` has a special behavior with the following paths.
+		if root == "." || root == ".." {
+			root = ""
+		}
 	}
 
+	isRoot := true
 	sendFile := func(p string, fInfo os.FileInfo, err error) error {
 		if err != nil {
 			return fmt.Errorf(i18n.G("Failed to walk path for %s: %s"), p, err)
@@ -264,29 +284,44 @@ func sftpRecursivePushFile(sftpConn *sftp.Client, source string, target string, 
 		}
 
 		// Prepare for file transfer
-		targetPath := filepath.Join(target, filepath.ToSlash(p[sourceLen:]))
+		targetPath := filepath.Join(target, root, p[len(walkableSource):])
 		mode, uid, gid := internalIO.GetOwnerMode(fInfo)
-		args := incus.InstanceFileArgs{
+		fileArgs := incus.InstanceFileArgs{
 			UID:  int64(uid),
 			GID:  int64(gid),
 			Mode: int(mode.Perm()),
+		}
+
+		if args.UID != -1 {
+			fileArgs.UID = args.UID
+		}
+
+		if args.GID != -1 {
+			fileArgs.GID = args.GID
+		}
+
+		if isRoot {
+			isRoot = false
+			if args.Mode != -1 {
+				fileArgs.Mode = args.Mode
+			}
 		}
 
 		var readCloser io.ReadCloser
 
 		if fInfo.IsDir() {
 			// Directory handling
-			args.Type = "directory"
-		} else if fInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+			fileArgs.Type = "directory"
+		} else if fInfo.Mode()&os.ModeSymlink == os.ModeSymlink && !dereference {
 			// Symlink handling
 			symlinkTarget, err := os.Readlink(p)
 			if err != nil {
 				return err
 			}
 
-			args.Type = "symlink"
-			args.Content = bytes.NewReader([]byte(symlinkTarget))
-			readCloser = io.NopCloser(args.Content)
+			fileArgs.Type = "symlink"
+			fileArgs.Content = strings.NewReader(symlinkTarget)
+			readCloser = io.NopCloser(fileArgs.Content)
 		} else {
 			// File handling
 			f, err := os.Open(p)
@@ -294,10 +329,10 @@ func sftpRecursivePushFile(sftpConn *sftp.Client, source string, target string, 
 				return fmt.Errorf(i18n.G("Failed to open source file %q: %v"), p, err)
 			}
 
-			defer func() { _ = f.Close() }()
+			defer logger.WarnOnError(f.Close, "Failed to close file")
 
-			args.Type = "file"
-			args.Content = f
+			fileArgs.Type = "file"
+			fileArgs.Content = f
 			readCloser = f
 		}
 
@@ -306,18 +341,18 @@ func sftpRecursivePushFile(sftpConn *sftp.Client, source string, target string, 
 			Quiet:  quiet,
 		}
 
-		if args.Type != "directory" {
-			contentLength, err := args.Content.Seek(0, io.SeekEnd)
+		if fileArgs.Type != "directory" {
+			contentLength, err := fileArgs.Content.Seek(0, io.SeekEnd)
 			if err != nil {
 				return err
 			}
 
-			_, err = args.Content.Seek(0, io.SeekStart)
+			_, err = fileArgs.Content.Seek(0, io.SeekStart)
 			if err != nil {
 				return err
 			}
 
-			args.Content = internalIO.NewReadSeeker(&ioprogress.ProgressReader{
+			fileArgs.Content = internalIO.NewReadSeeker(&ioprogress.ProgressReader{
 				ReadCloser: readCloser,
 				Tracker: &ioprogress.ProgressTracker{
 					Length: contentLength,
@@ -328,27 +363,27 @@ func sftpRecursivePushFile(sftpConn *sftp.Client, source string, target string, 
 						})
 					},
 				},
-			}, args.Content)
+			}, fileArgs.Content)
 		}
 
-		logger.Infof("Pushing %s to %s (%s)", p, targetPath, args.Type)
-		err = sftpCreateFile(sftpConn, targetPath, args, true)
+		logger.Infof("Pushing %s to %s (%s)", p, targetPath, fileArgs.Type)
+		err = sftpCreateFile(sftpConn, targetPath, fileArgs, true)
 		if err != nil {
-			if args.Type != "directory" {
+			if fileArgs.Type != "directory" {
 				progress.Done("")
 			}
 
 			return err
 		}
 
-		if args.Type != "directory" {
+		if fileArgs.Type != "directory" {
 			progress.Done("")
 		}
 
 		return nil
 	}
 
-	return filepath.Walk(source, sendFile)
+	return filepath.Walk(walkableSource, sendFile)
 }
 
 func sftpRecursiveMkdir(sftpConn *sftp.Client, p string, mode *os.FileMode, uid int64, gid int64) error {
@@ -393,8 +428,8 @@ func sftpRecursiveMkdir(sftpConn *sftp.Client, p string, mode *os.FileMode, uid 
 		}
 
 		args := incus.InstanceFileArgs{
-			UID:  uid,
-			GID:  gid,
+			UID:  max(uid, 0),
+			GID:  max(gid, 0),
 			Mode: modeArg,
 			Type: "directory",
 		}

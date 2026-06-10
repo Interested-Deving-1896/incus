@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // WriteAll copies content of data to specified writer.

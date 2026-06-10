@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdClusterRole struct {
@@ -66,7 +66,7 @@ func (c *cmdClusterRoleAdd) command() *cobra.Command {
 }
 
 func (c *cmdClusterRoleAdd) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdClusterRoleAddUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdClusterRoleAddUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,8 @@ func (c *cmdClusterRoleRemove) command() *cobra.Command {
 	cmd.Aliases = []string{"delete", "rm"}
 	cmd.Short = i18n.G("Remove roles from a cluster member")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Remove roles from a cluster member`))
+		`Remove roles from a cluster member`,
+	))
 
 	cmd.RunE = c.run
 
@@ -127,7 +128,7 @@ func (c *cmdClusterRoleRemove) command() *cobra.Command {
 }
 
 func (c *cmdClusterRoleRemove) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdClusterRoleRemoteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdClusterRoleRemoteUsage, cmd, args)
 	if err != nil {
 		return err
 	}

@@ -8,25 +8,25 @@ import (
 	"net/http"
 	"slices"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	internalRecover "github.com/lxc/incus/v6/internal/recover"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	backupConfig "github.com/lxc/incus/v6/internal/server/backup/config"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	storageDrivers "github.com/lxc/incus/v6/internal/server/storage/drivers"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/revert"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	internalRecover "github.com/lxc/incus/v7/internal/recover"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	backupConfig "github.com/lxc/incus/v7/internal/server/backup/config"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/revert"
 )
 
 // Define API endpoints for recover actions.
@@ -137,42 +137,55 @@ func internalRecoverScan(ctx context.Context, s *state.State, userPools []api.St
 	// Used to store a handle to each pool containing user supplied config.
 	pools := make(map[string]storagePools.Pool)
 
+	// Track temporarily mounted pools to unmount when the function has finished.
+	// This way if we are dealing with an existing pool or have successfully created the DB record then
+	// we won't unmount it. As we should leave successfully imported pools mounted.
+	var mountedPoolNames []string
+	defer func() {
+		for _, poolName := range mountedPoolNames {
+			cleanupPool := pools[poolName]
+			if cleanupPool != nil && cleanupPool.ID() == storagePools.PoolIDTemporary {
+				_, _ = cleanupPool.Unmount()
+			}
+		}
+	}()
+
 	// Iterate the pools finding unknown volumes and perform validation.
 	for _, p := range userPools {
 		pool, err := storagePools.LoadByName(s, p.Name)
 		if err != nil {
-			if response.IsNotFoundError(err) {
-				// If the pool DB record doesn't exist, and we are clustered, then don't proceed
-				// any further as we do not support pool DB record recovery when clustered.
-				if s.ServerClustered {
-					return response.BadRequest(errors.New("Storage pool recovery not supported when clustered"))
-				}
-
-				// If pool doesn't exist in DB, initialize a temporary pool with the supplied info.
-				poolInfo := api.StoragePool{
-					Name:           p.Name,
-					Driver:         p.Driver,
-					StoragePoolPut: p.StoragePoolPut,
-					Status:         api.StoragePoolStatusCreated,
-				}
-
-				pool, err = storagePools.NewTemporary(s, &poolInfo)
-				if err != nil {
-					return response.SmartError(fmt.Errorf("Failed to initialize unknown pool %q: %w", p.Name, err))
-				}
-
-				// Populate configuration with default values.
-				err := pool.Driver().FillConfig()
-				if err != nil {
-					return response.SmartError(fmt.Errorf("Failed to evaluate the default configuration values for unknown pool %q: %w", p.Name, err))
-				}
-
-				err = pool.Driver().Validate(poolInfo.Config)
-				if err != nil {
-					return response.SmartError(fmt.Errorf("Failed config validation for unknown pool %q: %w", p.Name, err))
-				}
-			} else {
+			if !response.IsNotFoundError(err) {
 				return response.SmartError(fmt.Errorf("Failed loading existing pool %q: %w", p.Name, err))
+			}
+
+			// If the pool DB record doesn't exist, and we are clustered, then don't proceed
+			// any further as we do not support pool DB record recovery when clustered.
+			if s.ServerClustered {
+				return response.BadRequest(errors.New("Storage pool recovery not supported when clustered"))
+			}
+
+			// If pool doesn't exist in DB, initialize a temporary pool with the supplied info.
+			poolInfo := api.StoragePool{
+				Name:           p.Name,
+				Driver:         p.Driver,
+				StoragePoolPut: p.StoragePoolPut,
+				Status:         api.StoragePoolStatusCreated,
+			}
+
+			pool, err = storagePools.NewTemporary(s, &poolInfo)
+			if err != nil {
+				return response.SmartError(fmt.Errorf("Failed to initialize unknown pool %q: %w", p.Name, err))
+			}
+
+			// Populate configuration with default values.
+			err := pool.Driver().FillConfig()
+			if err != nil {
+				return response.SmartError(fmt.Errorf("Failed to evaluate the default configuration values for unknown pool %q: %w", p.Name, err))
+			}
+
+			err = pool.Driver().Validate(poolInfo.Config)
+			if err != nil {
+				return response.SmartError(fmt.Errorf("Failed config validation for unknown pool %q: %w", p.Name, err))
 			}
 		}
 
@@ -185,16 +198,9 @@ func internalRecoverScan(ctx context.Context, s *state.State, userPools []api.St
 			return response.SmartError(fmt.Errorf("Failed mounting pool %q: %w", pool.Name(), err))
 		}
 
-		// Unmount pool when done if not existing in DB after function has finished.
-		// This way if we are dealing with an existing pool or have successfully created the DB record then
-		// we won't unmount it. As we should leave successfully imported pools mounted.
+		// Record the pool to be unmounted when the function has finished.
 		if ourMount {
-			defer func() {
-				cleanupPool := pools[pool.Name()]
-				if cleanupPool != nil && cleanupPool.ID() == storagePools.PoolIDTemporary {
-					_, _ = cleanupPool.Unmount()
-				}
-			}()
+			mountedPoolNames = append(mountedPoolNames, pool.Name())
 
 			reverter.Add(func() {
 				cleanupPool := pools[pool.Name()]
@@ -224,13 +230,13 @@ func internalRecoverScan(ctx context.Context, s *state.State, userPools []api.St
 			var profileProjectname string
 			var networkProjectName string
 
-			if projectInfo != nil {
-				profileProjectname = project.ProfileProjectFromRecord(projectInfo)
-				networkProjectName = project.NetworkProjectFromRecord(projectInfo)
-			} else {
+			if projectInfo == nil {
 				addDependencyError(fmt.Errorf("Project %q", projectName))
 				continue // Skip further validation if project is missing.
 			}
+
+			profileProjectname = project.ProfileProjectFromRecord(projectInfo)
+			networkProjectName = project.NetworkProjectFromRecord(projectInfo)
 
 			for _, poolVol := range poolVols {
 				if poolVol.Container == nil {
@@ -537,7 +543,7 @@ func internalRecoverImportInstance(s *state.State, pool storagePools.Pool, proje
 		return nil, nil, errors.New("Invalid instance type")
 	}
 
-	inst, instOp, cleanup, err := instance.CreateInternal(s, *dbInst, nil, false, true, false)
+	inst, instOp, cleanup, err := instance.CreateInternal(s, *dbInst, nil, false, true, true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed creating instance record: %w", err)
 	}

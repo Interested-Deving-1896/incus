@@ -6,17 +6,16 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	backupConfig "github.com/lxc/incus/v6/internal/server/backup/config"
-	"github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/storage/drivers"
-	"github.com/lxc/incus/v6/internal/server/storage/s3/miniod"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/revert"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	backupConfig "github.com/lxc/incus/v7/internal/server/backup/config"
+	"github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/storage/drivers"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/revert"
 )
 
 // VolumeUsage contains the used and total size of a volume.
@@ -87,6 +86,7 @@ type Pool interface {
 	UnmountInstance(inst instance.Instance, op *operations.Operation) error
 
 	// Instance snapshots.
+	CanRestoreInstanceSnapshot(inst instance.Instance, src instance.Instance) error
 	CreateInstanceSnapshot(inst instance.Instance, src instance.Instance, op *operations.Operation) error
 	RenameInstanceSnapshot(inst instance.Instance, newName string, op *operations.Operation) error
 	DeleteInstanceSnapshot(inst instance.Instance, op *operations.Operation) error
@@ -99,6 +99,7 @@ type Pool interface {
 	BackupInstance(inst instance.Instance, tarWriter *instancewriter.InstanceTarWriter, optimized bool, snapshots bool, dependentVolumes bool, op *operations.Operation) error
 	CreateInstanceFromBackup(srcBackup backup.Info, srcData io.ReadSeeker, op *operations.Operation) (func(instance.Instance) error, revert.Hook, error)
 	GetInstanceNBD(inst instance.Instance, writable bool) (net.Conn, func(), error)
+	GetInstanceAllDisksNBD(inst instance.Instance) (net.Conn, func(), error)
 
 	// Images.
 	EnsureImage(fingerprint string, op *operations.Operation) error
@@ -113,7 +114,7 @@ type Pool interface {
 	CreateBucketKey(projectName string, bucketName string, key api.StorageBucketKeysPost, op *operations.Operation) (*api.StorageBucketKey, error)
 	UpdateBucketKey(projectName string, bucketName string, keyName string, key api.StorageBucketKeyPut, op *operations.Operation) error
 	DeleteBucketKey(projectName string, bucketName string, keyName string, op *operations.Operation) error
-	ActivateBucket(projectName string, bucketName string, op *operations.Operation) (*miniod.Process, error)
+	MountLocalBucket(projectName string, bucketName string, op *operations.Operation) (string, func() error, error)
 	GetBucketURL(bucketName string) *url.URL
 	GenerateBucketBackupConfig(projectName string, bucketName string, op *operations.Operation) (*backupConfig.Config, error)
 	BackupBucket(projectName string, bucketName string, tarWriter *instancewriter.InstanceTarWriter, op *operations.Operation) error
@@ -125,6 +126,7 @@ type Pool interface {
 	UpdateCustomVolume(projectName string, volName string, newDesc string, newConfig map[string]string, op *operations.Operation) error
 	RenameCustomVolume(projectName string, volName string, newVolName string, op *operations.Operation) error
 	DeleteCustomVolume(projectName string, volName string, op *operations.Operation) error
+	RebuildCustomVolume(projectName string, volName string, op *operations.Operation) error
 	GetCustomVolumeDisk(projectName string, volName string) (string, error)
 	GetCustomVolumeUsage(projectName string, volName string) (*VolumeUsage, error)
 	MountCustomVolume(projectName string, volName string, op *operations.Operation) (*MountInfo, error)

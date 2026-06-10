@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lxc/incus/v6/internal/server/sys"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/revert"
+	"github.com/lxc/incus/v7/internal/server/sys"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/revert"
 )
 
 // ArchiveWrapper is used as a RunWrapper in the rsync package.
@@ -121,7 +121,7 @@ func archiveProfile(name string, outputPath string, allowedCommandPaths []string
 	}
 
 	// Render the profile.
-	var sb *strings.Builder = &strings.Builder{}
+	sb := &strings.Builder{}
 	err = archiveProfileTpl.Execute(sb, map[string]any{
 		"name":                name,
 		"outputPath":          outputPathFull, // Use deferenced path in AppArmor profile.

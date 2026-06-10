@@ -8,18 +8,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/rsync"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/storage/quota"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/rsync"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/storage/quota"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // CreateVolume creates an empty volume and can optionally fill it by executing the supplied
@@ -295,7 +295,7 @@ func (d *dir) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: Size/quota of the storage volume
 
 	// gendoc:generate(entity=storage_volume_dir, group=common, key=snapshots.expiry)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -303,7 +303,7 @@ func (d *dir) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: {{snapshot_expiry_format}}
 
 	// gendoc:generate(entity=storage_volume_dir, group=common, key=snapshots.expiry.manual)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume

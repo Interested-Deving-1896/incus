@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 var fanotifyLoaded bool
@@ -34,6 +34,7 @@ type fanotifyEventInfoFid struct {
 	FSID uint64
 }
 
+// Name returns the name of the driver.
 func (d *fanotify) Name() string {
 	return "fanotify"
 }

@@ -20,20 +20,21 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	internalFilter "github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/i18n"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	"github.com/lxc/incus/v6/shared/ask"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/termios"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	internalFilter "github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/i18n"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	"github.com/lxc/incus/v7/shared/ask"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/termios"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 type imageColumn struct {
@@ -64,7 +65,8 @@ as a compressed tarball (or for split images, the concatenation of the
 metadata and rootfs tarballs).
 
 Images can be referenced by their full hash, shortest unique partial
-hash or alias name (if one is set).`))
+hash or alias name (if one is set).`,
+	))
 
 	// Alias
 	imageAliasCmd := cmdImageAlias{global: c.global, image: c}
@@ -149,6 +151,7 @@ type cmdImageCopy struct {
 	flagAliases       []string
 	flagPublic        bool
 	flagCopyAliases   bool
+	flagReuse         bool
 	flagAutoUpdate    bool
 	flagVM            bool
 	flagMode          string
@@ -167,16 +170,18 @@ func (c *cmdImageCopy) command() *cobra.Command {
 		`Copy images between servers
 
 The auto-update flag instructs the server to keep this image up to date.
-It requires the source to be an alias and for it to be public.`))
+It requires the source to be an alias and for it to be public.`,
+	))
 
-	cmd.Flags().BoolVar(&c.flagPublic, "public", false, i18n.G("Make image public"))
-	cmd.Flags().BoolVar(&c.flagCopyAliases, "copy-aliases", false, i18n.G("Copy aliases from source"))
-	cmd.Flags().BoolVar(&c.flagAutoUpdate, "auto-update", false, i18n.G("Keep the image up to date after initial copy"))
-	cmd.Flags().StringArrayVar(&c.flagAliases, "alias", nil, i18n.G("New aliases to add to the image")+"``")
-	cmd.Flags().BoolVar(&c.flagVM, "vm", false, i18n.G("Copy virtual machine images"))
-	cmd.Flags().StringVar(&c.flagMode, "mode", "pull", i18n.G("Transfer mode. One of pull (default), push or relay")+"``")
-	cmd.Flags().StringVar(&c.flagTargetProject, "target-project", "", i18n.G("Copy to a project different from the source")+"``")
-	cmd.Flags().StringArrayVarP(&c.flagProfile, "profile", "p", nil, i18n.G("Profile to apply to the new image")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagPublic, "public", i18n.G("Make image public"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagCopyAliases, "copy-aliases", i18n.G("Copy aliases from source"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagReuse, "reuse", i18n.G("If an alias already exists, delete and recreate it"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAutoUpdate, "auto-update", i18n.G("Keep the image up to date after initial copy"))
+	cli.AddStringArrayFlag(cmd.Flags(), &c.flagAliases, "alias", i18n.G("New aliases to add to the image"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagVM, "vm", i18n.G("Copy virtual machine images"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagMode, "mode", "pull", "", i18n.G("Transfer mode. One of pull, push or relay"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagTargetProject, "target-project", "", "", i18n.G("Copy to a project different from the source"))
+	cli.AddStringArrayFlag(cmd.Flags(), &c.flagProfile, "profile|p", i18n.G("Profile to apply to the new image"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -196,7 +201,7 @@ It requires the source to be an alias and for it to be public.`))
 
 func (c *cmdImageCopy) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
-	parsed, err := cmdImageCopyUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageCopyUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -209,6 +214,10 @@ func (c *cmdImageCopy) run(cmd *cobra.Command, args []string) error {
 
 	if c.flagMode != "pull" && c.flagAutoUpdate {
 		return errors.New(i18n.G("Auto update is only available in pull mode"))
+	}
+
+	if c.flagReuse && !c.flagCopyAliases {
+		return errors.New(i18n.G("--reuse requires --copy-aliases"))
 	}
 
 	sourceServer, err := c.global.conf.GetImageServer(imgRemoteName)
@@ -267,6 +276,24 @@ func (c *cmdImageCopy) run(cmd *cobra.Command, args []string) error {
 		Profiles:    c.flagProfile,
 	}
 
+	// If --reuse was passed, delete any conflicting aliases on the target so they can be recreated.
+	if c.flagReuse {
+		conflicting := append([]api.ImageAlias{}, imgInfo.Aliases...)
+		conflicting = append(conflicting, aliases...)
+
+		existing, err := getCommonAliases(d, conflicting...)
+		if err != nil {
+			return fmt.Errorf(i18n.G("Failed to check for existing aliases: %w"), err)
+		}
+
+		for _, alias := range existing {
+			err := d.DeleteImageAlias(alias.Name)
+			if err != nil {
+				return fmt.Errorf(i18n.G("Failed to remove alias %s: %w"), alias.Name, err)
+			}
+		}
+	}
+
 	// Do the copy
 	op, err := d.CopyImage(sourceServer, *imgInfo, &copyArgs)
 	if err != nil {
@@ -322,7 +349,7 @@ func (c *cmdImageDelete) command() *cobra.Command {
 }
 
 func (c *cmdImageDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -371,7 +398,8 @@ func (c *cmdImageEdit) command() *cobra.Command {
     Launch a text editor to edit the properties
 
 incus image edit <image> < image.yaml
-    Load the image properties from a YAML file`))
+    Load the image properties from a YAML file`,
+	))
 
 	cmd.RunE = c.run
 
@@ -393,11 +421,12 @@ func (c *cmdImageEdit) helpTemplate() string {
 ###
 ### Each property is represented by a single line:
 ### An example would be:
-###  description: My custom image`)
+###  description: My custom image`,
+	)
 }
 
 func (c *cmdImageEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -494,9 +523,10 @@ func (c *cmdImageExport) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
 		`Export and download images
 
-The output target is optional and defaults to the working directory.`))
+The output target is optional and defaults to the working directory.`,
+	))
 
-	cmd.Flags().BoolVar(&c.flagVM, "vm", false, i18n.G("Query virtual machine images"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagVM, "vm", i18n.G("Query virtual machine images"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -511,7 +541,7 @@ The output target is optional and defaults to the working directory.`))
 }
 
 func (c *cmdImageExport) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageExportUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageExportUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -551,14 +581,14 @@ func (c *cmdImageExport) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	defer func() { _ = dest.Close() }()
+	defer logger.WarnOnError(dest.Close, "Failed to close file")
 
 	destRootfs, err := os.Create(targetRootfs)
 	if err != nil {
 		return err
 	}
 
-	defer func() { _ = destRootfs.Close() }()
+	defer logger.WarnOnError(destRootfs.Close, "Failed to close file")
 
 	// Prepare the download request
 	progress := cli.ProgressRenderer{
@@ -666,11 +696,12 @@ func (c *cmdImageImport) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
 		`Import image into the image store
 
-Directory import is only available on Linux and must be performed as root.`))
+Directory import is only available on Linux and must be performed as root.`,
+	))
 
-	cmd.Flags().BoolVar(&c.flagPublic, "public", false, i18n.G("Make image public"))
-	cmd.Flags().BoolVar(&c.flagReuse, "reuse", false, i18n.G("If the image alias already exists, delete and create a new one"))
-	cmd.Flags().StringArrayVar(&c.flagAliases, "alias", nil, i18n.G("New aliases to add to the image")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagPublic, "public", i18n.G("Make image public"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagReuse, "reuse", i18n.G("If the image alias already exists, delete and create a new one"))
+	cli.AddStringArrayFlag(cmd.Flags(), &c.flagAliases, "alias", i18n.G("New aliases to add to the image"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -701,7 +732,7 @@ func (c *cmdImageImport) packImageDir(path string) (string, error) {
 		return "", err
 	}
 
-	defer func() { _ = outFile.Close() }()
+	defer logger.WarnOnError(outFile.Close, "Failed to close file")
 
 	outFileName := outFile.Name()
 	_, err = subprocess.RunCommand("tar", "-C", path, "--numeric-owner", "--restrict", "--force-local", "--xattrs", "-cJf", outFileName, "rootfs", "templates", "metadata.yaml")
@@ -715,7 +746,7 @@ func (c *cmdImageImport) packImageDir(path string) (string, error) {
 func (c *cmdImageImport) run(cmd *cobra.Command, args []string) error {
 	// Do NOT blindly copy the following parsing line; it performs right-to-left parsing, which in
 	// most cases is NOT what you want.
-	parsed, err := cmdImageImportUsage.Parse(c.global.conf, cmd, args, true)
+	parsed, err := c.global.Parse(cmdImageImportUsage, cmd, args, true)
 	if err != nil {
 		return err
 	}
@@ -764,7 +795,7 @@ func (c *cmdImageImport) run(cmd *cobra.Command, args []string) error {
 				return err
 			}
 			// remove temp file
-			defer func() { _ = os.Remove(imageFile) }()
+			defer logger.WarnOnError(func() error { return os.Remove(imageFile) }, "Failed to remove temporary file")
 		}
 
 		meta, err = os.Open(imageFile)
@@ -772,7 +803,7 @@ func (c *cmdImageImport) run(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		defer func() { _ = meta.Close() }()
+		defer logger.WarnOnError(meta.Close, "Failed to close file")
 
 		// Open rootfs
 		if hasRootfsFile {
@@ -781,7 +812,7 @@ func (c *cmdImageImport) run(cmd *cobra.Command, args []string) error {
 				return err
 			}
 
-			defer func() { _ = rootfs.Close() }()
+			defer logger.WarnOnError(rootfs.Close, "Failed to close file")
 
 			_, ext, _, err := archive.DetectCompressionFile(rootfs)
 			if err != nil {
@@ -876,9 +907,10 @@ func (c *cmdImageInfo) command() *cobra.Command {
 	cmd.Use = cli.U("info", cmdImageInfoUsage...)
 	cmd.Short = i18n.G("Show useful information about images")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Show useful information about images`))
+		`Show useful information about images`,
+	))
 
-	cmd.Flags().BoolVar(&c.flagVM, "vm", false, i18n.G("Query virtual machine images"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagVM, "vm", i18n.G("Query virtual machine images"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -893,7 +925,7 @@ func (c *cmdImageInfo) command() *cobra.Command {
 }
 
 func (c *cmdImageInfo) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageInfoUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageInfoUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1029,7 +1061,6 @@ or csv format.
 Default column layout is: lfpdasu
 
 Column shorthand chars:
-
     l - Shortest image alias (and optionally number of other aliases)
     L - Newline-separated list of all image aliases
     f - Fingerprint (short)
@@ -1040,11 +1071,12 @@ Column shorthand chars:
     a - Architecture
     s - Size
     u - Upload date
-    t - Type`))
+    t - Type`,
+	))
 
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultImagesColumns, i18n.G("Columns")+"``")
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().BoolVar(&c.flagAllProjects, "all-projects", false, i18n.G("Display images from all projects"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultImagesColumns, "", i18n.G("Columns"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagAllProjects, "all-projects", i18n.G("Display images from all projects"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -1260,7 +1292,7 @@ func (c *cmdImageList) imageShouldShow(filters []string, state *api.Image) bool 
 }
 
 func (c *cmdImageList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1369,7 +1401,7 @@ func (c *cmdImageRefresh) command() *cobra.Command {
 }
 
 func (c *cmdImageRefresh) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageRefreshUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageRefreshUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1436,7 +1468,7 @@ func (c *cmdImageShow) command() *cobra.Command {
 	cmd.Short = i18n.G("Show image properties")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Show image properties`))
 
-	cmd.Flags().BoolVar(&c.flagVM, "vm", false, i18n.G("Query virtual machine images"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagVM, "vm", i18n.G("Query virtual machine images"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -1451,7 +1483,7 @@ func (c *cmdImageShow) command() *cobra.Command {
 }
 
 func (c *cmdImageShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1519,7 +1551,7 @@ func (c *cmdImageGetProp) command() *cobra.Command {
 }
 
 func (c *cmdImageGetProp) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageGetPropUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageGetPropUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1605,7 +1637,7 @@ func (c *cmdImageSetProp) set(cmd *cobra.Command, parsed []*u.Parsed) error {
 }
 
 func (c *cmdImageSetProp) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageSetPropUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageSetPropUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1641,7 +1673,7 @@ func (c *cmdImageUnsetProp) command() *cobra.Command {
 }
 
 func (c *cmdImageUnsetProp) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageUnsetPropUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageUnsetPropUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1721,7 +1753,7 @@ This command will prompt for all of the metadata tarball fields:
 }
 
 func (c *cmdImageGenerateMetadata) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdImageGenerateMetadataUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdImageGenerateMetadataUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -1737,7 +1769,7 @@ func (c *cmdImageGenerateMetadata) run(cmd *cobra.Command, args []string) error 
 		return err
 	}
 
-	defer metaFile.Close()
+	defer logger.WarnOnError(metaFile.Close, "Failed to close file")
 
 	// Generate the metadata.
 	timestamp := time.Now().UTC()

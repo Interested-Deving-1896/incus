@@ -9,17 +9,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 var (
@@ -190,7 +191,8 @@ func (d *cephfs) Create() error {
 
 			if !osdPoolExists {
 				// Create new osd pool.
-				_, err := subprocess.RunCommand("ceph",
+				_, err := subprocess.RunCommand(
+					"ceph",
 					"--name", fmt.Sprintf("client.%s", d.config["cephfs.user.name"]),
 					"--cluster", d.config["cephfs.cluster_name"],
 					"osd",
@@ -205,7 +207,8 @@ func (d *cephfs) Create() error {
 
 				reverter.Add(func() {
 					// Delete the OSD pool.
-					_, _ = subprocess.RunCommand("ceph",
+					_, _ = subprocess.RunCommand(
+						"ceph",
 						"--name", fmt.Sprintf("client.%s", d.config["cephfs.user.name"]),
 						"--cluster", d.config["cephfs.cluster_name"],
 						"osd",
@@ -220,7 +223,8 @@ func (d *cephfs) Create() error {
 		}
 
 		// Create the filesystem.
-		_, err := subprocess.RunCommand("ceph",
+		_, err := subprocess.RunCommand(
+			"ceph",
 			"--name", fmt.Sprintf("client.%s", d.config["cephfs.user.name"]),
 			"--cluster", d.config["cephfs.cluster_name"],
 			"fs",
@@ -235,7 +239,8 @@ func (d *cephfs) Create() error {
 
 		reverter.Add(func() {
 			// Set the FS to fail so that we can remove it.
-			_, _ = subprocess.RunCommand("ceph",
+			_, _ = subprocess.RunCommand(
+				"ceph",
 				"--name", fmt.Sprintf("client.%s", d.config["cephfs.user.name"]),
 				"--cluster", d.config["cephfs.cluster_name"],
 				"fs",
@@ -244,7 +249,8 @@ func (d *cephfs) Create() error {
 			)
 
 			// Delete the FS.
-			_, _ = subprocess.RunCommand("ceph",
+			_, _ = subprocess.RunCommand(
+				"ceph",
 				"--name", fmt.Sprintf("client.%s", d.config["cephfs.user.name"]),
 				"--cluster", d.config["cephfs.cluster_name"],
 				"fs",
@@ -261,7 +267,7 @@ func (d *cephfs) Create() error {
 		return fmt.Errorf("Failed to create temporary directory under: %w", err)
 	}
 
-	defer func() { _ = os.RemoveAll(mountPath) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(mountPath) }, "Failed to remove temporary directory")
 
 	err = os.Chmod(mountPath, 0o700)
 	if err != nil {
@@ -339,7 +345,7 @@ func (d *cephfs) Delete(op *operations.Operation) error {
 		return fmt.Errorf("Failed to create temporary directory under: %w", err)
 	}
 
-	defer func() { _ = os.RemoveAll(mountPath) }()
+	defer logger.WarnOnError(func() error { return os.RemoveAll(mountPath) }, "Failed to remove temporary directory")
 
 	err = os.Chmod(mountPath, 0o700)
 	if err != nil {

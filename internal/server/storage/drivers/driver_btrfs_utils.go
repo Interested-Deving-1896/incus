@@ -20,13 +20,14 @@ import (
 	"go.yaml.in/yaml/v4"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
 )
 
 // Errors.
@@ -50,7 +51,7 @@ func setReceivedUUID(path string, UUID string) error {
 		return fmt.Errorf("Failed opening %s: %w", path, err)
 	}
 
-	defer func() { _ = f.Close() }()
+	defer logger.WarnOnError(f.Close, "Failed to close file")
 
 	args := btrfsIoctlReceivedSubvolArgs{}
 
@@ -85,14 +86,14 @@ func (d *btrfs) getMountOptions() string {
 
 func (d *btrfs) isSubvolume(path string) bool {
 	// Stat the path.
-	fs := unix.Stat_t{}
-	err := unix.Lstat(path, &fs)
+	stat := unix.Stat_t{}
+	err := unix.Lstat(path, &stat)
 	if err != nil {
 		return false
 	}
 
 	// Check if BTRFS_FIRST_FREE_OBJECTID is the inode number.
-	if fs.Ino != 256 {
+	if stat.Ino != 256 {
 		return false
 	}
 
@@ -346,7 +347,7 @@ func (d *btrfs) getQGroup(path string) (string, int64, error) {
 }
 
 func (d *btrfs) sendSubvolume(path string, parent string, conn io.ReadWriteCloser, tracker *ioprogress.ProgressTracker) error {
-	defer func() { _ = conn.Close() }()
+	defer logger.WarnOnError(conn.Close, "Failed to close connection")
 
 	// Assemble btrfs send command.
 	args := []string{"send"}
@@ -401,12 +402,7 @@ func (d *btrfs) setSubvolumeReadonlyProperty(path string, readonly bool) error {
 		return nil
 	}
 
-	args := []string{"property", "set"}
-	if btrfsPropertyForce {
-		args = append(args, "-f")
-	}
-
-	args = append(args, "-ts", path, "ro", fmt.Sprintf("%t", readonly))
+	args := []string{"property", "set", "-f", "-ts", path, "ro", fmt.Sprintf("%t", readonly)}
 
 	_, err := subprocess.RunCommand("btrfs", args...)
 	return err
@@ -592,7 +588,7 @@ func (d *btrfs) loadOptimizedBackupHeader(r io.ReadSeeker, mountPath string, bas
 		}
 
 		if hdr.Name == filepath.Join(basePrefix, "optimized_header.yaml") {
-			loader, err := yaml.NewLoader(tr)
+			loader, err := yaml.NewLoader(localUtil.MaxBytesReader(tr, 1024*1024))
 			if err != nil {
 				return nil, fmt.Errorf("Error parsing optimized backup header file: %w", err)
 			}
@@ -618,7 +614,7 @@ func (d *btrfs) receiveSubVolume(r io.Reader, receivePath string, tracker *iopro
 	}
 
 	// Setup progress tracker.
-	var stdin io.Reader = r
+	stdin := r
 	if tracker != nil {
 		stdin = &ioprogress.ProgressReader{
 			Reader:  r,

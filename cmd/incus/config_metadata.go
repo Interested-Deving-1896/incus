@@ -9,12 +9,12 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
 )
 
 type cmdConfigMetadata struct {
@@ -91,11 +91,12 @@ func (c *cmdConfigMetadataEdit) helpTemplate() string {
 ###     - ""
 ###     create_only: false
 ###     template: template.tpl
-###     properties: {}`)
+###     properties: {}`,
+	)
 }
 
 func (c *cmdConfigMetadataEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConfigMetadataEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConfigMetadataEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -195,7 +196,7 @@ func (c *cmdConfigMetadataShow) command() *cobra.Command {
 }
 
 func (c *cmdConfigMetadataShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConfigMetadataShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConfigMetadataShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}

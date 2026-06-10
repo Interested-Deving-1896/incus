@@ -7,12 +7,12 @@ import (
 	"net"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/network/ovn"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/network/ovn"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
 )
 
 // OVNEnsureAddressSetsViaACLs ensure that every address set referenced by given acls are created in OVN NB DB.
@@ -73,9 +73,15 @@ func OVNEnsureAddressSets(s *state.State, l logger.Logger, client *ovn.NB, proje
 
 		asInfo := addrSet.Info()
 
+		// Expand any IP ranges into individual addresses as OVN address sets don't support ranges.
+		expandedAddresses, err := expandAddressSetAddresses(asInfo.Addresses)
+		if err != nil {
+			return nil, fmt.Errorf("Failed expanding addresses for address set %q: %w", asInfo.Name, err)
+		}
+
 		// Convert addresses into net.IPNet slices.
 		var ipNets []net.IPNet
-		for _, addr := range asInfo.Addresses {
+		for _, addr := range expandedAddresses {
 			// Try to parse as IP or CIDR.
 			if strings.Contains(addr, "/") {
 				_, ipnet, err := net.ParseCIDR(addr)

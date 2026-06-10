@@ -18,31 +18,30 @@ import (
 
 	"github.com/mdlayher/netx/eui64"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/server/apparmor"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/daemon"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/warningtype"
-	"github.com/lxc/incus/v6/internal/server/dnsmasq"
-	"github.com/lxc/incus/v6/internal/server/dnsmasq/dhcpalloc"
-	firewallDrivers "github.com/lxc/incus/v6/internal/server/firewall/drivers"
-	"github.com/lxc/incus/v6/internal/server/ip"
-	"github.com/lxc/incus/v6/internal/server/network/acl"
-	addressset "github.com/lxc/incus/v6/internal/server/network/address-set"
-	"github.com/lxc/incus/v6/internal/server/project"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/server/warnings"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/server/apparmor"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/daemon"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/warningtype"
+	"github.com/lxc/incus/v7/internal/server/dnsmasq"
+	"github.com/lxc/incus/v7/internal/server/dnsmasq/dhcpalloc"
+	firewallDrivers "github.com/lxc/incus/v7/internal/server/firewall/drivers"
+	"github.com/lxc/incus/v7/internal/server/ip"
+	"github.com/lxc/incus/v7/internal/server/network/acl"
+	addressset "github.com/lxc/incus/v7/internal/server/network/address-set"
+	"github.com/lxc/incus/v7/internal/server/project"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/server/warnings"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // Default MTU for bridge interface.
@@ -58,7 +57,7 @@ func (n *bridge) DBType() db.NetworkType {
 	return db.NetworkTypeBridge
 }
 
-// Config returns the network driver info.
+// Info returns the network driver info.
 func (n *bridge) Info() Info {
 	info := n.common.Info()
 	info.AddressForwards = true
@@ -179,6 +178,7 @@ func (n *bridge) Validate(config map[string]string, clientType request.ClientTyp
 		//
 		// ---
 		//  type: string
+		//  scope: local
 		//  condition: BGP server
 		//  default: local address
 		//  shortdesc: Override the next-hop for advertised prefixes
@@ -188,6 +188,7 @@ func (n *bridge) Validate(config map[string]string, clientType request.ClientTyp
 		//
 		// ---
 		//  type: string
+		//  scope: local
 		//  condition: BGP server
 		//  default: local address
 		//  shortdesc: Override the next-hop for advertised prefixes
@@ -228,6 +229,15 @@ func (n *bridge) Validate(config map[string]string, clientType request.ClientTyp
 		//  default: `1500`
 		//  shortdesc: Bridge MTU (default varies if tunnel in use)
 		"bridge.mtu": validate.Optional(validate.IsNetworkMTU),
+
+		// gendoc:generate(entity=network_bridge, group=common, key=bridge.multicast_snooping)
+		//
+		// ---
+		//  type: bool
+		//  condition: native bridge
+		//  default: `true`
+		//  shortdesc: Whether to enable multicast snooping on the bridge
+		"bridge.multicast_snooping": validate.Optional(validate.IsBool),
 
 		// gendoc:generate(entity=network_bridge, group=common, key=ipv4.address)
 		//
@@ -905,7 +915,7 @@ func (n *bridge) Delete(clientType request.ClientType) error {
 		return err
 	}
 
-	return n.common.delete(clientType)
+	return n.delete(clientType)
 }
 
 // Rename renames a network.
@@ -925,7 +935,7 @@ func (n *bridge) Rename(newName string) error {
 	}
 
 	// Rename common steps.
-	err := n.common.rename(newName)
+	err := n.rename(newName)
 	if err != nil {
 		return err
 	}
@@ -1166,12 +1176,22 @@ func (n *bridge) setup(oldConfig map[string]string) error {
 		}
 	}
 
-	// Enable VLAN filtering for Linux bridges.
+	// Settings for regular Linux bridges.
 	if n.config["bridge.driver"] != "openvswitch" {
-		// Enable filtering.
+		// Enable VLAN filtering for Linux bridges.
 		err = BridgeVLANFilterSetStatus(n.name, "1")
 		if err != nil {
 			n.logger.Warn(fmt.Sprintf("Failed enabling VLAN filtering: %v", err))
+		}
+
+		// Apply multicast snooping setting.
+		err = BridgeMulticastSnoopingSetStatus(n.name, util.IsTrueOrEmpty(n.config["bridge.multicast_snooping"]))
+		if err != nil {
+			if n.config["bridge.multicast_snooping"] != "" {
+				return err
+			}
+
+			n.logger.Warn(fmt.Sprintf("Failed setting multicast snooping: %v", err))
 		}
 	}
 
@@ -1250,8 +1270,8 @@ func (n *bridge) setup(oldConfig map[string]string) error {
 			addrs, err := iface.Addrs()
 			if err == nil {
 				for _, addr := range addrs {
-					ip, _, err := net.ParseCIDR(addr.String())
-					if ip != nil && err == nil && ip.IsGlobalUnicast() {
+					ipAddress, _, err := net.ParseCIDR(addr.String())
+					if ipAddress != nil && err == nil && ipAddress.IsGlobalUnicast() {
 						unused = false
 						break
 					}
@@ -1369,30 +1389,10 @@ func (n *bridge) setup(oldConfig map[string]string) error {
 		fmt.Sprintf("--interface=%s", n.name),
 	}
 
-	dnsmasqVersion, err := dnsmasq.GetVersion()
-	if err != nil {
-		return err
-	}
-
-	// --dhcp-rapid-commit option is only supported on >2.79.
-	minVer, _ := version.NewDottedVersion("2.79")
-	if dnsmasqVersion.Compare(minVer) > 0 {
-		dnsmasqCmd = append(dnsmasqCmd, "--dhcp-rapid-commit")
-	}
-
-	// --no-negcache option is only supported on >2.47.
-	minVer, _ = version.NewDottedVersion("2.47")
-	if dnsmasqVersion.Compare(minVer) > 0 {
-		dnsmasqCmd = append(dnsmasqCmd, "--no-negcache")
-	}
+	dnsmasqCmd = append(dnsmasqCmd, "--dhcp-rapid-commit", "--no-negcache")
 
 	if !daemon.Debug {
-		// --quiet options are only supported on >2.67.
-		minVer, _ := version.NewDottedVersion("2.67")
-
-		if dnsmasqVersion.Compare(minVer) > 0 {
-			dnsmasqCmd = append(dnsmasqCmd, []string{"--quiet-dhcp", "--quiet-dhcp6", "--quiet-ra"}...)
-		}
+		dnsmasqCmd = append(dnsmasqCmd, "--quiet-dhcp", "--quiet-dhcp6", "--quiet-ra")
 	}
 
 	var dnsIPv4 []string
@@ -1749,7 +1749,6 @@ func (n *bridge) setup(oldConfig map[string]string) error {
 
 	// Configure tunnels.
 	for _, tunnel := range tunnels {
-
 		getConfig := func(key string) string {
 			return n.config[fmt.Sprintf("tunnel.%s.%s", tunnel, key)]
 		}
@@ -2143,7 +2142,7 @@ func (n *bridge) Update(newNetwork api.NetworkPut, targetNode string, clientType
 		return fmt.Errorf("Failed generating auto config: %w", err)
 	}
 
-	dbUpdateNeeded, changedKeys, oldNetwork, err := n.common.configChanged(newNetwork)
+	dbUpdateNeeded, changedKeys, oldNetwork, err := n.configChanged(newNetwork)
 	if err != nil {
 		return err
 	}
@@ -2156,7 +2155,7 @@ func (n *bridge) Update(newNetwork api.NetworkPut, targetNode string, clientType
 	// pending, then don't apply the new settings to the node, just to the database record (ready for the
 	// actual global create request to be initiated).
 	if n.Status() == api.NetworkStatusPending || n.LocalStatus() == api.NetworkStatusPending {
-		return n.common.update(newNetwork, targetNode, clientType)
+		return n.update(newNetwork, targetNode, clientType)
 	}
 
 	reverter := revert.New()
@@ -2167,7 +2166,7 @@ func (n *bridge) Update(newNetwork api.NetworkPut, targetNode string, clientType
 		// Define a function which reverts everything.
 		reverter.Add(func() {
 			// Reset changes to all nodes and database.
-			_ = n.common.update(oldNetwork, targetNode, clientType)
+			_ = n.update(oldNetwork, targetNode, clientType)
 
 			// Reset any change that was made to local bridge.
 			_ = n.setup(newNetwork.Config)
@@ -2224,7 +2223,7 @@ func (n *bridge) Update(newNetwork api.NetworkPut, targetNode string, clientType
 	}
 
 	// Apply changes to all nodes and database.
-	err = n.common.update(newNetwork, targetNode, clientType)
+	err = n.update(newNetwork, targetNode, clientType)
 	if err != nil {
 		return err
 	}
@@ -3278,11 +3277,11 @@ func (n *bridge) Leases(projectName string, clientType request.ClientType) ([]ap
 		if projectName == n.project {
 			// Add our own gateway IPs.
 			for _, addr := range []string{n.config["ipv4.address"], n.config["ipv6.address"]} {
-				ip, _, _ := net.ParseCIDR(addr)
-				if ip != nil {
+				ipAddress, _, _ := net.ParseCIDR(addr)
+				if ipAddress != nil {
 					leases = append(leases, api.NetworkLease{
 						Hostname: fmt.Sprintf("%s.gw", n.Name()),
-						Address:  ip.String(),
+						Address:  ipAddress.String(),
 						Type:     "gateway",
 					})
 				}

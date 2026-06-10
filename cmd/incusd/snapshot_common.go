@@ -8,8 +8,8 @@ import (
 
 	"github.com/adhocore/gronx"
 
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/shared/util"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // SnapshotScheduleAliases contains the mapping of scheduling aliases to cron syntax
@@ -70,9 +70,9 @@ func getCronSyntax(spec string, subjectID int64) string {
 
 		if strings.Count(alias, "%s") > 1 {
 			return fmt.Sprintf(alias, obfuscatedMinute, obfuscatedHour)
-		} else {
-			return fmt.Sprintf(alias, obfuscatedMinute)
 		}
+
+		return fmt.Sprintf(alias, obfuscatedMinute)
 	}
 
 	return spec
@@ -83,9 +83,9 @@ func getObfuscatedTimeValuesForSubject(subjectID int64) (string, string) {
 	hourResult := "0"
 
 	minSequence, minSequenceErr := localUtil.GenerateSequenceInt64(0, 60, 1)
-	min, minErr := localUtil.GetStableRandomInt64FromList(subjectID, minSequence)
+	minValue, minErr := localUtil.GetStableRandomInt64FromList(subjectID, minSequence)
 	if minErr == nil && minSequenceErr == nil {
-		minuteResult = strconv.FormatInt(min, 10)
+		minuteResult = strconv.FormatInt(minValue, 10)
 	}
 
 	hourSequence, hourSequenceErr := localUtil.GenerateSequenceInt64(0, 24, 1)

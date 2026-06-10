@@ -9,13 +9,13 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/internal/recover"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/internal/recover"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 type cmdAdminRecover struct {
@@ -39,7 +39,7 @@ func (c *cmdAdminRecover) command() *cobra.Command {
 }
 
 func (c *cmdAdminRecover) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdAdminRecoverUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdAdminRecoverUsage, cmd, args)
 	if err != nil {
 		return err
 	}

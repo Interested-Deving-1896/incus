@@ -45,7 +45,7 @@ func portRangeStr(portRange [2]uint64, delimiter string) string {
 // getOptimisedDNATRanges returns a map of listen port ranges to target port ranges that can be
 // applied in any order.
 //
-// Both Xtables and Nftables are able to apply rules for multiple listen ports at a time when a
+// Nftables is able to apply rules for multiple listen ports at a time when a
 // listen port range exactly matches the corresponding target port range (e.g. "80-85" to "80-85")
 // or when there is a single target port (e.g. "80-85" to "80"). This function checks when these
 // conditions are met and returns a map of listen and target port ranges to be applied by the loaded
@@ -110,25 +110,6 @@ func getOptimisedDNATRanges(forward *AddressForward) map[[2]uint64][2]uint64 {
 	}
 
 	return snatRules
-}
-
-// subnetMask returns the subnet mask of the given network as a string. Both IPv4 and IPv6 are handled.
-func subnetMask(ipNet *net.IPNet) string {
-	if ipNet.IP.To4() != nil {
-		return fmt.Sprintf("%d.%d.%d.%d", ipNet.Mask[0], ipNet.Mask[1], ipNet.Mask[2], ipNet.Mask[3])
-	}
-
-	var hexMask []rune
-	for i, r := range ipNet.Mask.String() {
-		if i%4 == 0 && i != 0 {
-			hexMask = append(hexMask, ':')
-		}
-
-		hexMask = append(hexMask, r)
-	}
-
-	// Shorten into canonical form.
-	return net.ParseIP(string(hexMask)).String()
 }
 
 // subnetPrefixHex returns the hex string which prefixes a subnet (e.g. the hex prefix of "fd25:c7e3:5dec:e4dd:ef14::1/64"

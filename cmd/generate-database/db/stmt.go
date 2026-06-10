@@ -12,8 +12,8 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"github.com/lxc/incus/v6/cmd/generate-database/file"
-	"github.com/lxc/incus/v6/cmd/generate-database/lex"
+	"github.com/lxc/incus/v7/cmd/generate-database/file"
+	"github.com/lxc/incus/v7/cmd/generate-database/lex"
 )
 
 // Stmt generates a particular database query statement.
@@ -62,7 +62,7 @@ func NewStmt(localPath string, parsedPkgs []*packages.Package, entity, kind stri
 
 // Generate plumbing and wiring code for the desired statement.
 func (s *Stmt) Generate(buf *file.Buffer) error {
-	kind := strings.Split(s.kind, "-by-")[0]
+	kind, _, _ := strings.Cut(s.kind, "-by-")
 
 	switch kind {
 	case "objects":

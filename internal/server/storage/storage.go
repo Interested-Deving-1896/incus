@@ -7,15 +7,15 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/state"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/state"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // InstancePath returns the directory of an instance or snapshot.
@@ -150,7 +150,8 @@ func UsedBy(ctx context.Context, s *state.State, pool Pool, firstOnly bool, memb
 			}
 
 			// Generate URL for volume based on types that map to other entities.
-			if vol.Type == db.StoragePoolVolumeTypeNameContainer || vol.Type == db.StoragePoolVolumeTypeNameVM {
+			switch vol.Type {
+			case db.StoragePoolVolumeTypeNameContainer, db.StoragePoolVolumeTypeNameVM:
 				volName, snapName, isSnap := api.GetParentAndSnapshotName(vol.Name)
 				if isSnap {
 					u = api.NewURL().Path(version.APIVersion, "instances", volName, "snapshots", snapName).Project(vol.Project)
@@ -159,7 +160,8 @@ func UsedBy(ctx context.Context, s *state.State, pool Pool, firstOnly bool, memb
 				}
 
 				usedBy = append(usedBy, u.String())
-			} else if vol.Type == db.StoragePoolVolumeTypeNameImage {
+
+			case db.StoragePoolVolumeTypeNameImage:
 				imgProjectNames, err := tx.GetProjectsUsingImage(ctx, vol.Name)
 				if err != nil {
 					return fmt.Errorf("Failed loading projects using image %q: %w", vol.Name, err)
@@ -175,7 +177,8 @@ func UsedBy(ctx context.Context, s *state.State, pool Pool, firstOnly bool, memb
 					u = vol.URL(version.APIVersion, pool.Name())
 					usedBy = append(usedBy, u.String())
 				}
-			} else {
+
+			default:
 				u = vol.URL(version.APIVersion, pool.Name())
 				usedBy = append(usedBy, u.String())
 			}

@@ -11,11 +11,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/config"
-	"github.com/lxc/incus/v6/internal/server/db"
-	scriptletLoad "github.com/lxc/incus/v6/internal/server/scriptlet/load"
-	"github.com/lxc/incus/v6/shared/validate"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/config"
+	"github.com/lxc/incus/v7/internal/server/db"
+	scriptletLoad "github.com/lxc/incus/v7/internal/server/scriptlet/load"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // Config holds cluster-wide configuration values.
@@ -173,6 +173,11 @@ func (c *Config) LinstorSSL() (string, string, string) {
 	return c.m.GetString("storage.linstor.ca_cert"), c.m.GetString("storage.linstor.client_cert"), c.m.GetString("storage.linstor.client_key")
 }
 
+// ShutdownAction returns the action to perform when the server is being shut down.
+func (c *Config) ShutdownAction() string {
+	return c.m.GetString("core.shutdown_action")
+}
+
 // ShutdownTimeout returns the number of minutes to wait for running operation to complete
 // before the server shuts down.
 func (c *Config) ShutdownTimeout() time.Duration {
@@ -223,6 +228,13 @@ func (c *Config) AuthorizationScriptlet() string {
 // InstancesLXCFSPerInstance returns whether LXCFS should be run on a per-instance basis.
 func (c *Config) InstancesLXCFSPerInstance() bool {
 	return c.m.GetBool("instances.lxcfs.per_instance")
+}
+
+// InstancesTPMPlatformCert returns the platform CA certificate and matching
+// private key (both PEM-encoded) used to provision the EK and platform
+// certificate of newly created TPM devices.
+func (c *Config) InstancesTPMPlatformCert() (string, string) {
+	return c.m.GetString("instances.tpm.platform_cert"), c.m.GetString("instances.tpm.platform_key")
 }
 
 // LokiServer returns all the Loki settings needed to connect to a server.
@@ -741,6 +753,16 @@ var ConfigSchema = config.Schema{
 	//  shortdesc: Time after which a remote add token expires
 	"core.remote_token_expiry": {Type: config.String, Validator: validate.Optional(expiryValidator)},
 
+	// gendoc:generate(entity=server, group=core, key=core.shutdown_action)
+	// Specify the action to take when the daemon is being shut down.
+	// Supported values are `shutdown` (stop all instances) and `evacuate` (attempt to evacuate the clustered server).
+	// ---
+	//  type: string
+	//  scope: global
+	//  defaultdesc: `shutdown`
+	//  shortdesc: Action to perform on server shutdown
+	"core.shutdown_action": {Type: config.String, Default: "shutdown", Validator: validate.IsOneOf("shutdown", "evacuate")},
+
 	// gendoc:generate(entity=server, group=core, key=core.shutdown_timeout)
 	// Specify the number of minutes to wait for running operations to complete before the daemon shuts down.
 	// ---
@@ -840,6 +862,26 @@ var ConfigSchema = config.Schema{
 	//  scope: global
 	//  shortdesc: Instance placement scriptlet for automatic instance placement
 	"instances.placement.scriptlet": {Validator: validate.Optional(scriptletLoad.InstancePlacementValidate)},
+
+	// gendoc:generate(entity=server, group=miscellaneous, key=instances.tpm.platform_cert)
+	// PEM encoded platform CA certificate used to sign the Endorsement
+	// Key and platform certificate of newly created TPM devices.
+	// Must be set together with `instances.tpm.platform_key`.
+	// ---
+	//  type: string
+	//  scope: global
+	//  shortdesc: Platform CA certificate used to provision TPM Endorsement Keys
+	"instances.tpm.platform_cert": {},
+
+	// gendoc:generate(entity=server, group=miscellaneous, key=instances.tpm.platform_key)
+	// PEM encoded private key matching `instances.tpm.platform_cert`.
+	// Used to sign the Endorsement Key and platform certificate of newly
+	// created TPM devices.
+	// ---
+	//  type: string
+	//  scope: global
+	//  shortdesc: Private key for the TPM platform CA certificate
+	"instances.tpm.platform_key": {},
 
 	// gendoc:generate(entity=server, group=loki, key=loki.auth.username)
 	//

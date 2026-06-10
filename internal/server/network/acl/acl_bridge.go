@@ -3,16 +3,23 @@ package acl
 import (
 	"fmt"
 
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 // BridgeUpdateACLs forces the update of all NIC devices who have the changed ACL applied.
 func BridgeUpdateACLs(s *state.State, l logger.Logger, aclProjectName string, aclNetDevices map[string]NetworkACLUsage) error {
 	// Update of the bridge NICs affected by the ACL change
 	for _, aclNetDevice := range aclNetDevices {
-		inst, err := instance.LoadByProjectAndName(s, aclProjectName, aclNetDevice.InstanceName)
+		// Handle instances in a different project than their ACL.
+		instProject := aclNetDevice.InstanceProject
+		if instProject == "" {
+			instProject = aclProjectName
+		}
+
+		// Load the instance.
+		inst, err := instance.LoadByProjectAndName(s, instProject, aclNetDevice.InstanceName)
 		if err != nil {
 			return err
 		}

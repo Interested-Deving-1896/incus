@@ -15,14 +15,14 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
 )
 
 type cmdSnapshot struct {
@@ -87,17 +87,18 @@ func (c *cmdSnapshotCreate) command() *cobra.Command {
 		`Create instance snapshots
 
 When --stateful is used, attempt to checkpoint the instance's
-running state, including process memory state, TCP connections, ...`))
+running state, including process memory state, TCP connections, ...`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(`incus snapshot create u1 snap0
 	Create a snapshot of "u1" called "snap0".
 
 incus snapshot create u1 snap0 < config.yaml
 	Create a snapshot of "u1" called "snap0" with the configuration from "config.yaml".`))
 
-	cmd.Flags().BoolVar(&c.flagStateful, "stateful", false, i18n.G("Whether or not to snapshot the instance's running state"))
-	cmd.Flags().StringVar(&c.flagExpiry, "expiry", "", i18n.G("Expiry date or time span for the new snapshot"))
-	cmd.Flags().BoolVar(&c.flagNoExpiry, "no-expiry", false, i18n.G("Ignore any configured auto-expiry for the instance"))
-	cmd.Flags().BoolVar(&c.flagReuse, "reuse", false, i18n.G("If the snapshot name already exists, delete and create a new one"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagStateful, "stateful", i18n.G("Whether or not to snapshot the instance's running state"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagExpiry, "expiry", "", "", i18n.G("Expiry for the new snapshot (either a time span like `1d 3H` or a date in `2006/01/02 15:04 MST` format)"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagNoExpiry, "no-expiry", i18n.G("Ignore any configured auto-expiry for the instance"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagReuse, "reuse", i18n.G("If the snapshot name already exists, delete and create a new one"))
 
 	cmd.RunE = c.run
 
@@ -113,7 +114,7 @@ incus snapshot create u1 snap0 < config.yaml
 }
 
 func (c *cmdSnapshotCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdSnapshotCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdSnapshotCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -229,7 +230,7 @@ func (c *cmdSnapshotDelete) command() *cobra.Command {
 	cmd.Short = i18n.G("Delete instance snapshots")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Delete instance snapshots`))
 
-	cmd.Flags().BoolVarP(&c.flagInteractive, "interactive", "i", false, i18n.G("Require user confirmation"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagInteractive, "interactive|i", i18n.G("Require user confirmation"))
 
 	cmd.RunE = c.run
 
@@ -245,7 +246,7 @@ func (c *cmdSnapshotDelete) command() *cobra.Command {
 }
 
 func (c *cmdSnapshotDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdSnapshotDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdSnapshotDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -324,7 +325,7 @@ Default column layout: nTEs
 
 == Columns ==
 The -c option takes a comma separated list of arguments that control
-which network zone attributes to output when displaying in table or csv
+which snapshots attributes to output when displaying in table or csv
 format.
 
 Column arguments are either pre-defined shorthand chars (see below),
@@ -336,10 +337,11 @@ Pre-defined column shorthand chars:
   n - Name
   T - Taken At
   E - Expires At
-  s - Stateful`))
+  s - Stateful`,
+	))
 
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultSnapshotColumns, i18n.G("Columns")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultSnapshotColumns, "", i18n.G("Columns"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -419,7 +421,7 @@ func (c *cmdSnapshotList) statefulColumnData(snapshot api.InstanceSnapshot) stri
 }
 
 func (c *cmdSnapshotList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdSnapshotListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdSnapshotListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -488,7 +490,7 @@ func (c *cmdSnapshotRename) command() *cobra.Command {
 }
 
 func (c *cmdSnapshotRename) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdSnapshotRenameUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdSnapshotRenameUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -526,13 +528,15 @@ func (c *cmdSnapshotRestore) command() *cobra.Command {
 		`Restore instance from snapshots
 
 If --stateful is passed, then the running state will be restored too.
-If --diskonly is passed, then only the disk will be restored.`))
+If --diskonly is passed, then only the disk will be restored.`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus snapshot restore u1 snap0
-    Restore instance u1 to snapshot snap0`))
+    Restore instance u1 to snapshot snap0`,
+	))
 
-	cmd.Flags().BoolVar(&c.flagStateful, "stateful", false, i18n.G("Whether or not to restore the instance's running state from snapshot (if available)"))
-	cmd.Flags().BoolVar(&c.flagDiskOnly, "diskonly", false, i18n.G("Whether or not to restore the instance's disk only"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagStateful, "stateful", i18n.G("Whether or not to restore the instance's running state from snapshot (if available)"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagDiskOnly, "diskonly", i18n.G("Whether or not to restore the instance's disk only"))
 
 	cmd.RunE = c.run
 
@@ -552,7 +556,7 @@ If --diskonly is passed, then only the disk will be restored.`))
 }
 
 func (c *cmdSnapshotRestore) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdSnapshotRestoreUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdSnapshotRestoreUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -589,7 +593,8 @@ func (c *cmdSnapshotShow) command() *cobra.Command {
 	cmd.Use = cli.U("show", cmdSnapshotShowUsage...)
 	cmd.Short = i18n.G("Show instance snapshot configuration")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Show instance snapshot configuration`))
+		`Show instance snapshot configuration`,
+	))
 
 	cmd.RunE = c.run
 
@@ -609,7 +614,7 @@ func (c *cmdSnapshotShow) command() *cobra.Command {
 }
 
 func (c *cmdSnapshotShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdSnapshotShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdSnapshotShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}

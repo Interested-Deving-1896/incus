@@ -5,11 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,35 +17,37 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
-	"github.com/gorilla/mux"
 	"golang.org/x/sys/unix"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/jmap"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/query"
-	"github.com/lxc/incus/v6/internal/server/db/warningtype"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	storageDrivers "github.com/lxc/incus/v6/internal/server/storage/drivers"
-	internalSQL "github.com/lxc/incus/v6/internal/sql"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/jmap"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/query"
+	"github.com/lxc/incus/v7/internal/server/db/warningtype"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/instance/operationlock"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
+	internalSQL "github.com/lxc/incus/v7/internal/sql"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/revert"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var apiInternal = []APIEndpoint{
@@ -65,6 +67,7 @@ var apiInternal = []APIEndpoint{
 	internalRAFTSnapshotCmd,
 	internalRebalanceLoadCmd,
 	internalReadyCmd,
+	internalServerCertificateCmd,
 	internalShutdownCmd,
 	internalSQLCmd,
 	internalWarningCreateCmd,
@@ -75,6 +78,12 @@ var internalReadyCmd = APIEndpoint{
 	Path: "ready",
 
 	Get: APIEndpointAction{Handler: internalWaitReady, AccessHandler: allowPermission(auth.ObjectTypeServer, auth.EntitlementCanEdit)},
+}
+
+var internalServerCertificateCmd = APIEndpoint{
+	Path: "server-certificate",
+
+	Put: APIEndpointAction{Handler: internalServerCertificatePut, AccessHandler: allowPermission(auth.ObjectTypeServer, auth.EntitlementCanEdit)},
 }
 
 var internalShutdownCmd = APIEndpoint{
@@ -318,11 +327,11 @@ func internalShutdown(d *Daemon, r *http.Request) response.Response {
 
 		// Send the response before the daemon process ends.
 		f, ok := w.(http.Flusher)
-		if ok {
-			f.Flush()
-		} else {
+		if !ok {
 			return errors.New("http.ResponseWriter is not type http.Flusher")
 		}
+
+		f.Flush()
 
 		// Send result of d.Stop() to cmdDaemon so that process stops with correct exit code from Stop().
 		go func() {
@@ -334,11 +343,64 @@ func internalShutdown(d *Daemon, r *http.Request) response.Response {
 	})
 }
 
+type internalServerCertificatePutRequest struct {
+	Certificate string `json:"certificate" yaml:"certificate"`
+	Key         string `json:"key"         yaml:"key"`
+}
+
+// serverCertificateUpdateMu prevents concurrent certificate updates.
+var serverCertificateUpdateMu sync.Mutex
+
+func internalServerCertificatePut(d *Daemon, r *http.Request) response.Response {
+	s := d.State()
+
+	if s.ServerClustered {
+		return response.BadRequest(errors.New("Server certificate updates aren't supported in clusters"))
+	}
+
+	req := internalServerCertificatePutRequest{}
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return response.BadRequest(err)
+	}
+
+	certBytes := []byte(req.Certificate)
+	keyBytes := []byte(req.Key)
+
+	certBlock, _ := pem.Decode(certBytes)
+	if certBlock == nil {
+		return response.BadRequest(errors.New("Certificate must be a PEM encoded certificate"))
+	}
+
+	keyBlock, _ := pem.Decode(keyBytes)
+	if keyBlock == nil {
+		return response.BadRequest(errors.New("Private key must be a PEM encoded key"))
+	}
+
+	cert, err := localtls.KeyPairFromRaw(certBytes, keyBytes)
+	if err != nil {
+		return response.BadRequest(fmt.Errorf("Invalid certificate or key: %w", err))
+	}
+
+	serverCertificateUpdateMu.Lock()
+	defer serverCertificateUpdateMu.Unlock()
+
+	err = internalUtil.WriteCert(s.OS.VarDir, "server", certBytes, keyBytes, nil)
+	if err != nil {
+		return response.SmartError(fmt.Errorf("Failed to write new server certificate: %w", err))
+	}
+
+	s.Endpoints.NetworkUpdateCert(cert)
+
+	return response.EmptySyncResponse
+}
+
 // internalContainerHookLoadFromRequestReference loads the container from the instance reference in the request.
 // It detects whether the instance reference is an instance ID or instance name and loads instance accordingly.
 func internalContainerHookLoadFromReference(s *state.State, r *http.Request) (instance.Instance, error) {
 	var inst instance.Instance
-	instanceRef, err := url.PathUnescape(mux.Vars(r)["instanceRef"])
+	instanceRef, err := pathVar(r, "instanceRef")
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +526,7 @@ func internalVirtualMachineOnResize(d *Daemon, r *http.Request) response.Respons
 	s := d.State()
 
 	// Get the instance ID.
-	instanceID, err := strconv.Atoi(mux.Vars(r)["instanceRef"])
+	instanceID, err := strconv.Atoi(r.PathValue("instanceRef"))
 	if err != nil {
 		return response.BadRequest(err)
 	}
@@ -528,14 +590,14 @@ func internalSQLGet(d *Daemon, r *http.Request) response.Response {
 
 	dumpOption := query.DumpOptions(dumpInt)
 
-	var db *sql.DB
+	var dbConn *sql.DB
 	if database == "global" {
-		db = s.DB.Cluster.DB()
+		dbConn = s.DB.Cluster.DB()
 	} else {
-		db = s.DB.Node.DB()
+		dbConn = s.DB.Node.DB()
 	}
 
-	tx, err := db.BeginTx(r.Context(), nil)
+	tx, err := dbConn.BeginTx(r.Context(), nil)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to start transaction: %w", err))
 	}
@@ -569,11 +631,11 @@ func internalSQLPost(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(errors.New("No query provided"))
 	}
 
-	var db *sql.DB
+	var dbConn *sql.DB
 	if req.Database == "global" {
-		db = s.DB.Cluster.DB()
+		dbConn = s.DB.Cluster.DB()
 	} else {
-		db = s.DB.Node.DB()
+		dbConn = s.DB.Node.DB()
 	}
 
 	batch := internalSQL.SQLBatch{}
@@ -583,25 +645,25 @@ func internalSQLPost(d *Daemon, r *http.Request) response.Response {
 		return response.SyncResponse(true, batch)
 	}
 
-	for _, query := range strings.Split(req.Query, ";") {
-		query = strings.TrimLeft(query, " ")
+	for _, statement := range strings.Split(req.Query, ";") {
+		statement = strings.TrimLeft(statement, " ")
 
-		if query == "" {
+		if statement == "" {
 			continue
 		}
 
 		result := internalSQL.SQLResult{}
 
-		tx, err := db.Begin()
+		tx, err := dbConn.Begin()
 		if err != nil {
 			return response.SmartError(err)
 		}
 
-		if strings.HasPrefix(strings.ToUpper(query), "SELECT") {
-			err = internalSQLSelect(tx, query, &result)
+		if strings.HasPrefix(strings.ToUpper(statement), "SELECT") {
+			err = internalSQLSelect(tx, statement, &result)
 			_ = tx.Rollback()
 		} else {
-			err = internalSQLExec(tx, query, &result)
+			err = internalSQLExec(tx, statement, &result)
 			if err != nil {
 				_ = tx.Rollback()
 			} else {
@@ -618,15 +680,15 @@ func internalSQLPost(d *Daemon, r *http.Request) response.Response {
 	return response.SyncResponse(true, batch)
 }
 
-func internalSQLSelect(tx *sql.Tx, query string, result *internalSQL.SQLResult) error {
+func internalSQLSelect(tx *sql.Tx, statement string, result *internalSQL.SQLResult) error {
 	result.Type = "select"
 
-	rows, err := tx.Query(query)
+	rows, err := tx.Query(statement)
 	if err != nil {
 		return fmt.Errorf("Failed to execute query: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	result.Columns, err = rows.Columns()
 	if err != nil {
@@ -665,9 +727,9 @@ func internalSQLSelect(tx *sql.Tx, query string, result *internalSQL.SQLResult) 
 	return nil
 }
 
-func internalSQLExec(tx *sql.Tx, query string, result *internalSQL.SQLResult) error {
+func internalSQLExec(tx *sql.Tx, statement string, result *internalSQL.SQLResult) error {
 	result.Type = "exec"
-	r, err := tx.Exec(query)
+	r, err := tx.Exec(statement)
 	if err != nil {
 		return fmt.Errorf("Failed to exec query: %w", err)
 	}
@@ -753,6 +815,10 @@ func internalImportFromBackup(ctx context.Context, s *state.State, projectName s
 	backupConf, err := backup.ParseConfigYamlFile(backupYamlPath)
 	if err != nil {
 		return err
+	}
+
+	if backupConf.Container == nil {
+		return errors.New("No instance configuration found in backup file.")
 	}
 
 	if allowNameOverride {
@@ -905,15 +971,19 @@ func internalImportFromBackup(ctx context.Context, s *state.State, projectName s
 	defer instOp.Done(err)
 
 	instancePath := storagePools.InstancePath(instanceType, projectName, backupConf.Container.Name, false)
-	isPrivileged := false
-	if backupConf.Container.Config["security.privileged"] == "" {
-		isPrivileged = true
-	}
+	isPrivileged := backupConf.Container.Config["security.privileged"] == ""
 
 	err = storagePools.CreateContainerMountpoint(instanceMountPoint, instancePath, isPrivileged)
 	if err != nil {
 		return err
 	}
+
+	var snapInstOps []*operationlock.InstanceOperation
+	defer func() {
+		for _, snapInstOp := range snapInstOps {
+			snapInstOp.Done(nil)
+		}
+	}()
 
 	for _, snap := range existingSnapshots {
 		snapInstName := fmt.Sprintf("%s%s%s", backupConf.Container.Name, internalInstance.SnapshotDelimiter, snap.Name)
@@ -999,7 +1069,7 @@ func internalImportFromBackup(ctx context.Context, s *state.State, projectName s
 		}
 
 		reverter.Add(cleanup)
-		defer snapInstOp.Done(err)
+		snapInstOps = append(snapInstOps, snapInstOp)
 
 		// Recreate missing mountpoints and symlinks.
 		volStorageName := project.Instance(projectName, snapInstName)

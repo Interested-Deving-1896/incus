@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 type common struct {
@@ -15,8 +15,8 @@ type common struct {
 	prefixPath string
 }
 
-func (d *common) init(logger logger.Logger, path string) {
-	d.logger = logger
+func (d *common) init(l logger.Logger, path string) {
+	d.logger = l
 	d.watches = make(map[string]map[string]func(string, string) bool)
 	d.prefixPath = path
 }

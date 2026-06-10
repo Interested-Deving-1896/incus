@@ -5,29 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/jmap"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/internal/server/task"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/jmap"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/internal/server/task"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var operationCmd = APIEndpoint{
@@ -57,12 +54,12 @@ var operationWebsocket = APIEndpoint{
 
 // waitForOperations waits for operations to finish.
 // There's a timeout for console/exec operations that when reached will shut down the instances forcefully.
-func waitForOperations(ctx context.Context, cluster *db.Cluster, consoleShutdownTimeout time.Duration) {
+func waitForOperations(ctx context.Context, clusterDB *db.Cluster, consoleShutdownTimeout time.Duration) {
 	timeout := time.After(consoleShutdownTimeout)
 
 	defer func() {
-		_ = cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
-			err := dbCluster.DeleteOperations(ctx, tx.Tx(), cluster.GetNodeID())
+		_ = clusterDB.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
+			err := dbCluster.DeleteOperations(ctx, tx.Tx(), clusterDB.GetNodeID())
 			if err != nil {
 				logger.Error("Failed cleaning up operations")
 			}
@@ -144,6 +141,12 @@ func waitForOperations(ctx context.Context, cluster *db.Cluster, consoleShutdown
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: id
+//	    description: Operation ID
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    description: Operation
@@ -172,7 +175,7 @@ func waitForOperations(ctx context.Context, cluster *db.Cluster, consoleShutdown
 func operationGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	id, err := url.PathUnescape(mux.Vars(r)["id"])
+	id, err := pathVar(r, "id")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -233,6 +236,12 @@ func operationGet(d *Daemon, r *http.Request) response.Response {
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: id
+//	    description: Operation ID
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    $ref: "#/responses/EmptySyncResponse"
@@ -245,7 +254,7 @@ func operationGet(d *Daemon, r *http.Request) response.Response {
 func operationDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	id, err := url.PathUnescape(mux.Vars(r)["id"])
+	id, err := pathVar(r, "id")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -839,6 +848,11 @@ func operationsGetByType(s *state.State, r *http.Request, projectName string, op
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: id
+//      description: Operation ID
+//      type: string
+//      required: true
 //    - in: query
 //      name: secret
 //      description: Authentication token
@@ -885,6 +899,11 @@ func operationsGetByType(s *state.State, r *http.Request, projectName string, op
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: id
+//	    description: Operation ID
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: timeout
 //	    description: Timeout in seconds (-1 means never)
@@ -918,7 +937,7 @@ func operationsGetByType(s *state.State, r *http.Request, projectName string, op
 func operationWaitGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	id, err := url.PathUnescape(mux.Vars(r)["id"])
+	id, err := pathVar(r, "id")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1064,6 +1083,11 @@ func (r *operationWebSocket) Code() int {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: id
+//      description: Operation ID
+//      type: string
+//      required: true
 //    - in: query
 //      name: secret
 //      description: Authentication token
@@ -1090,6 +1114,11 @@ func (r *operationWebSocket) Code() int {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: id
+//	    description: Operation ID
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: secret
 //	    description: Authentication token
@@ -1105,7 +1134,7 @@ func (r *operationWebSocket) Code() int {
 func operationWebsocketGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	id, err := url.PathUnescape(mux.Vars(r)["id"])
+	id, err := pathVar(r, "id")
 	if err != nil {
 		return response.SmartError(err)
 	}

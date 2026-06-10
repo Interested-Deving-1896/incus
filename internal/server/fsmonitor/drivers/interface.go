@@ -3,14 +3,14 @@ package drivers
 import (
 	"context"
 
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 // driver is the extended internal interface.
 type driver interface {
 	Driver
 
-	init(logger logger.Logger, path string)
+	init(l logger.Logger, path string)
 	load(ctx context.Context) error
 }
 

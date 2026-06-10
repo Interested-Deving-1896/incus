@@ -33,6 +33,7 @@ Storage volume
   Both commands use the same mechanism to add a storage volume as a disk device.
 
   It's possible to attach a sub-path of a custom volume to an instance using the `source=<volume_name>/<sub_path>` syntax.
+  If the sub-path doesn't exist inside the custom volume, it will be created automatically when the device is started using the `initial.XYZ` configuration keys for ownership and permissions.
 
 Path on the host
 : You can share a path on your host (either a file system or a block device) to your instance by adding it as a disk device with the host path as the `source`:
@@ -117,6 +118,17 @@ You can also set an initial configuration directly when creating an instance. Fo
     incus init <image> <instance_name> --device <device_name>,initial.zfs.block_mode=true
 
 Note that you cannot use initial volume configurations with custom volume options or to set the volume's size.
+
+(devices-disk-initial-uid-gid-mode)=
+## `initial.uid`, `initial.gid` and `initial.mode`
+
+`initial.uid`, `initial.gid` and `initial.mode` apply in three different scenarios:
+
+- On root disk devices, they are passed to the storage driver to set the ownership and mode of the instance's root volume at creation time (when supported by the driver).
+- On `tmpfs:` and `tmpfs-overlay:` disk devices, they are translated into `uid=`, `gid=` and `mode=` mount options for the underlying `tmpfs` mount.
+- On custom volume disks where the `source` includes a sub-path (for example `source=myvol/sub/path`), they are used as the ownership and mode of any sub-directory that has to be created automatically when the device is started.
+
+In all cases, `initial.uid` and `initial.gid` default to `0` and `initial.mode` defaults to `0711` (octal).
 
 ## Device options
 

@@ -1,7 +1,7 @@
 package operationtype
 
 import (
-	"github.com/lxc/incus/v6/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/auth"
 )
 
 // Type is a numeric code identifying the type of an Operation.
@@ -79,6 +79,7 @@ const (
 	BucketBackupRemove
 	BucketBackupRename
 	BucketBackupRestore
+	VolumeRebuild
 )
 
 // Description return a human-readable description of the operation type.
@@ -152,6 +153,8 @@ func (t Type) Description() string {
 		return "Migrating storage volume"
 	case VolumeMove:
 		return "Moving storage volume"
+	case VolumeRebuild:
+		return "Rebuilding storage volume"
 	case VolumeSnapshotCreate:
 		return "Creating storage volume snapshot"
 	case VolumeSnapshotDelete:
@@ -290,6 +293,8 @@ func (t Type) Permission() (auth.ObjectType, auth.Entitlement) {
 	case CustomVolumeBackupRename:
 		return auth.ObjectTypeStorageVolume, auth.EntitlementCanManageBackups
 	case CustomVolumeBackupRestore:
+		return auth.ObjectTypeStorageVolume, auth.EntitlementCanEdit
+	case VolumeRebuild:
 		return auth.ObjectTypeStorageVolume, auth.EntitlementCanEdit
 
 	case BucketBackupCreate:

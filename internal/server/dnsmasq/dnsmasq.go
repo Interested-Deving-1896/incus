@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/project"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/project"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 const staticAllocationDeviceSeparator = "."
@@ -107,17 +107,6 @@ func Kill(name string, reload bool) error {
 	return nil
 }
 
-// GetVersion returns the version of dnsmasq.
-func GetVersion() (*version.DottedVersion, error) {
-	output, err := subprocess.RunCommandCLocale("dnsmasq", "--version")
-	if err != nil {
-		return nil, fmt.Errorf("Failed to check dnsmasq version: %w", err)
-	}
-
-	lines := strings.Split(string(output), " ")
-	return version.Parse(lines[2])
-}
-
 // DHCPStaticAllocationPath returns the path to the DHCP static allocation file.
 func DHCPStaticAllocationPath(network string, deviceStaticFileName string) string {
 	return internalUtil.VarPath("networks", network, "dnsmasq.hosts", deviceStaticFileName)
@@ -134,11 +123,11 @@ func DHCPStaticAllocation(network string, deviceStaticFileName string) (net.Hard
 		return nil, IPv4, IPv6, err
 	}
 
-	defer func() { _ = file.Close() }()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		fields := strings.SplitN(scanner.Text(), ",", -1)
+		fields := strings.Split(scanner.Text(), ",")
 		for _, field := range fields {
 			// Check if field is IPv4 or IPv6 address.
 			if strings.Count(field, ".") == 3 {
@@ -220,7 +209,7 @@ func DHCPAllAllocations(network string) (map[[4]byte]DHCPAllocation, map[[16]byt
 		return nil, nil, err
 	}
 
-	defer func() { _ = file.Close() }()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

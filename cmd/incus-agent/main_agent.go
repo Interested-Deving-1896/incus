@@ -13,10 +13,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var (
@@ -219,10 +219,7 @@ func (c *cmdAgent) startStatusNotifier(ctx context.Context, chConnected <-chan s
 		wg.Wait() // Wait for the go routine to actually finish.
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done() // Signal to cancel function that we are done.
-
+	wg.Go(func() {
 		ticker := time.NewTicker(time.Duration(time.Second) * 5)
 		defer ticker.Stop()
 
@@ -237,7 +234,7 @@ func (c *cmdAgent) startStatusNotifier(ctx context.Context, chConnected <-chan s
 				return
 			}
 		}
-	}()
+	})
 
 	return cancel
 }
@@ -250,7 +247,7 @@ func (c *cmdAgent) writeStatus(status string) error {
 			return err
 		}
 
-		defer vSerial.Close()
+		defer logger.WarnOnError(vSerial.Close, "Failed to close vserial device")
 
 		_, err = vSerial.Write(fmt.Appendf(nil, "%s\n", status))
 		if err != nil {

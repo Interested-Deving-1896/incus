@@ -7,21 +7,19 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	clusterRequest "github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/network"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
+	"github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	clusterRequest "github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/network"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 var networkForwardsCmd = APIEndpoint{
@@ -52,6 +50,11 @@ var networkForwardCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: networkName
+//      description: Network name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -106,6 +109,11 @@ var networkForwardCmd = APIEndpoint{
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: networkName
+//      description: Network name
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -153,7 +161,7 @@ func networkForwardsGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -215,7 +223,6 @@ func networkForwardsGet(d *Daemon, r *http.Request) response.Response {
 		}
 
 		for _, record := range records {
-
 			if clauses != nil && len(clauses.Clauses) > 0 {
 				match, err := filter.Match(*record, *clauses)
 				if err != nil {
@@ -277,6 +284,11 @@ func networkForwardsGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -319,7 +331,7 @@ func networkForwardsPost(d *Daemon, r *http.Request) response.Response {
 
 	req.Normalise() // So we handle the request in normalised/canonical form.
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -361,6 +373,16 @@ func networkForwardsPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: listenAddress
+//	    description: Listen address
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -388,7 +410,7 @@ func networkForwardDelete(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -407,7 +429,7 @@ func networkForwardDelete(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Network driver %q does not support forwards", n.Type()))
 	}
 
-	listenAddress, err := url.PathUnescape(mux.Vars(r)["listenAddress"])
+	listenAddress, err := pathVar(r, "listenAddress")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -434,6 +456,16 @@ func networkForwardDelete(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: listenAddress
+//	    description: Listen address
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -477,7 +509,7 @@ func networkForwardGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -496,7 +528,7 @@ func networkForwardGet(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Network driver %q does not support forwards", n.Type()))
 	}
 
-	listenAddress, err := url.PathUnescape(mux.Vars(r)["listenAddress"])
+	listenAddress, err := pathVar(r, "listenAddress")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -560,6 +592,16 @@ func networkForwardGet(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: networkName
+//      description: Network name
+//      type: string
+//      required: true
+//    - in: path
+//      name: listenAddress
+//      description: Listen address
+//      type: string
+//      required: true
 //    - in: query
 //      name: project
 //      description: Project name
@@ -595,6 +637,16 @@ func networkForwardGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: networkName
+//	    description: Network name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: listenAddress
+//	    description: Listen address
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: project
 //	    description: Project name
@@ -630,7 +682,7 @@ func networkForwardPut(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	networkName, err := url.PathUnescape(mux.Vars(r)["networkName"])
+	networkName, err := pathVar(r, "networkName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -649,7 +701,7 @@ func networkForwardPut(d *Daemon, r *http.Request) response.Response {
 		return response.BadRequest(fmt.Errorf("Network driver %q does not support forwards", n.Type()))
 	}
 
-	listenAddress, err := url.PathUnescape(mux.Vars(r)["listenAddress"])
+	listenAddress, err := pathVar(r, "listenAddress")
 	if err != nil {
 		return response.SmartError(err)
 	}

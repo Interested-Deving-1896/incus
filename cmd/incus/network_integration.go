@@ -12,12 +12,12 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
 )
 
 type cmdNetworkIntegration struct {
@@ -88,11 +88,12 @@ func (c *cmdNetworkIntegrationCreate) command() *cobra.Command {
 	cmd.Short = i18n.G("Create network integrations")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Create network integrations`))
 	cmd.Example = cli.FormatSection("", i18n.G(`incus network integration create o1 ovn
+   Create network integration o1 of type ovn
 
 incus network integration create o1 ovn < config.yaml
     Create network integration o1 of type ovn with configuration from config.yaml`))
 
-	cmd.Flags().StringArrayVarP(&c.flagConfig, "config", "c", nil, i18n.G("Config key/value to apply to the new network integration")+"``")
+	cli.AddStringArrayFlag(cmd.Flags(), &c.flagConfig, "config|c", i18n.G("Config key/value to apply to the new network integration"))
 
 	cmd.RunE = c.run
 
@@ -100,7 +101,7 @@ incus network integration create o1 ovn < config.yaml
 }
 
 func (c *cmdNetworkIntegrationCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -177,7 +178,7 @@ func (c *cmdNetworkIntegrationDelete) command() *cobra.Command {
 }
 
 func (c *cmdNetworkIntegrationDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -220,10 +221,12 @@ func (c *cmdNetworkIntegrationEdit) command() *cobra.Command {
 	cmd.Use = cli.U("edit", cmdNetworkIntegrationEditUsage...)
 	cmd.Short = i18n.G("Edit network integration configurations as YAML")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Edit network integration configurations as YAML`))
+		`Edit network integration configurations as YAML`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus network integration edit <network integration> < network-integration.yaml
-    Update a network integration using the content of network-integration.yaml`))
+    Update a network integration using the content of network-integration.yaml`,
+	))
 
 	cmd.RunE = c.run
 
@@ -235,11 +238,12 @@ func (c *cmdNetworkIntegrationEdit) helpTemplate() string {
 		`### This is a YAML representation of the network integration.
 ### Any line starting with a '# will be ignored.
 ###
-### Note that the name is shown but cannot be changed`)
+### Note that the name is shown but cannot be changed`,
+	)
 }
 
 func (c *cmdNetworkIntegrationEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -332,15 +336,16 @@ func (c *cmdNetworkIntegrationGet) command() *cobra.Command {
 	cmd.Use = cli.U("get", cmdNetworkIntegrationGetUsage...)
 	cmd.Short = i18n.G("Get values for network integration configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Get values for network integration configuration keys`))
+		`Get values for network integration configuration keys`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Get the key as a network integration property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Get the key as a network integration property"))
 	return cmd
 }
 
 func (c *cmdNetworkIntegrationGet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationGetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationGetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -393,7 +398,7 @@ Default column layout: ndtu
 
 == Columns ==
 The -c option takes a comma separated list of arguments that control
-which network zone attributes to output when displaying in table or csv
+which network integrations attributes to output when displaying in table or csv
 format.
 
 Column arguments are either pre-defined shorthand chars (see below),
@@ -405,10 +410,11 @@ Pre-defined column shorthand chars:
 	n - Name
 	d - Description
 	t - Type
-	u - Used by`))
+	u - Used by`,
+	))
 
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultNetworkIntegrationColumns, i18n.G("Columns")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultNetworkIntegrationColumns, "", i18n.G("Columns"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -467,7 +473,7 @@ func (c *cmdNetworkIntegrationList) usedByColumnData(integration api.NetworkInte
 }
 
 func (c *cmdNetworkIntegrationList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -527,7 +533,7 @@ func (c *cmdNetworkIntegrationRename) command() *cobra.Command {
 }
 
 func (c *cmdNetworkIntegrationRename) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationRenameUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationRenameUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -567,10 +573,11 @@ func (c *cmdNetworkIntegrationSet) command() *cobra.Command {
 		`Set network integration configuration keys
 
 For backward compatibility, a single configuration key may still be set with:
-    incus network integration set [<remote>:]<network integration> <key> <value>`))
+    incus network integration set [<remote>:]<network integration> <key> <value>`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Set the key as a network integration property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Set the key as a network integration property"))
 	return cmd
 }
 
@@ -612,7 +619,7 @@ func (c *cmdNetworkIntegrationSet) set(cmd *cobra.Command, parsed []*u.Parsed) e
 }
 
 func (c *cmdNetworkIntegrationSet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationSetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationSetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -629,22 +636,23 @@ type cmdNetworkIntegrationUnset struct {
 	flagIsProperty bool
 }
 
-var cmdNetworkIntegrationUnsetUsage = u.Usage{u.NetworkIntegration.Remote(), u.Key}
+var cmdNetworkIntegrationUnsetUsage = u.Usage{u.NetworkIntegration.Remote(), u.Key.List(1)}
 
 func (c *cmdNetworkIntegrationUnset) command() *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.Use = cli.U("unset", cmdNetworkIntegrationUnsetUsage...)
 	cmd.Short = i18n.G("Unset network integration configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Unset network integration configuration keys`))
+		`Unset network integration configuration keys`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Unset the key as a network integration property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Unset the keys as network integration properties"))
 	return cmd
 }
 
 func (c *cmdNetworkIntegrationUnset) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationUnsetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationUnsetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -673,7 +681,7 @@ func (c *cmdNetworkIntegrationShow) command() *cobra.Command {
 }
 
 func (c *cmdNetworkIntegrationShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkIntegrationShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkIntegrationShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}

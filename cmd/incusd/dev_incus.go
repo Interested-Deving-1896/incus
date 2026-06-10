@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -14,24 +13,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/events"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/internal/server/ucred"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	apiGuest "github.com/lxc/incus/v6/shared/api/guest"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/ws"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/events"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/internal/server/ucred"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	apiGuest "github.com/lxc/incus/v7/shared/api/guest"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/ws"
 )
 
 type hoistFunc func(f func(*Daemon, instance.Instance, http.ResponseWriter, *http.Request) response.Response, d *Daemon) func(http.ResponseWriter, *http.Request)
@@ -81,7 +79,7 @@ var devIncusConfigKeyGet = devIncusHandler{"/1.0/config/{key}", func(d *Daemon, 
 		return response.DevIncusErrorResponse(api.StatusErrorf(http.StatusForbidden, "not authorized"), c.Type() == instancetype.VM)
 	}
 
-	key, err := url.PathUnescape(mux.Vars(r)["key"])
+	key, err := pathVar(r, "key")
 	if err != nil {
 		return response.DevIncusErrorResponse(api.StatusErrorf(http.StatusBadRequest, "bad request"), c.Type() == instancetype.VM)
 	}
@@ -150,7 +148,7 @@ var devIncusEventsGet = devIncusHandler{"/1.0/events", func(d *Daemon, c instanc
 			return response.DevIncusErrorResponse(api.StatusErrorf(http.StatusInternalServerError, "internal server error"), c.Type() == instancetype.VM)
 		}
 
-		defer func() { _ = conn.Close() }() // Ensure listener below ends when this function ends.
+		defer logger.WarnOnError(conn.Close, "Failed to close connection") // Ensure listener below ends when this function ends.
 
 		listenerConnection = events.NewWebsocketListenerConnection(conn)
 
@@ -166,7 +164,7 @@ var devIncusEventsGet = devIncusHandler{"/1.0/events", func(d *Daemon, c instanc
 			return response.DevIncusErrorResponse(api.StatusErrorf(http.StatusInternalServerError, "internal server error"), c.Type() == instancetype.VM)
 		}
 
-		defer func() { _ = conn.Close() }() // Ensure listener below ends when this function ends.
+		defer logger.WarnOnError(conn.Close, "Failed to close connection") // Ensure listener below ends when this function ends.
 
 		listenerConnection, err = events.NewStreamListenerConnection(conn)
 		if err != nil {
@@ -190,7 +188,8 @@ var devIncusEventsGet = devIncusHandler{"/1.0/events", func(d *Daemon, c instanc
 var devIncusAPIHandler = devIncusHandler{"/1.0", func(d *Daemon, c instance.Instance, w http.ResponseWriter, r *http.Request) response.Response {
 	s := d.State()
 
-	if r.Method == "GET" {
+	switch r.Method {
+	case "GET":
 		var location string
 		if d.serverClustered {
 			location = c.Location()
@@ -203,16 +202,16 @@ var devIncusAPIHandler = devIncusHandler{"/1.0", func(d *Daemon, c instance.Inst
 			}
 		}
 
-		var state api.StatusCode
+		var statusCode api.StatusCode
 
 		if util.IsTrue(c.LocalConfig()["volatile.last_state.ready"]) {
-			state = api.Ready
+			statusCode = api.Ready
 		} else {
-			state = api.Started
+			statusCode = api.Started
 		}
 
-		return response.DevIncusResponse(http.StatusOK, apiGuest.DevIncusGet{APIVersion: version.APIVersion, Location: location, InstanceType: c.Type().String(), DevIncusPut: apiGuest.DevIncusPut{State: state.String()}}, "json", c.Type() == instancetype.VM)
-	} else if r.Method == "PATCH" {
+		return response.DevIncusResponse(http.StatusOK, apiGuest.DevIncusGet{APIVersion: version.APIVersion, Location: location, InstanceType: c.Type().String(), DevIncusPut: apiGuest.DevIncusPut{State: statusCode.String()}}, "json", c.Type() == instancetype.VM)
+	case "PATCH":
 		if util.IsFalse(c.ExpandedConfig()["security.guestapi"]) {
 			return response.DevIncusErrorResponse(api.StatusErrorf(http.StatusForbidden, "not authorized"), c.Type() == instancetype.VM)
 		}
@@ -224,18 +223,18 @@ var devIncusAPIHandler = devIncusHandler{"/1.0", func(d *Daemon, c instance.Inst
 			return response.DevIncusErrorResponse(api.StatusErrorf(http.StatusBadRequest, "%s", err.Error()), c.Type() == instancetype.VM)
 		}
 
-		state := api.StatusCodeFromString(req.State)
+		statusCode := api.StatusCodeFromString(req.State)
 
-		if state != api.Started && state != api.Ready {
+		if statusCode != api.Started && statusCode != api.Ready {
 			return response.DevIncusErrorResponse(api.StatusErrorf(http.StatusBadRequest, "Invalid state %q", req.State), c.Type() == instancetype.VM)
 		}
 
-		err = c.VolatileSet(map[string]string{"volatile.last_state.ready": strconv.FormatBool(state == api.Ready)})
+		err = c.VolatileSet(map[string]string{"volatile.last_state.ready": strconv.FormatBool(statusCode == api.Ready)})
 		if err != nil {
 			return response.DevIncusErrorResponse(api.StatusErrorf(http.StatusInternalServerError, "%s", err.Error()), c.Type() == instancetype.VM)
 		}
 
-		if state == api.Ready {
+		if statusCode == api.Ready {
 			s.Events.SendLifecycle(c.Project().Name, lifecycle.InstanceReady.Event(c, nil))
 		}
 
@@ -265,7 +264,7 @@ var devIncusDevicesGet = devIncusHandler{"/1.0/devices", func(d *Daemon, c insta
 }}
 
 var handlers = []devIncusHandler{
-	{"/", func(d *Daemon, c instance.Instance, w http.ResponseWriter, r *http.Request) response.Response {
+	{"/{$}", func(d *Daemon, c instance.Instance, w http.ResponseWriter, r *http.Request) response.Response {
 		return response.DevIncusResponse(http.StatusOK, []string{"/1.0"}, "json", c.Type() == instancetype.VM)
 	}},
 	devIncusAPIHandler,
@@ -314,8 +313,7 @@ func hoistReq(f func(*Daemon, instance.Instance, http.ResponseWriter, *http.Requ
 }
 
 func devIncusAPI(d *Daemon, f hoistFunc) http.Handler {
-	router := mux.NewRouter()
-	router.UseEncodedPath() // Allow encoded values in path segments.
+	router := http.NewServeMux()
 
 	for _, handler := range handlers {
 		router.HandleFunc(handler.path, f(handler.f, d))
@@ -356,9 +354,13 @@ type ConnPidMapper struct {
 	mLock sync.Mutex
 }
 
-func (m *ConnPidMapper) ConnStateHandler(conn net.Conn, state http.ConnState) {
-	unixConn := conn.(*net.UnixConn)
-	switch state {
+func (m *ConnPidMapper) ConnStateHandler(conn net.Conn, connState http.ConnState) {
+	unixConn, ok := conn.(*net.UnixConn)
+	if !ok {
+		return
+	}
+
+	switch connState {
 	case http.StateNew:
 		cred, err := linux.GetUcred(unixConn)
 		if err != nil {
@@ -390,7 +392,7 @@ func (m *ConnPidMapper) ConnStateHandler(conn net.Conn, state http.ConnState) {
 		delete(m.m, unixConn)
 		m.mLock.Unlock()
 	default:
-		logger.Debugf("Unknown state for connection %s", state)
+		logger.Debugf("Unknown state for connection %s", connState)
 	}
 }
 
@@ -448,7 +450,12 @@ func findContainerForPid(pid int32, s *state.State) (instance.Container, error) 
 				return nil, errors.New("Instance is not container type")
 			}
 
-			return inst.(instance.Container), nil
+			c, ok := inst.(instance.Container)
+			if !ok {
+				return nil, errors.New("Instance is not container type")
+			}
+
+			return c, nil
 		}
 
 		re, err := regexp.Compile(`^PPid:\s+([0-9]+)$`)
@@ -496,7 +503,12 @@ func findContainerForPid(pid int32, s *state.State) (instance.Container, error) 
 		}
 
 		if origPidNs == pidNs {
-			return inst.(instance.Container), nil
+			c, ok := inst.(instance.Container)
+			if !ok {
+				return nil, errors.New("Instance is not container type")
+			}
+
+			return c, nil
 		}
 	}
 

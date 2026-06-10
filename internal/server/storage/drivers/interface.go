@@ -4,21 +4,21 @@ import (
 	"io"
 	"net/url"
 
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	"github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	"github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
 )
 
 // driver is the extended internal interface.
 type driver interface {
 	Driver
 
-	init(state *state.State, name string, config map[string]string, logger logger.Logger, volIDFunc func(volType VolumeType, volName string) (int64, error), commonRules *Validators)
+	init(s *state.State, name string, config map[string]string, log logger.Logger, volIDFunc func(volType VolumeType, volName string) (int64, error), commonRules *Validators)
 	load() error
 	isRemote() bool
 }
@@ -98,6 +98,7 @@ type Driver interface {
 	// not mounted.
 	UnmountVolumeSnapshot(snapVol Volume, op *operations.Operation) (bool, error)
 
+	CanRestoreVolume(vol Volume, snapshotName string) error
 	CreateVolumeSnapshot(snapVol Volume, op *operations.Operation) error
 	GetQcow2BackingFilePath(vol Volume) (string, error)
 	DeleteVolumeSnapshot(snapVol Volume, op *operations.Operation) error

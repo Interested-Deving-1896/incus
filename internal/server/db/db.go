@@ -16,11 +16,11 @@ import (
 
 	"github.com/cowsql/go-cowsql/driver"
 
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/node"
-	"github.com/lxc/incus/v6/internal/server/db/query"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/node"
+	"github.com/lxc/incus/v7/internal/server/db/query"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 // DB represents access to global and local databases.
@@ -55,21 +55,21 @@ func OpenNode(dir string, fresh func(*Node) error) (*Node, error) {
 		return nil, err
 	}
 
-	node := &Node{
+	n := &Node{
 		db:  db,
 		dir: dir,
 	}
 
 	if initial == 0 {
 		if fresh != nil {
-			err := fresh(node)
+			err := fresh(n)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	return node, nil
+	return n, nil
 }
 
 // DirectAccess is a bit of a hack which allows getting a database Node struct from any standard Go sql.DB.
@@ -109,19 +109,19 @@ func (n *Node) Close() error {
 	return n.db.Close()
 }
 
-// Cluster mediates access to data stored in the cluster dqlite database.
+// Cluster mediates access to data stored in the cluster cowsql database.
 type Cluster struct {
-	db         *sql.DB // Handle to the cluster dqlite database, gated behind gRPC SQL.
+	db         *sql.DB // Handle to the cluster cowsql database, gated behind gRPC SQL.
 	nodeID     int64   // Node ID of this server.
 	mu         sync.RWMutex
 	closingCtx context.Context
 }
 
-// OpenCluster creates a new Cluster object for interacting with the dqlite
+// OpenCluster creates a new Cluster object for interacting with the cowsql
 // database.
 //
 // - name: Basename of the database file holding the data. Typically "db.bin".
-// - dialer: Function used to connect to the dqlite backend via gRPC SQL.
+// - dialer: Function used to connect to the cowsql backend via gRPC SQL.
 // - address: Network address of this node (or empty string).
 // - dir: Base database directory (e.g. /var/lib/incus/database)
 // - timeout: Give up trying to open the database after this amount of time.
@@ -152,7 +152,7 @@ func OpenCluster(closingCtx context.Context, name string, store driver.NodeStore
 		logPriority := 1 // 0 is discard, 1 is Debug, 2 is Error
 		if i > 5 {
 			logPriority = 2
-			if i > 15 && !((i % 5) == 0) {
+			if i > 15 && i%5 != 0 {
 				logPriority = 0
 			}
 		}
@@ -184,7 +184,6 @@ func OpenCluster(closingCtx context.Context, name string, store driver.NodeStore
 		}
 	}
 
-	// FIXME: https://github.com/canonical/dqlite/issues/163
 	_, err = db.Exec("PRAGMA cache_size=-50000")
 	if err != nil {
 		return nil, fmt.Errorf("Failed to set page cache size: %w", err)
@@ -196,12 +195,12 @@ func OpenCluster(closingCtx context.Context, name string, store driver.NodeStore
 	}
 
 	if !nodesVersionsMatch {
-		cluster := &Cluster{
+		c := &Cluster{
 			db:         db,
 			closingCtx: closingCtx,
 		}
 
-		return cluster, ErrSomeNodesAreBehind
+		return c, ErrSomeNodesAreBehind
 	}
 
 	stmts, err := cluster.PrepareStmts(db, false)
@@ -419,15 +418,15 @@ func TxCommit(tx *sql.Tx) error {
 	return err
 }
 
-// DqliteLatestSegment returns the latest segment ID in the global database.
-func DqliteLatestSegment() (string, error) {
+// CowsqlLatestSegment returns the latest segment ID in the global database.
+func CowsqlLatestSegment() (string, error) {
 	dir := internalUtil.VarPath("database", "global")
 	file, err := os.Open(dir)
 	if err != nil {
 		return "", fmt.Errorf("Unable to open directory %s with error %v", dir, err)
 	}
 
-	defer func() { _ = file.Close() }()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	fileNames, err := file.Readdirnames(0)
 	if err != nil {
@@ -490,7 +489,7 @@ func queryScan(ctx context.Context, c *ClusterTx, q string, inargs []any, outfmt
 		return [][]any{}, err
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	for rows.Next() {
 		ptrargs := make([]any, len(outfmt))

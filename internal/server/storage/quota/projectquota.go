@@ -168,7 +168,8 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var errNoDevice = errors.New("Couldn't find backing device for mountpoint")
@@ -190,7 +191,7 @@ func devForPath(path string) (string, error) {
 		return "", err
 	}
 
-	defer func() { _ = mountinfo.Close() }()
+	defer logger.WarnOnError(mountinfo.Close, "Failed to close mountinfo")
 
 	scanner := bufio.NewScanner(mountinfo)
 	for scanner.Scan() {

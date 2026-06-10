@@ -8,18 +8,18 @@ import (
 	"strings"
 	"time"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/db/query"
-	"github.com/lxc/incus/v6/internal/server/db/schema"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/osarch"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/db/query"
+	"github.com/lxc/incus/v7/internal/server/db/schema"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
 )
 
 // Schema for the cluster database.
 func Schema() *schema.Schema {
-	schema := schema.NewFromMap(updates)
-	schema.Fresh(freshSchema)
-	return schema
+	sch := schema.NewFromMap(updates)
+	sch.Fresh(freshSchema)
+	return sch
 }
 
 // FreshSchema returns the fresh schema definition of the global database.
@@ -315,7 +315,7 @@ JOIN
 		return fmt.Errorf("Failed finding projects with features.networks=true: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	var projectIDs []int64
 	for rows.Next() {
@@ -440,7 +440,7 @@ func updateFromV63(ctx context.Context, tx *sql.Tx) error {
 		return fmt.Errorf("Failed getting projects with features.storage.volumes=true: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	var projectIDs []int64
 
@@ -2122,7 +2122,7 @@ func updateFromV42(ctx context.Context, tx *sql.Tx) error {
 		return fmt.Errorf("Failed running query: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	type dupeRow struct {
 		storagePoolID int64
@@ -2188,7 +2188,7 @@ func updateFromV41(ctx context.Context, tx *sql.Tx) error {
 		return fmt.Errorf("Failed running query: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer logger.WarnOnError(rows.Close, "Failed to close rows")
 
 	type dupeRow struct {
 		networkID  int64
@@ -2864,7 +2864,7 @@ func updateFromV25(ctx context.Context, tx *sql.Tx) error {
 		Config        map[string]string
 	}
 
-	sql := `
+	stmt := `
 SELECT id, name, storage_pool_id, node_id, type, coalesce(description, ''), project_id
     FROM storage_volumes
     WHERE snapshot=1
@@ -2875,7 +2875,7 @@ SELECT id, name, storage_pool_id, node_id, type, coalesce(description, ''), proj
 
 	// Fetch all snapshot rows in the storage_volumes table.
 	snapshots := make([]snapshot, 0, count)
-	err = query.Scan(ctx, tx, sql, func(scan func(dest ...any) error) error {
+	err = query.Scan(ctx, tx, stmt, func(scan func(dest ...any) error) error {
 		s := snapshot{}
 		err := scan(&s.ID, &s.Name, &s.StoragePoolID, &s.NodeID, &s.Type, &s.Description, &s.ProjectID)
 		if err != nil {
@@ -3392,9 +3392,9 @@ CREATE VIEW instances_snapshots_devices_ref (
 		ExpiryDate   sql.NullTime
 	}
 
-	sql := `SELECT id, name, type, creation_date, stateful, coalesce(description, ''), expiry_date FROM instances`
+	stmt := `SELECT id, name, type, creation_date, stateful, coalesce(description, ''), expiry_date FROM instances`
 	instances := make([]instance, 0, count)
-	err = query.Scan(ctx, tx, sql, func(scan func(dest ...any) error) error {
+	err = query.Scan(ctx, tx, stmt, func(scan func(dest ...any) error) error {
 		inst := instance{}
 		err := scan(&inst.ID, &inst.Name, &inst.Type, &inst.CreationDate, &inst.Stateful, &inst.Description, &inst.ExpiryDate)
 		if err != nil {
@@ -3425,7 +3425,8 @@ CREATE VIEW instances_snapshots_devices_ref (
 		ctx,
 		tx,
 		"instances_config JOIN instances ON instances_config.instance_id = instances.id",
-		"instances.type = 1")
+		"instances.type = 1",
+	)
 	if err != nil {
 		return fmt.Errorf("Failed to count rows in instances_config table: %w", err)
 	}
@@ -3438,13 +3439,13 @@ CREATE VIEW instances_snapshots_devices_ref (
 	}
 
 	configs := make([]instanceConfig, 0, count)
-	sql = `
+	stmt = `
 SELECT instances_config.id, instance_id, key, value
     FROM instances_config JOIN instances ON instances_config.instance_id = instances.id
     WHERE instances.type = 1
 `
 
-	err = query.Scan(ctx, tx, sql, func(scan func(dest ...any) error) error {
+	err = query.Scan(ctx, tx, stmt, func(scan func(dest ...any) error) error {
 		config := instanceConfig{}
 		err := scan(&config.ID, &config.InstanceID, &config.Key, &config.Value)
 		if err != nil {
@@ -3476,7 +3477,8 @@ SELECT instances_config.id, instance_id, key, value
 		ctx,
 		tx,
 		"instances_devices JOIN instances ON instances_devices.instance_id = instances.id",
-		"instances.type = 1")
+		"instances.type = 1",
+	)
 	if err != nil {
 		return fmt.Errorf("Failed to count rows in instances_devices table: %w", err)
 	}
@@ -3489,13 +3491,13 @@ SELECT instances_config.id, instance_id, key, value
 	}
 
 	devices := make([]device, 0, count)
-	sql = `
+	stmt = `
 SELECT instances_devices.id, instance_id, instances_devices.name, instances_devices.type
     FROM instances_devices JOIN instances ON instances_devices.instance_id = instances.id
     WHERE instances.type = 1
 `
 
-	err = query.Scan(ctx, tx, sql, func(scan func(dest ...any) error) error {
+	err = query.Scan(ctx, tx, stmt, func(scan func(dest ...any) error) error {
 		d := device{}
 		err := scan(&d.ID, &d.InstanceID, &d.Name, &d.Type)
 		if err != nil {
@@ -4436,7 +4438,7 @@ SELECT storage_volumes.id FROM storage_volumes
 	}
 
 	volumes := make([]volume, 0, len(volumeIDs))
-	sql := `
+	stmt := `
 SELECT
     storage_volumes.id,
     storage_volumes.name,
@@ -4449,7 +4451,7 @@ FROM storage_volumes
     WHERE storage_pools.driver='ceph'
 `
 
-	err = query.Scan(ctx, tx, sql, func(scan func(dest ...any) error) error {
+	err = query.Scan(ctx, tx, stmt, func(scan func(dest ...any) error) error {
 		vol := volume{}
 		err := scan(&vol.ID, &vol.Name, &vol.StoragePoolID, &vol.NodeID, &vol.Type, &vol.Description)
 		if err != nil {

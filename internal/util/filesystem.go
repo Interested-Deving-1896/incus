@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"runtime"
 
-	internalIO "github.com/lxc/incus/v6/internal/io"
-	"github.com/lxc/incus/v6/shared/util"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // FileMove tries to move a file by using os.Rename,
@@ -69,7 +70,7 @@ func FileCopy(source string, dest string) error {
 		return err
 	}
 
-	defer func() { _ = s.Close() }()
+	defer logger.WarnOnError(s.Close, "Failed to close source file")
 
 	d, err := os.Create(dest)
 	if err != nil {
@@ -169,7 +170,7 @@ func PathIsEmpty(path string) (bool, error) {
 		return false, err
 	}
 
-	defer func() { _ = f.Close() }()
+	defer logger.WarnOnError(f.Close, "Failed to close file")
 
 	// read in ONLY one file
 	_, err = f.ReadDir(1)

@@ -20,67 +20,65 @@ import (
 	"sync"
 	"time"
 
-	dqliteClient "github.com/cowsql/go-cowsql/client"
+	cowsqlClient "github.com/cowsql/go-cowsql/client"
 	"github.com/cowsql/go-cowsql/driver"
-	"github.com/gorilla/mux"
 	liblxc "github.com/lxc/go-lxc"
 	"golang.org/x/sys/unix"
 
-	internalIO "github.com/lxc/incus/v6/internal/io"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/rsync"
-	"github.com/lxc/incus/v6/internal/server/apparmor"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/auth/oidc"
-	"github.com/lxc/incus/v6/internal/server/bgp"
-	"github.com/lxc/incus/v6/internal/server/certificate"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	clusterConfig "github.com/lxc/incus/v6/internal/server/cluster/config"
-	"github.com/lxc/incus/v6/internal/server/daemon"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/query"
-	"github.com/lxc/incus/v6/internal/server/db/warningtype"
-	"github.com/lxc/incus/v6/internal/server/dns"
-	"github.com/lxc/incus/v6/internal/server/endpoints"
-	"github.com/lxc/incus/v6/internal/server/events"
-	"github.com/lxc/incus/v6/internal/server/firewall"
-	"github.com/lxc/incus/v6/internal/server/fsmonitor"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	instanceDrivers "github.com/lxc/incus/v6/internal/server/instance/drivers"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/logging"
-	"github.com/lxc/incus/v6/internal/server/network/ovn"
-	"github.com/lxc/incus/v6/internal/server/network/ovs"
-	networkZone "github.com/lxc/incus/v6/internal/server/network/zone"
-	"github.com/lxc/incus/v6/internal/server/node"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	scriptletLoad "github.com/lxc/incus/v6/internal/server/scriptlet/load"
-	"github.com/lxc/incus/v6/internal/server/seccomp"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	storageDrivers "github.com/lxc/incus/v6/internal/server/storage/drivers"
-	"github.com/lxc/incus/v6/internal/server/storage/linstor"
-	"github.com/lxc/incus/v6/internal/server/storage/s3/miniod"
-	"github.com/lxc/incus/v6/internal/server/sys"
-	"github.com/lxc/incus/v6/internal/server/syslog"
-	"github.com/lxc/incus/v6/internal/server/task"
-	"github.com/lxc/incus/v6/internal/server/ucred"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/server/warnings"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	"github.com/lxc/incus/v6/shared/cancel"
-	"github.com/lxc/incus/v6/shared/idmap"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/proxy"
-	"github.com/lxc/incus/v6/shared/revert"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/util"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/rsync"
+	"github.com/lxc/incus/v7/internal/server/apparmor"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/auth/oidc"
+	"github.com/lxc/incus/v7/internal/server/bgp"
+	"github.com/lxc/incus/v7/internal/server/certificate"
+	"github.com/lxc/incus/v7/internal/server/cgroup"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	clusterConfig "github.com/lxc/incus/v7/internal/server/cluster/config"
+	"github.com/lxc/incus/v7/internal/server/daemon"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/query"
+	"github.com/lxc/incus/v7/internal/server/db/warningtype"
+	"github.com/lxc/incus/v7/internal/server/dns"
+	"github.com/lxc/incus/v7/internal/server/endpoints"
+	"github.com/lxc/incus/v7/internal/server/events"
+	"github.com/lxc/incus/v7/internal/server/firewall"
+	"github.com/lxc/incus/v7/internal/server/fsmonitor"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	instanceDrivers "github.com/lxc/incus/v7/internal/server/instance/drivers"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/logging"
+	"github.com/lxc/incus/v7/internal/server/network/ovn"
+	"github.com/lxc/incus/v7/internal/server/network/ovs"
+	networkZone "github.com/lxc/incus/v7/internal/server/network/zone"
+	"github.com/lxc/incus/v7/internal/server/node"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	scriptletLoad "github.com/lxc/incus/v7/internal/server/scriptlet/load"
+	"github.com/lxc/incus/v7/internal/server/seccomp"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
+	"github.com/lxc/incus/v7/internal/server/storage/linstor"
+	"github.com/lxc/incus/v7/internal/server/sys"
+	"github.com/lxc/incus/v7/internal/server/syslog"
+	"github.com/lxc/incus/v7/internal/server/task"
+	"github.com/lxc/incus/v7/internal/server/ucred"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/server/warnings"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	"github.com/lxc/incus/v7/shared/cancel"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/proxy"
+	"github.com/lxc/incus/v7/shared/revert"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // A Daemon can respond to requests from a shared client.
@@ -183,11 +181,11 @@ type DaemonConfig struct {
 	Group              string        // Group name the local unix socket should be chown'ed to
 	Trace              []string      // List of sub-systems to trace
 	RaftLatency        float64       // Coarse grain measure of the cluster latency
-	DqliteSetupTimeout time.Duration // How long to wait for the cluster database to be up
+	CowsqlSetupTimeout time.Duration // How long to wait for the cluster database to be up
 }
 
 // newDaemon returns a new Daemon object with the given configuration.
-func newDaemon(config *DaemonConfig, os *sys.OS) *Daemon {
+func newDaemon(config *DaemonConfig, osInfo *sys.OS) *Daemon {
 	incusEvents := events.NewServer(daemon.Debug, daemon.Verbose, cluster.EventHubPush)
 	devIncusEvents := events.NewDevIncusServer(daemon.Debug, daemon.Verbose)
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
@@ -198,7 +196,7 @@ func newDaemon(config *DaemonConfig, os *sys.OS) *Daemon {
 		devIncusEvents: devIncusEvents,
 		events:         incusEvents,
 		db:             &db.DB{},
-		os:             os,
+		os:             osInfo,
 		setupChan:      make(chan struct{}),
 		waitReady:      cancel.New(context.Background()),
 		shutdownCtx:    shutdownCtx,
@@ -216,28 +214,44 @@ func newDaemon(config *DaemonConfig, os *sys.OS) *Daemon {
 func defaultDaemonConfig() *DaemonConfig {
 	return &DaemonConfig{
 		RaftLatency:        3.0,
-		DqliteSetupTimeout: 36 * time.Hour, // Account for snap refresh lag
+		CowsqlSetupTimeout: 36 * time.Hour, // Account for snap refresh lag
 	}
 }
 
 // defaultDaemon returns a new, un-initialized Daemon object with default values.
 func defaultDaemon() *Daemon {
 	config := defaultDaemonConfig()
-	os := sys.DefaultOS()
-	return newDaemon(config, os)
+	osInfo := sys.DefaultOS()
+	return newDaemon(config, osInfo)
 }
 
 // APIEndpoint represents a URL in our API.
 type APIEndpoint struct {
-	Name    string             // Name for this endpoint.
-	Path    string             // Path pattern for this endpoint.
-	Aliases []APIEndpointAlias // Any aliases for this endpoint.
-	Get     APIEndpointAction
-	Head    APIEndpointAction
-	Put     APIEndpointAction
-	Post    APIEndpointAction
-	Delete  APIEndpointAction
-	Patch   APIEndpointAction
+	Name          string             // Name for this endpoint.
+	Path          string             // Path pattern for this endpoint.
+	Aliases       []APIEndpointAlias // Any aliases for this endpoint.
+	SuffixActions []APIEndpointSuffixAction
+	Get           APIEndpointAction
+	Head          APIEndpointAction
+	Put           APIEndpointAction
+	Post          APIEndpointAction
+	Delete        APIEndpointAction
+	Patch         APIEndpointAction
+}
+
+// APIEndpointSuffixAction represents actions handled on a sub-path of an
+// endpoint (for example "/1.0/images/{fingerprint}/export"). It is used when a
+// dedicated route would conflict with another multi-segment wildcard route
+// under http.ServeMux. The endpoint is registered as a subtree and the suffix
+// is matched against the request path at dispatch time.
+type APIEndpointSuffixAction struct {
+	Name   string // Path suffix this action applies to (e.g. "/export").
+	Get    APIEndpointAction
+	Head   APIEndpointAction
+	Put    APIEndpointAction
+	Post   APIEndpointAction
+	Delete APIEndpointAction
+	Patch  APIEndpointAction
 }
 
 // APIEndpointAlias represents an alias URL of and APIEndpoint in our API.
@@ -273,7 +287,8 @@ func allowPermission(objectType auth.ObjectType, entitlement auth.Entitlement, m
 	return func(d *Daemon, r *http.Request) response.Response {
 		// Expansion function to deal with partial fingerprints.
 		expandFingerprint := func(projectName string, fingerprint string) string {
-			if objectType == auth.ObjectTypeImage {
+			switch objectType {
+			case auth.ObjectTypeImage:
 				var imgInfo *api.Image
 
 				err := d.db.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
@@ -288,7 +303,7 @@ func allowPermission(objectType auth.ObjectType, entitlement auth.Entitlement, m
 				}
 
 				fingerprint = imgInfo.Fingerprint
-			} else if objectType == auth.ObjectTypeCertificate {
+			case auth.ObjectTypeCertificate:
 				err := d.db.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
 					dbCertInfo, err := dbCluster.GetCertificateByFingerprintPrefix(ctx, tx.Tx(), fingerprint)
 					if err != nil {
@@ -583,8 +598,8 @@ func (d *Daemon) State() *state.State {
 	// Build a list of instance types.
 	drivers := instanceDrivers.DriverStatuses()
 	instanceTypes := make(map[instancetype.Type]error, len(drivers))
-	for driverType, driver := range drivers {
-		instanceTypes[driverType] = driver.Info.Error
+	for driverType, drv := range drivers {
+		instanceTypes[driverType] = drv.Info.Error
 	}
 
 	d.globalConfigMu.Lock()
@@ -620,26 +635,42 @@ func (d *Daemon) State() *state.State {
 	}
 }
 
-func (d *Daemon) createCmd(restAPI *mux.Router, version string, c APIEndpoint) {
+func (d *Daemon) createCmd(restAPI *http.ServeMux, apiVersion string, c APIEndpoint) {
 	var uri string
 	if c.Path == "" {
-		uri = fmt.Sprintf("/%s", version)
-	} else if version != "" {
-		uri = fmt.Sprintf("/%s/%s", version, c.Path)
+		uri = fmt.Sprintf("/%s", apiVersion)
+	} else if apiVersion != "" {
+		uri = fmt.Sprintf("/%s/%s", apiVersion, c.Path)
 	} else {
 		uri = fmt.Sprintf("/%s", c.Path)
 	}
 
-	route := restAPI.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		// Resolve the action set for this request. Suffix actions allow a
+		// single subtree route to serve sub-paths (e.g. "/export") that would
+		// otherwise conflict with another multi-segment wildcard route. A local
+		// copy is used so concurrent requests don't race on the shared endpoint.
+		ep := c
+		for _, suffix := range c.SuffixActions {
+			if strings.HasSuffix(r.URL.Path, suffix.Name) {
+				ep.Get = suffix.Get
+				ep.Head = suffix.Head
+				ep.Put = suffix.Put
+				ep.Post = suffix.Post
+				ep.Delete = suffix.Delete
+				ep.Patch = suffix.Patch
+				break
+			}
+		}
+
 		// Block on daemon startup except for the "internal" and "os" APIs.
-		if !slices.Contains([]string{"internal", "os"}, version) {
+		if !slices.Contains([]string{"internal", "os"}, apiVersion) {
 			select {
 			case <-d.setupChan:
 			default:
-				response := response.Unavailable(errors.New("Daemon is starting up"))
-				_ = response.Render(w)
+				_ = response.Unavailable(errors.New("Daemon is starting up")).Render(w)
 				return
 			}
 		}
@@ -660,7 +691,7 @@ func (d *Daemon) createCmd(restAPI *mux.Router, version string, c APIEndpoint) {
 		}
 
 		// Restrict internal queries to remote, non-cluster, clients
-		if version == "internal" && !slices.Contains([]string{"unix", "cluster"}, protocol) {
+		if apiVersion == "internal" && !slices.Contains([]string{"unix", "cluster"}, protocol) {
 			internalAllowed := func() bool {
 				// Reject any unauthenticated request.
 				if !trusted {
@@ -750,7 +781,7 @@ func (d *Daemon) createCmd(restAPI *mux.Router, version string, c APIEndpoint) {
 		// - /1.0/operations endpoints
 		// - GET queries
 		allowedDuringShutdown := func() bool {
-			if version == "internal" {
+			if apiVersion == "internal" {
 				return true
 			}
 
@@ -809,17 +840,17 @@ func (d *Daemon) createCmd(restAPI *mux.Router, version string, c APIEndpoint) {
 
 		switch r.Method {
 		case "GET":
-			resp = handleRequest(c.Get)
+			resp = handleRequest(ep.Get)
 		case "HEAD":
-			resp = handleRequest(c.Head)
+			resp = handleRequest(ep.Head)
 		case "PUT":
-			resp = handleRequest(c.Put)
+			resp = handleRequest(ep.Put)
 		case "POST":
-			resp = handleRequest(c.Post)
+			resp = handleRequest(ep.Post)
 		case "DELETE":
-			resp = handleRequest(c.Delete)
+			resp = handleRequest(ep.Delete)
 		case "PATCH":
-			resp = handleRequest(c.Patch)
+			resp = handleRequest(ep.Patch)
 		default:
 			resp = response.NotFound(fmt.Errorf("Method %q not found", r.Method))
 		}
@@ -837,13 +868,26 @@ func (d *Daemon) createCmd(restAPI *mux.Router, version string, c APIEndpoint) {
 				logger.Error("Failed writing error for HTTP response", logger.Ctx{"url": uri, "err": err, "writeErr": writeErr})
 			}
 		}
-	})
-
-	// If the endpoint has a canonical name then record it so it can be used to build URLS
-	// and accessed in the context of the request by the handler function.
-	if c.Name != "" {
-		route.Name(c.Name)
 	}
+
+	restAPI.HandleFunc(uri, handler)
+
+	// Endpoints with suffix actions are registered as a subtree so they can
+	// also serve their sub-paths (e.g. "/export"). The exact route above keeps
+	// the canonical (no trailing slash) URL from being redirected.
+	if len(c.SuffixActions) > 0 {
+		restAPI.HandleFunc(uri+"/", handler)
+	}
+}
+
+// pathVar returns the value of the named path variable from the request URL.
+//
+// The HTTP router (http.ServeMux) already URL-decodes path segments, so unlike
+// the previous gorilla/mux based implementation the value must not be unescaped
+// again. An error is returned to keep call sites uniform with the previous
+// url.PathUnescape based code.
+func pathVar(r *http.Request, name string) (string, error) {
+	return r.PathValue(name), nil
 }
 
 // have we setup shared mounts?
@@ -982,158 +1026,20 @@ func (d *Daemon) init() error {
 
 	// Detect LXC features
 	d.os.LXCFeatures = map[string]bool{}
-	lxcExtensions := []string{
-		"mount_injection_file",
-		"seccomp_notify",
-		"network_ipvlan",
-		"network_l2proxy",
-		"network_gateway_device_route",
-		"network_phys_macvlan_mtu",
-		"network_veth_router",
-		"cgroup2",
-		"pidfd",
-		"seccomp_allow_deny_syntax",
-		"devpts_fd",
-		"seccomp_proxy_send_notify_fd",
-		"idmapped_mounts_v2",
-		"core_scheduling",
-	}
+	lxcExtensions := []string{}
 
 	for _, extension := range lxcExtensions {
 		d.os.LXCFeatures[extension] = liblxc.HasAPIExtension(extension)
 	}
 
-	// Look for kernel features
-	logger.Infof("Kernel features:")
-
-	d.os.CloseRange = canUseCloseRange()
-	if d.os.CloseRange {
-		logger.Info(" - closing multiple file descriptors efficiently: yes")
-	} else {
-		logger.Info(" - closing multiple file descriptors efficiently: no")
-	}
-
-	d.os.NetnsGetifaddrs = canUseNetnsGetifaddrs()
-	if d.os.NetnsGetifaddrs {
-		logger.Info(" - netnsid-based network retrieval: yes")
-	} else {
-		logger.Info(" - netnsid-based network retrieval: no")
-	}
-
-	if canUsePidFds() && d.os.LXCFeatures["pidfd"] {
-		d.os.PidFds = true
-		d.os.PidFdsThread = canUseThreadPidFds()
-	}
-
-	if d.os.PidFds {
-		logger.Info(" - pidfds: yes")
-	} else {
-		logger.Info(" - pidfds: no")
-	}
-
-	if d.os.PidFdsThread {
-		logger.Info(" - pidfds for threads: yes")
-	} else {
-		logger.Info(" - pidfds for threads: no")
-	}
-
-	if canUseCoreScheduling() {
-		d.os.CoreScheduling = true
-		logger.Info(" - core scheduling: yes")
-
-		if d.os.LXCFeatures["core_scheduling"] {
-			d.os.ContainerCoreScheduling = true
-		}
-	} else {
-		logger.Info(" - core scheduling: no")
-	}
-
-	d.os.UeventInjection = canUseUeventInjection()
-	if d.os.UeventInjection {
-		logger.Info(" - uevent injection: yes")
-	} else {
-		logger.Info(" - uevent injection: no")
-	}
-
-	d.os.SeccompListener = canUseSeccompListener()
-	if d.os.SeccompListener {
-		logger.Info(" - seccomp listener: yes")
-	} else {
-		logger.Info(" - seccomp listener: no")
-	}
-
-	d.os.SeccompListenerContinue = canUseSeccompListenerContinue()
-	if d.os.SeccompListenerContinue {
-		logger.Info(" - seccomp listener continue syscalls: yes")
-	} else {
-		logger.Info(" - seccomp listener continue syscalls: no")
-	}
-
-	if canUseSeccompListenerAddfd() && d.os.LXCFeatures["seccomp_proxy_send_notify_fd"] {
-		d.os.SeccompListenerAddfd = true
-		logger.Info(" - seccomp listener add file descriptors: yes")
-	} else {
-		logger.Info(" - seccomp listener add file descriptors: no")
-	}
-
-	d.os.PidFdSetns = canUsePidFdSetns()
-	if d.os.PidFdSetns {
-		logger.Info(" - attach to namespaces via pidfds: yes")
-	} else {
-		logger.Info(" - attach to namespaces via pidfds: no")
-	}
-
-	if d.os.LXCFeatures["devpts_fd"] && canUseNativeTerminals() {
-		d.os.NativeTerminals = true
-		logger.Info(" - safe native terminal allocation: yes")
-	} else {
-		logger.Info(" - safe native terminal allocation: no")
-	}
-
-	d.os.UnprivBinfmt = canUseBinfmt()
-	if d.os.UnprivBinfmt {
-		logger.Info(" - unprivileged binfmt_misc: yes")
-	} else {
-		logger.Info(" - unprivileged binfmt_misc: no")
-	}
-
-	/*
-	 * During daemon startup we're the only thread that touches VFS3Fscaps
-	 * so we don't need to bother with atomic.StoreInt32() when touching
-	 * VFS3Fscaps.
-	 */
-	d.os.VFS3Fscaps = idmap.SupportsVFS3FSCaps("")
-	if d.os.VFS3Fscaps {
-		idmap.VFS3FSCaps = idmap.VFS3FSCapsSupported
-		logger.Infof(" - unprivileged file capabilities: yes")
-	} else {
-		idmap.VFS3FSCaps = idmap.VFS3FSCapsUnsupported
-		logger.Infof(" - unprivileged file capabilities: no")
-	}
-
-	dbWarnings = append(dbWarnings, d.os.CGInfo.Warnings()...)
-
-	logger.Infof(" - cgroup layout: %s", d.os.CGInfo.Mode())
-
-	for _, w := range dbWarnings {
-		logger.Warnf(" - %s, %s", warningtype.TypeNames[warningtype.Type(w.TypeCode)], w.LastMessage)
-	}
-
-	// Detect idmapped mounts support.
-	if util.IsTrue(os.Getenv("INCUS_IDMAPPED_MOUNTS_DISABLE")) {
-		logger.Info(" - idmapped mounts kernel support: disabled")
-	} else if kernelSupportsIdmappedMounts() {
-		d.os.IdmappedMounts = true
-		logger.Info(" - idmapped mounts kernel support: yes")
-	} else {
-		logger.Info(" - idmapped mounts kernel support: no")
-	}
+	// Get cgroup warnings.
+	dbWarnings = append(dbWarnings, cgroup.Warnings()...)
 
 	// Detect and cached available instance types from operational drivers.
 	drivers := instanceDrivers.DriverStatuses()
-	for _, driver := range drivers {
-		if driver.Warning != nil {
-			dbWarnings = append(dbWarnings, *driver.Warning)
+	for _, drv := range drivers {
+		if drv.Warning != nil {
+			dbWarnings = append(dbWarnings, *drv.Warning)
 		}
 	}
 
@@ -1166,6 +1072,11 @@ func (d *Daemon) init() error {
 				logger.Warn("Failed to set up guestapi tmpfs", logger.Ctx{"err": err})
 			}
 		}
+	}
+
+	// Show all persistent warnings.
+	for _, w := range dbWarnings {
+		logger.Warnf(" - %s, %s", warningtype.TypeNames[warningtype.Type(w.TypeCode)], w.LastMessage)
 	}
 
 	/* Initialize the database */
@@ -1214,7 +1125,7 @@ func (d *Daemon) init() error {
 		d.serverCertInt = serverCert
 	}
 
-	/* Setup dqlite */
+	/* Setup cowsql */
 	clusterLogLevel := "ERROR"
 	if slices.Contains(trace, "dqlite") {
 		clusterLogLevel = "TRACE"
@@ -1226,7 +1137,8 @@ func (d *Daemon) init() error {
 		networkCert,
 		d.State,
 		cluster.Latency(d.config.RaftLatency),
-		cluster.LogLevel(clusterLogLevel))
+		cluster.LogLevel(clusterLogLevel),
+	)
 	if err != nil {
 		return err
 	}
@@ -1302,14 +1214,14 @@ func (d *Daemon) init() error {
 			driver.WithContext(d.gateway.Context()),
 			driver.WithConnectionTimeout(10 * time.Second),
 			driver.WithContextTimeout(contextTimeout),
-			driver.WithLogFunc(cluster.DqliteLog),
+			driver.WithLogFunc(cluster.CowsqlLog),
 		}
 
 		if slices.Contains(trace, "database") {
-			options = append(options, driver.WithTracing(dqliteClient.LogDebug))
+			options = append(options, driver.WithTracing(cowsqlClient.LogDebug))
 		}
 
-		d.db.Cluster, err = db.OpenCluster(context.Background(), "db.bin", store, localClusterAddress, dir, d.config.DqliteSetupTimeout, options...)
+		d.db.Cluster, err = db.OpenCluster(context.Background(), "db.bin", store, localClusterAddress, dir, d.config.CowsqlSetupTimeout, options...)
 		if err == nil {
 			logger.Info("Initialized global database")
 			break
@@ -1630,18 +1542,19 @@ func (d *Daemon) init() error {
 		// This should come after the event handler go routines have been started.
 		devicesRegister(instances)
 
-		// Setup seccomp handler
-		if d.os.SeccompListener {
-			seccompServer, err := seccomp.NewSeccompServer(d.State(), internalUtil.RunPath("seccomp.socket"), func(pid int32, state *state.State) (seccomp.Instance, error) {
-				return findContainerForPid(pid, state)
-			})
-			if err != nil {
-				return err
-			}
+		// Reap any forkproxy helpers left behind by an out-of-cgroup kill of the previous daemon.
+		cleanupOrphanedProxyHelpers(instances)
 
-			d.seccomp = seccompServer
-			logger.Info("Started seccomp handler", logger.Ctx{"path": internalUtil.RunPath("seccomp.socket")})
+		// Setup seccomp handler
+		seccompServer, err := seccomp.NewSeccompServer(d.State(), internalUtil.RunPath("seccomp.socket"), func(pid int32, state *state.State) (seccomp.Instance, error) {
+			return findContainerForPid(pid, state)
+		})
+		if err != nil {
+			return err
 		}
+
+		d.seccomp = seccompServer
+		logger.Info("Started seccomp handler", logger.Ctx{"path": internalUtil.RunPath("seccomp.socket")})
 
 		// Read the trusted certificates
 		updateCertificateCache(d)
@@ -1767,8 +1680,8 @@ func (d *Daemon) stopClusterTasks() {
 // numRunningInstances returns the number of running instances.
 func (d *Daemon) numRunningInstances(instances []instance.Instance) int {
 	count := 0
-	for _, instance := range instances {
-		if instance.IsRunning() {
+	for _, inst := range instances {
+		if inst.IsRunning() {
 			count = count + 1
 		}
 	}
@@ -1779,6 +1692,20 @@ func (d *Daemon) numRunningInstances(instances []instance.Instance) int {
 // Stop stops the shared daemon.
 func (d *Daemon) Stop(ctx context.Context, sig os.Signal) error {
 	logger.Info("Starting shutdown sequence", logger.Ctx{"signal": sig})
+
+	s := d.State()
+
+	evacuated := false
+	if sig == unix.SIGPWR && d.serverClustered && s.GlobalConfig.ShutdownAction() == "evacuate" && !s.DB.Cluster.LocalNodeIsEvacuated() {
+		// Handle early evacuation before proceeding with shutdown.
+		logger.Info("Evacuating cluster member")
+		err := evacuateShutdown(ctx, s, d.serverName)
+		if err != nil {
+			logger.Error("Failed to evacuate cluster member, falling back to regular shutdown", logger.Ctx{"err": err})
+		} else {
+			evacuated = true
+		}
+	}
 
 	// Cancelling the context will make everyone aware that we're shutting down.
 	d.shutdownCancel()
@@ -1796,11 +1723,6 @@ func (d *Daemon) Stop(ctx context.Context, sig os.Signal) error {
 			d.gateway.Kill()
 		}
 	}
-
-	s := d.State()
-
-	// Stop any running minio processes cleanly before unmount storage pools.
-	miniod.StopAll()
 
 	var err error
 	var instances []instance.Instance
@@ -1856,10 +1778,12 @@ func (d *Daemon) Stop(ctx context.Context, sig os.Signal) error {
 
 		// Full shutdown requested.
 		if sig == unix.SIGPWR {
-			instancesShutdown(instances)
+			if !evacuated {
+				instancesShutdown(instances)
 
-			logger.Info("Stopping networks")
-			networkShutdown(s)
+				logger.Info("Stopping networks")
+				networkShutdown(s)
+			}
 
 			// Unmount storage pools after instances stopped.
 			logger.Info("Stopping storage pools")
@@ -1923,7 +1847,7 @@ func (d *Daemon) Stop(ctx context.Context, sig os.Signal) error {
 	}
 
 	if d.gateway != nil {
-		trackError(d.gateway.Shutdown(), "Shutdown dqlite")
+		trackError(d.gateway.Shutdown(), "Shutdown cowsql")
 	}
 
 	if d.endpoints != nil {
@@ -2004,11 +1928,11 @@ func (d *Daemon) setupOpenFGA(apiURL string, apiToken string, storeID string) er
 
 		leaderAddress, err := d.gateway.LeaderAddress()
 		if err != nil {
-			if errors.Is(err, cluster.ErrNodeIsNotClustered) {
-				isLeader = true
-			} else {
+			if !errors.Is(err, cluster.ErrNodeIsNotClustered) {
 				return nil, err
 			}
+
+			isLeader = true
 		} else if leaderAddress == d.localConfig.ClusterAddress() {
 			isLeader = true
 		}
@@ -2317,9 +2241,9 @@ func initializeDbObject(d *Daemon) error {
 
 	// Hook to run when the local database is created from scratch. It will
 	// create the default profile and mark all patches as applied.
-	freshHook := func(db *db.Node) error {
+	freshHook := func(nodeDB *db.Node) error {
 		for _, patchName := range patchesGetNames() {
-			err := db.MarkPatchAsApplied(patchName)
+			err := nodeDB.MarkPatchAsApplied(patchName)
 			if err != nil {
 				return err
 			}
@@ -2401,15 +2325,15 @@ func (d *Daemon) heartbeatHandler(w http.ResponseWriter, _ *http.Request, isLead
 
 	// Extract the raft nodes from the heartbeat info.
 	raftNodes := make([]db.RaftNode, 0)
-	for _, node := range hbData.Members {
-		if node.RaftID > 0 {
+	for _, member := range hbData.Members {
+		if member.RaftID > 0 {
 			raftNodes = append(raftNodes, db.RaftNode{
-				NodeInfo: dqliteClient.NodeInfo{
-					ID:      node.RaftID,
-					Address: node.Address,
-					Role:    db.RaftRole(node.RaftRole),
+				NodeInfo: cowsqlClient.NodeInfo{
+					ID:      member.RaftID,
+					Address: member.Address,
+					Role:    db.RaftRole(member.RaftRole),
 				},
-				Name: node.Name,
+				Name: member.Name,
 			})
 		}
 	}
@@ -2509,11 +2433,9 @@ func (d *Daemon) nodeRefreshTask(heartbeatData *cluster.APIHeartbeat, isLeader b
 	// Run asynchronously so that connecting to remote members doesn't delay other heartbeat tasks.
 	wg := sync.WaitGroup{}
 
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		cluster.EventsUpdateListeners(d.State(), heartbeatData.Members, d.events.Inject)
-		wg.Done()
-	}()
+	})
 
 	// Only update the node list if there are no state change task failures.
 	// If there are failures, then we leave the old state so that we can re-try the tasks again next heartbeat.
@@ -2531,9 +2453,9 @@ func (d *Daemon) nodeRefreshTask(heartbeatData *cluster.APIHeartbeat, isLeader b
 		onlineVoters := 0
 		onlineStandbys := 0
 
-		for _, node := range heartbeatData.Members {
-			role := db.RaftRole(node.RaftRole)
-			if node.Online {
+		for _, member := range heartbeatData.Members {
+			role := db.RaftRole(member.RaftRole)
+			if member.Online {
 				// Count online members that have voter or stand-by raft role.
 				switch role {
 				case db.RaftVoter:
@@ -2542,12 +2464,12 @@ func (d *Daemon) nodeRefreshTask(heartbeatData *cluster.APIHeartbeat, isLeader b
 					onlineStandbys++
 				}
 
-				if node.RaftID == 0 {
+				if member.RaftID == 0 {
 					hasNodesNotPartOfRaft = true
 				}
 
 				// Check if a 'database-client' node currently has a raft role other than 'spare'.
-				if slices.Contains(node.Roles, db.ClusterRoleDatabaseClient) && node.RaftRole != int(db.RaftSpare) {
+				if slices.Contains(member.Roles, db.ClusterRoleDatabaseClient) && member.RaftRole != int(db.RaftSpare) {
 					hasDbClientToProcess = true
 				}
 			} else if role != db.RaftSpare {
@@ -2595,6 +2517,15 @@ func (d *Daemon) setupOVN() error {
 	d.ovnnb = nil
 	d.ovnsb = nil
 
+	// Get the OVN northbound address.
+	ovnNBAddr := d.globalConfig.NetworkOVNNorthboundConnection()
+
+	// If OVN isn't configured, leave the clients cleared and return.
+	// This avoids touching OVS on nodes that don't have it installed.
+	if ovnNBAddr == "" {
+		return nil
+	}
+
 	// Connect to OpenVswitch.
 	vswitch, err := d.getOVS()
 	if err != nil {
@@ -2606,9 +2537,6 @@ func (d *Daemon) setupOVN() error {
 	if err != nil {
 		return fmt.Errorf("Failed to get OVN southbound connection string: %w", err)
 	}
-
-	// Get the OVN northbound address.
-	ovnNBAddr := d.globalConfig.NetworkOVNNorthboundConnection()
 
 	// Get the SSL certificates if needed.
 	sslCACert, sslClientCert, sslClientKey := d.globalConfig.NetworkOVNSSL()

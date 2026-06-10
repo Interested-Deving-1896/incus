@@ -3075,3 +3075,86 @@ inside the project. If not specified, all storage pools are accessible.
 Storage pools that are not in the list are treated as equivalent to
 having a pool size limit of 0 (`limits.disk.pool.POOLNAME=0`), making
 them inaccessible and hidden from the project.
+
+## `server_shutdown_action`
+
+This adds a new `core.shutdown_action` server configuration option.
+
+Its default value of `shutdown` keeps the current behavior but
+`evacuate` can be set to have a clustered server attempt an evacuation
+on shutdown with any instance left after it getting shutdown.
+
+## `instances_placement_scriptlet_rebalance`
+
+Add a new placement scriptlet trigger for cluster re-balancing.
+
+## `network_bridge_multicast_snooping`
+
+This adds a new `bridge.multicast_snooping` configuration option for
+managed bridge networks. When set to `false`, multicast snooping is
+disabled on the bridge, which can help with IPv6 protocols that rely
+on multicast such as NDP.
+
+## `storage_create_options`
+
+This introduces a new `block.create_options` configuration option to
+allow controlling the `mkfs` arguments when creating volumes on block
+devices.
+
+`btrfs.create_options` is also introduced to similarly control
+`mkfs.btrfs` options when creating a new storage pool.
+
+## `instances_tpm_platform_cert`
+
+This introduces a couple of new configuration options:
+
+* `instances.tpm.platform_cert`
+* `instances.tpm.platform_key`
+
+Those can be used to provide a TPM platform CA certificate.
+
+When set, new TPM devices will be getting an Endorsement Key that's
+signed by that CA. This can be used to validate that the VM is in fact
+running in the expected Incus environment, providing a root of trust for
+those TPM devices.
+
+## `linstor_raw`
+
+This introduces `linstor.raw.*` configuration keys for both LINSTOR
+storage pools and storage volumes, allowing to set low-level
+properties to resource groups and resource definitions.
+
+## `network_address_set_ip_ranges`
+
+This adds support for IP ranges (e.g. `10.0.0.120-10.0.0.130`) in network
+address sets, matching what's already allowed in network ACL rules.
+
+A single range may expand to at most 256 addresses. Larger sets of
+addresses should be expressed using CIDR notation instead.
+
+## `storage_volumes_rebuild`
+
+This extension adds the ability to rebuild a custom storage volume.
+The underlying volume is deleted and a new empty one is created with
+the same configuration. The rebuild is only allowed when the volume
+has no snapshots.
+
+## `api_fragments`
+
+URL fragments in API paths are to be treated by clients as references
+to configuration keys for the objects said paths point to.
+
+For example, `/1.0?target=foo#storage.logs_volume` refers to the
+`storage.logs_volume` configuration key for the cluster member `foo`.
+
+## `instance_limits_cpu_topology`
+
+This extends the `limits.cpu` configuration key for virtual machines to
+allow specifying an explicit CPU topology of the form
+`sockets=2,cores=4,threads=2`.
+
+## `instance_nbd`
+
+This adds a new `GET /1.0/instances/{name}/nbd` endpoint which acts
+similarly to the equivalent storage volume endpoint but allows concurrent
+access to all disks attached to the VM.

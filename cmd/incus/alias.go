@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdAlias struct {
@@ -62,7 +62,8 @@ func (c *cmdAliasAdd) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Add new aliases`))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus alias add list "list -c ns46S"
-    Overwrite the "list" command to pass -c ns46S.`))
+    Overwrite the "list" command to pass -c ns46S.`,
+	))
 
 	cmd.RunE = c.run
 
@@ -72,7 +73,7 @@ func (c *cmdAliasAdd) command() *cobra.Command {
 func (c *cmdAliasAdd) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
 
-	parsed, err := cmdAliasAddUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdAliasAddUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -108,7 +109,7 @@ func (c *cmdAliasList) command() *cobra.Command {
 	cmd.Aliases = []string{"ls"}
 	cmd.Short = i18n.G("List aliases")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`List aliases`))
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -123,7 +124,7 @@ func (c *cmdAliasList) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
 
 	// Quick checks.
-	_, err := cmdAliasListUsage.Parse(c.global.conf, cmd, args)
+	_, err := c.global.Parse(cmdAliasListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -168,7 +169,8 @@ func (c *cmdAliasRename) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Rename aliases`))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus alias rename list my-list
-    Rename existing alias "list" to "my-list".`))
+    Rename existing alias "list" to "my-list".`,
+	))
 
 	cmd.RunE = c.run
 
@@ -178,7 +180,7 @@ func (c *cmdAliasRename) command() *cobra.Command {
 func (c *cmdAliasRename) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
 
-	parsed, err := cmdAliasRenameUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdAliasRenameUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -222,7 +224,8 @@ func (c *cmdAliasRemove) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Remove aliases`))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus alias remove my-list
-    Remove the "my-list" alias.`))
+    Remove the "my-list" alias.`,
+	))
 
 	cmd.RunE = c.run
 
@@ -233,7 +236,7 @@ func (c *cmdAliasRemove) run(cmd *cobra.Command, args []string) error {
 	conf := c.global.conf
 
 	// Quick checks.
-	parsed, err := cmdAliasRemoveUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdAliasRemoveUsage, cmd, args)
 	if err != nil {
 		return err
 	}

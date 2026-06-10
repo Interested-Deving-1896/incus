@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdConfigDevice struct {
@@ -97,14 +97,16 @@ func (c *cmdConfigDeviceAdd) command() *cobra.Command {
     Will mount the host's /share/c1 onto /opt in the instance.
 
 incus config device add [<remote>:]instance1 <device-name> disk pool=some-pool source=some-volume path=/opt
-    Will mount the some-volume volume on some-pool onto /opt in the instance.`))
+    Will mount the some-volume volume on some-pool onto /opt in the instance.`,
+		))
 	} else if c.profile != nil {
 		cmd.Example = cli.FormatSection("", i18n.G(
 			`incus profile device add [<remote>:]profile1 <device-name> disk source=/share/c1 path=/opt
     Will mount the host's /share/c1 onto /opt in the instance.
 
 incus profile device add [<remote>:]profile1 <device-name> disk pool=some-pool source=some-volume path=/opt
-    Will mount the some-volume volume on some-pool onto /opt in the instance.`))
+    Will mount the some-volume volume on some-pool onto /opt in the instance.`,
+		))
 	}
 
 	cmd.RunE = c.run
@@ -125,7 +127,7 @@ incus profile device add [<remote>:]profile1 <device-name> disk pool=some-pool s
 }
 
 func (c *cmdConfigDeviceAdd) run(cmd *cobra.Command, args []string) error {
-	parsed, err := c.configDevice.formatUsage(cmdConfigDeviceAddUsage).Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(c.configDevice.formatUsage(cmdConfigDeviceAddUsage), cmd, args)
 	if err != nil {
 		return err
 	}
@@ -209,7 +211,8 @@ func (c *cmdConfigDeviceGet) command() *cobra.Command {
 	cmd.Use = cli.U("get", c.configDevice.formatUsage(cmdConfigDeviceGetUsage)...)
 	cmd.Short = i18n.G("Get values for device configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Get values for device configuration keys`))
+		`Get values for device configuration keys`,
+	))
 
 	cmd.RunE = c.run
 
@@ -237,7 +240,7 @@ func (c *cmdConfigDeviceGet) command() *cobra.Command {
 }
 
 func (c *cmdConfigDeviceGet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := c.configDevice.formatUsage(cmdConfigDeviceGetUsage).Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(c.configDevice.formatUsage(cmdConfigDeviceGetUsage), cmd, args)
 	if err != nil {
 		return err
 	}
@@ -316,7 +319,7 @@ func (c *cmdConfigDeviceList) command() *cobra.Command {
 }
 
 func (c *cmdConfigDeviceList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := c.configDevice.formatUsage(cmdConfigDeviceListUsage).Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(c.configDevice.formatUsage(cmdConfigDeviceListUsage), cmd, args)
 	if err != nil {
 		return err
 	}
@@ -364,7 +367,8 @@ func (c *cmdConfigDeviceOverride) command() *cobra.Command {
 	cmd.Use = cli.U("override", cmdConfigDeviceOverrideUsage...)
 	cmd.Short = i18n.G("Copy profile inherited devices and override configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Copy profile inherited devices and override configuration keys`))
+		`Copy profile inherited devices and override configuration keys`,
+	))
 
 	cmd.RunE = c.run
 
@@ -380,7 +384,7 @@ func (c *cmdConfigDeviceOverride) command() *cobra.Command {
 }
 
 func (c *cmdConfigDeviceOverride) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdConfigDeviceOverrideUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdConfigDeviceOverrideUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -471,7 +475,7 @@ func (c *cmdConfigDeviceRemove) command() *cobra.Command {
 }
 
 func (c *cmdConfigDeviceRemove) run(cmd *cobra.Command, args []string) error {
-	parsed, err := c.configDevice.formatUsage(cmdConfigDeviceRemoveUsage).Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(c.configDevice.formatUsage(cmdConfigDeviceRemoveUsage), cmd, args)
 	if err != nil {
 		return err
 	}
@@ -568,13 +572,15 @@ func (c *cmdConfigDeviceSet) command() *cobra.Command {
 			`Set device configuration keys
 
 For backward compatibility, a single configuration key may still be set with:
-    incus config device set [<remote>:]<instance> <device> <key> <value>`))
+    incus config device set [<remote>:]<instance> <device> <key> <value>`,
+		))
 	} else if c.profile != nil {
 		cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
 			`Set device configuration keys
 
 For backward compatibility, a single configuration key may still be set with:
-    incus profile device set [<remote>:]<profile> <device> <key> <value>`))
+    incus profile device set [<remote>:]<profile> <device> <key> <value>`,
+		))
 	}
 
 	cmd.RunE = c.run
@@ -664,7 +670,7 @@ func (c *cmdConfigDeviceSet) set(cmd *cobra.Command, parsed []*u.Parsed) error {
 }
 
 func (c *cmdConfigDeviceSet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := c.configDevice.formatUsage(cmdConfigDeviceSetUsage).Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(c.configDevice.formatUsage(cmdConfigDeviceSetUsage), cmd, args)
 	if err != nil {
 		return err
 	}
@@ -706,7 +712,7 @@ func (c *cmdConfigDeviceShow) command() *cobra.Command {
 }
 
 func (c *cmdConfigDeviceShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := c.configDevice.formatUsage(cmdConfigDeviceShowUsage).Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(c.configDevice.formatUsage(cmdConfigDeviceShowUsage), cmd, args)
 	if err != nil {
 		return err
 	}
@@ -751,7 +757,7 @@ type cmdConfigDeviceUnset struct {
 	profile         *cmdProfile
 }
 
-var cmdConfigDeviceUnsetUsage = u.Usage{u.Device, u.Key}
+var cmdConfigDeviceUnsetUsage = u.Usage{u.Device, u.Key.List(1)}
 
 func (c *cmdConfigDeviceUnset) command() *cobra.Command {
 	cmd := &cobra.Command{}
@@ -785,7 +791,7 @@ func (c *cmdConfigDeviceUnset) command() *cobra.Command {
 }
 
 func (c *cmdConfigDeviceUnset) run(cmd *cobra.Command, args []string) error {
-	parsed, err := c.configDevice.formatUsage(cmdConfigDeviceUnsetUsage).Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(c.configDevice.formatUsage(cmdConfigDeviceUnsetUsage), cmd, args)
 	if err != nil {
 		return err
 	}

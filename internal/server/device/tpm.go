@@ -10,14 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/linux"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 type tpm struct {
@@ -106,11 +107,91 @@ func (d *tpm) Start() (*deviceConfig.RunConfig, error) {
 		}
 	}
 
+	err = d.maybeProvision(tpmDevPath)
+	if err != nil {
+		return nil, err
+	}
+
 	if d.inst.Type() == instancetype.VM {
 		return d.startVM()
 	}
 
 	return d.startContainer()
+}
+
+// maybeProvision provisions the TPM with an Endorsement Key and a platform
+// certificate signed by the configured platform CA. Does nothing if the TPM
+// state directory is non-empty (already provisioned) or if no platform CA is
+// configured.
+func (d *tpm) maybeProvision(tpmDevPath string) error {
+	entries, err := os.ReadDir(tpmDevPath)
+	if err != nil {
+		return fmt.Errorf("Failed to read TPM state directory %q: %w", tpmDevPath, err)
+	}
+
+	if len(entries) > 0 {
+		return nil
+	}
+
+	platformCert, platformKey := d.state.GlobalConfig.InstancesTPMPlatformCert()
+	if platformCert == "" || platformKey == "" {
+		return nil
+	}
+
+	_, err = exec.LookPath("swtpm_setup")
+	if err != nil {
+		return fmt.Errorf("Required tool %q is missing", "swtpm_setup")
+	}
+
+	confDir, err := os.MkdirTemp("", "incus-tpm-setup-")
+	if err != nil {
+		return fmt.Errorf("Failed to create swtpm_setup config directory: %w", err)
+	}
+
+	defer logger.WarnOnError(func() error { return os.RemoveAll(confDir) }, "Failed to remove config directory")
+
+	issuerCertPath := filepath.Join(confDir, "issuercert.pem")
+	signingKeyPath := filepath.Join(confDir, "signkey.pem")
+	certSerialPath := filepath.Join(confDir, "certserial")
+	localCAConfPath := filepath.Join(confDir, "swtpm-localca.conf")
+	setupConfPath := filepath.Join(confDir, "swtpm_setup.conf")
+
+	err = os.WriteFile(issuerCertPath, []byte(platformCert), 0o600)
+	if err != nil {
+		return fmt.Errorf("Failed writing platform certificate: %w", err)
+	}
+
+	err = os.WriteFile(signingKeyPath, []byte(platformKey), 0o600)
+	if err != nil {
+		return fmt.Errorf("Failed writing platform key: %w", err)
+	}
+
+	localCAConf := fmt.Sprintf("statedir = %s\nsigningkey = %s\nissuercert = %s\ncertserial = %s\n", confDir, signingKeyPath, issuerCertPath, certSerialPath)
+	err = os.WriteFile(localCAConfPath, []byte(localCAConf), 0o600)
+	if err != nil {
+		return fmt.Errorf("Failed writing swtpm localca config: %w", err)
+	}
+
+	setupConf := fmt.Sprintf("create_certs_tool = swtpm_localca\ncreate_certs_tool_config = %s\nactive_pcr_banks = sha256\n", localCAConfPath)
+	err = os.WriteFile(setupConfPath, []byte(setupConf), 0o600)
+	if err != nil {
+		return fmt.Errorf("Failed writing swtpm_setup config: %w", err)
+	}
+
+	_, err = subprocess.RunCommand(
+		"swtpm_setup",
+		"--tpm2",
+		"--tpmstate", tpmDevPath,
+		"--create-ek-cert",
+		"--create-platform-cert",
+		"--lock-nvram",
+		"--config", setupConfPath,
+	)
+	if err != nil {
+		return fmt.Errorf("Failed provisioning TPM: %w", err)
+	}
+
+	return nil
 }
 
 func (d *tpm) startContainer() (*deviceConfig.RunConfig, error) {
@@ -134,7 +215,7 @@ func (d *tpm) startContainer() (*deviceConfig.RunConfig, error) {
 	// Stop the TPM emulator if anything goes wrong.
 	reverter.Add(func() { _ = proc.Stop() })
 
-	pidPath := filepath.Join(d.inst.DevicesPath(), fmt.Sprintf("%s.pid", d.name))
+	pidPath := filepath.Join(d.inst.DevicesPath(), fmt.Sprintf("%s.pid", linux.PathNameEncode(d.name)))
 
 	err = proc.Save(pidPath)
 	if err != nil {
@@ -209,10 +290,6 @@ func (d *tpm) startContainer() (*deviceConfig.RunConfig, error) {
 }
 
 func (d *tpm) startVM() (*deviceConfig.RunConfig, error) {
-	if d.inst.Type() == instancetype.VM && util.IsTrue(d.inst.ExpandedConfig()["migration.stateful"]) {
-		return nil, errors.New("TPM devices cannot be used when migration.stateful is enabled")
-	}
-
 	tpmDevPath := filepath.Join(d.inst.Path(), fmt.Sprintf("tpm.%s", d.name))
 	socketPath := filepath.Join(tpmDevPath, fmt.Sprintf("swtpm-%s.sock", d.name))
 	runConf := deviceConfig.RunConfig{
@@ -243,7 +320,7 @@ func (d *tpm) startVM() (*deviceConfig.RunConfig, error) {
 
 	reverter.Add(func() { _ = proc.Stop() })
 
-	pidPath := filepath.Join(d.inst.DevicesPath(), fmt.Sprintf("%s.pid", d.name))
+	pidPath := filepath.Join(d.inst.DevicesPath(), fmt.Sprintf("%s.pid", linux.PathNameEncode(d.name)))
 
 	err = proc.Save(pidPath)
 	if err != nil {
@@ -272,10 +349,10 @@ func (d *tpm) startVM() (*deviceConfig.RunConfig, error) {
 
 // Stop terminates the TPM emulator.
 func (d *tpm) Stop() (*deviceConfig.RunConfig, error) {
-	pidPath := filepath.Join(d.inst.DevicesPath(), fmt.Sprintf("%s.pid", d.name))
+	pidPath := filepath.Join(d.inst.DevicesPath(), fmt.Sprintf("%s.pid", linux.PathNameEncode(d.name)))
 	runConf := deviceConfig.RunConfig{}
 
-	defer func() { _ = os.Remove(pidPath) }()
+	defer logger.WarnOnError(func() error { return os.Remove(pidPath) }, "Failed to remove PID file")
 
 	if util.PathExists(pidPath) {
 		proc, err := subprocess.ImportProcess(pidPath)

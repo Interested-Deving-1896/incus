@@ -3,9 +3,9 @@ package device
 import (
 	"fmt"
 
-	"github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 func gpuValidationRules(requiredFields []string, optionalFields []string) map[string]func(value string) error {
@@ -71,8 +71,8 @@ func gpuValidationRules(requiredFields []string, optionalFields []string) map[st
 // Check if the device matches the given GPU card.
 // It matches based on vendorid, pci, productid or id setting of the device.
 func gpuSelected(device config.Device, gpu api.ResourcesGPUCard) bool {
-	return !((device["vendorid"] != "" && gpu.VendorID != device["vendorid"]) ||
-		(device["pci"] != "" && gpu.PCIAddress != device["pci"]) ||
-		(device["productid"] != "" && gpu.ProductID != device["productid"]) ||
-		(device["id"] != "" && (gpu.DRM == nil || fmt.Sprintf("%d", gpu.DRM.ID) != device["id"])))
+	return (device["vendorid"] == "" || gpu.VendorID == device["vendorid"]) &&
+		(device["pci"] == "" || gpu.PCIAddress == device["pci"]) &&
+		(device["productid"] == "" || gpu.ProductID == device["productid"]) &&
+		(device["id"] == "" || (gpu.DRM != nil && fmt.Sprintf("%d", gpu.DRM.ID) == device["id"]))
 }

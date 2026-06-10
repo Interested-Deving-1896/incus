@@ -14,31 +14,32 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	"github.com/lxc/incus/v6/internal/rsync"
-	"github.com/lxc/incus/v6/internal/server/apparmor"
-	backupConfig "github.com/lxc/incus/v6/internal/server/backup/config"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/node"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/internal/server/storage/drivers"
-	"github.com/lxc/incus/v6/internal/server/sys"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/archive"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	"github.com/lxc/incus/v7/internal/rsync"
+	"github.com/lxc/incus/v7/internal/server/apparmor"
+	backupConfig "github.com/lxc/incus/v7/internal/server/backup/config"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/locking"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/node"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/internal/server/storage/drivers"
+	"github.com/lxc/incus/v7/internal/server/sys"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/archive"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // ConfigDiff returns a diff of the provided configs. Additionally, it returns whether or not
@@ -724,14 +725,14 @@ func ImageUnpack(imageFile string, vol drivers.Volume, destBlockFile string, sys
 				return -1, err
 			}
 
-			defer from.Close()
+			defer logger.WarnOnError(from.Close, "Failed to close source file")
 
 			to, err := os.OpenFile(dstPath, unix.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0)
 			if err != nil {
 				return -1, err
 			}
 
-			defer to.Close()
+			defer logger.WarnOnError(to.Close, "Failed to close destination file")
 
 			_, err = util.SafeCopy(to, from)
 			if err != nil {
@@ -804,7 +805,7 @@ func ImageUnpack(imageFile string, vol drivers.Volume, destBlockFile string, sys
 			return -1, err
 		}
 
-		defer func() { _ = os.RemoveAll(tempDir) }()
+		defer logger.WarnOnError(func() error { return os.RemoveAll(tempDir) }, "Failed to remove temporary directory")
 
 		// Unpack the whole image.
 		err = archive.Unpack(imageFile, tempDir, vol.IsBlockBacked(), maxMemory, tracker)
@@ -850,7 +851,7 @@ func InstanceContentType(inst instance.ConfigReader) drivers.ContentType {
 // VolumeUsedByProfileDevices finds profiles using a volume and passes them to profileFunc for evaluation.
 // The profileFunc is provided with a profile config, project config and a list of device names that are using
 // the volume.
-func VolumeUsedByProfileDevices(s *state.State, poolName string, projectName string, vol *api.StorageVolume, profileFunc func(profileID int64, profile api.Profile, project api.Project, usedByDevices []string) error) error {
+func VolumeUsedByProfileDevices(s *state.State, poolName string, projectName string, vol *api.StorageVolume, profileFunc func(profileID int64, profile api.Profile, p api.Project, usedByDevices []string) error) error {
 	// Convert the volume type name to our internal integer representation.
 	volumeType, err := VolumeTypeNameToDBType(vol.Type)
 	if err != nil {
@@ -963,7 +964,7 @@ func VolumeUsedByProfileDevices(s *state.State, poolName string, projectName str
 // is returned immediately. The instanceFunc is executed during a DB transaction, so DB queries are not permitted.
 // The instanceFunc is provided with a instance config, project config, instance's profiles and a list of device
 // names that are using the volume.
-func VolumeUsedByInstanceDevices(s *state.State, poolName string, projectName string, vol *api.StorageVolume, expandDevices bool, instanceFunc func(inst db.InstanceArgs, project api.Project, usedByDevices []string) error) error {
+func VolumeUsedByInstanceDevices(s *state.State, poolName string, projectName string, vol *api.StorageVolume, expandDevices bool, instanceFunc func(inst db.InstanceArgs, p api.Project, usedByDevices []string) error) error {
 	// Convert the volume type name to our internal integer representation.
 	volumeType, err := VolumeTypeNameToDBType(vol.Type)
 	if err != nil {
@@ -1041,7 +1042,7 @@ func VolumeUsedByExclusiveRemoteInstancesWithProfiles(s *state.State, poolName s
 	// Always return nil if the storage driver supports mounting volumes
 	// on multiple nodes at once and we're not dealing with a filesystem volume
 	// on top of a block device.
-	if info.VolumeMultiNode && !(info.BlockBacking && vol.ContentType == "filesystem") {
+	if info.VolumeMultiNode && (!info.BlockBacking || vol.ContentType != "filesystem") {
 		return nil, nil
 	}
 
@@ -1062,31 +1063,26 @@ func VolumeUsedByExclusiveRemoteInstancesWithProfiles(s *state.State, poolName s
 	return remoteInstance, nil
 }
 
-// VolumeUsedByDaemon indicates whether the volume is used by daemon storage.
-func VolumeUsedByDaemon(s *state.State, poolName string, volumeName string) (bool, error) {
-	var storageBackups string
-	var storageImages string
+// VolumeUsedByDaemon indicates whether the volume is used by daemon storage, by returning a
+// configuration fragment.
+func VolumeUsedByDaemon(s *state.State, poolName string, volumeName string) (string, error) {
+	daemonVolumes := make(map[string]string, 3)
 	err := s.DB.Node.Transaction(context.TODO(), func(ctx context.Context, tx *db.NodeTx) error {
 		nodeConfig, err := node.ConfigLoad(ctx, tx)
 		if err != nil {
 			return err
 		}
 
-		storageBackups = nodeConfig.StorageBackupsVolume()
-		storageImages = nodeConfig.StorageImagesVolume()
-
+		daemonVolumes[nodeConfig.StorageBackupsVolume()] = "storage.backups_volume"
+		daemonVolumes[nodeConfig.StorageImagesVolume()] = "storage.images_volume"
+		daemonVolumes[nodeConfig.StorageLogsVolume()] = "storage.logs_volume"
 		return nil
 	})
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
-	fullName := fmt.Sprintf("%s/%s", poolName, volumeName)
-	if storageBackups == fullName || storageImages == fullName {
-		return true, nil
-	}
-
-	return false, nil
+	return daemonVolumes[fmt.Sprintf("%s/%s", poolName, volumeName)], nil
 }
 
 // FallbackMigrationType returns the fallback migration transport to use based on volume content type.
@@ -1140,7 +1136,7 @@ func InstanceDiskBlockSize(pool Pool, inst instance.Instance, op *operations.Ope
 		return -1, err
 	}
 
-	defer func() { _ = InstanceUnmount(pool, inst, op) }()
+	defer logger.WarnOnError(func() error { return InstanceUnmount(pool, inst, op) }, "Failed to unmount instance")
 
 	if mountInfo.DiskPath == "" {
 		return -1, errors.New("No disk path available from mount")
@@ -1310,11 +1306,13 @@ func ClusterWideStorageConfig(driverName string) []string {
 
 // GenerateDependentVolumesOffer creates an offer header containing
 // all information required for dependent volume migration.
-func GenerateDependentVolumesOffer(s *state.State, config *backupConfig.Config, projectName string, snapshots bool) ([]*migration.DependentVolume, error) {
+func GenerateDependentVolumesOffer(s *state.State, config *backupConfig.Config, projectName string, snapshots bool, devices api.DevicesMap, clusterMove bool) ([]*migration.DependentVolume, error) {
 	result := make([]*migration.DependentVolume, 0, len(config.DependentVolumes))
 	if len(config.DependentVolumes) == 0 {
 		return result, nil
 	}
+
+	devicesMap := DevicesMapFromBackupConfig(config)
 
 	for _, volConfig := range config.DependentVolumes {
 		poolName := volConfig.Pool.Name
@@ -1324,6 +1322,20 @@ func GenerateDependentVolumesOffer(s *state.State, config *backupConfig.Config, 
 		pool, err := LoadByName(s, poolName)
 		if err != nil {
 			return nil, fmt.Errorf("Failed loading pool: %w", err)
+		}
+
+		deviceName := DeviceByPoolAndVolume(devicesMap, poolName, volName)
+		if deviceName == "" {
+			return nil, fmt.Errorf("Device for volume %s/%s not found", poolName, volName)
+		}
+
+		shouldMigrate, err := ShouldMigrateDependentVolume(s, poolName, volName, devices[deviceName], clusterMove)
+		if err != nil {
+			return nil, err
+		}
+
+		if !shouldMigrate {
+			continue
 		}
 
 		volStorageName := project.StorageVolume(projectName, volName)
@@ -1357,7 +1369,7 @@ func GenerateDependentVolumesOffer(s *state.State, config *backupConfig.Config, 
 			}
 		}
 
-		dependentVolume := localMigration.DependentVolumeFromHeader(header, volName, poolName, contentType, volSize)
+		dependentVolume := localMigration.DependentVolumeFromHeader(header, volName, poolName, contentType, volSize, deviceName)
 		dependentVolume.Snapshots = make([]*migration.Snapshot, 0, len(volConfig.VolumeSnapshots))
 
 		for _, volSnap := range volConfig.VolumeSnapshots {
@@ -1384,11 +1396,20 @@ type DependentVolumeWithType struct {
 }
 
 // DependentVolumesMatchMigrationType returns the transport type matching the dependent volumes.
-func DependentVolumesMatchMigrationType(s *state.State, migrationDependentVolumes []*migration.DependentVolume, snapshots bool) ([]DependentVolumeWithType, error) {
+func DependentVolumesMatchMigrationType(s *state.State, migrationDependentVolumes []*migration.DependentVolume, snapshots bool, overrides api.DevicesMap, source bool) ([]DependentVolumeWithType, error) {
 	dependentVolumes := []DependentVolumeWithType{}
 	for _, vol := range migrationDependentVolumes {
 		contentType := drivers.ContentType(*vol.ContentType)
-		pool, err := LoadByName(s, *vol.Pool)
+		poolName := *vol.Pool
+
+		if overrides != nil && overrides[*vol.DeviceName] != nil {
+			newPoolName, ok := overrides[*vol.DeviceName]["pool"]
+			if ok {
+				poolName = newPoolName
+			}
+		}
+
+		pool, err := LoadByName(s, poolName)
 		if err != nil {
 			return nil, fmt.Errorf("Failed loading storage pool: %w", err)
 		}
@@ -1403,6 +1424,11 @@ func DependentVolumesMatchMigrationType(s *state.State, migrationDependentVolume
 			return nil, fmt.Errorf("Failed to negotiate migration type: %w", err)
 		}
 
+		// Update header on target.
+		if !source {
+			localMigration.DependentVolumeUpdateHeader(localMigration.TypesToHeader(migrationTypes...), vol)
+		}
+
 		dependentVolumes = append(dependentVolumes, DependentVolumeWithType{Volume: vol, VolumeTypes: migrationTypes})
 	}
 
@@ -1412,12 +1438,21 @@ func DependentVolumesMatchMigrationType(s *state.State, migrationDependentVolume
 // ShouldMigrateDependentVolume returns true if the dependent volume
 // needs to be migrated for this instance. Returns false if migration
 // can be skipped (e.g., on shared storage within the same cluster).
-func ShouldMigrateDependentVolume(diskPool Pool, clusterMove bool) bool {
-	if diskPool.Driver().Info().Remote && clusterMove {
-		return false
+func ShouldMigrateDependentVolume(s *state.State, poolName string, volumeName string, overrides map[string]string, clusterMove bool) (bool, error) {
+	if overrides != nil && ((overrides["source"] != "" && volumeName != overrides["source"]) || (overrides["pool"] != "" && poolName != overrides["pool"])) {
+		return true, nil
 	}
 
-	return true
+	diskPool, err := LoadByName(s, poolName)
+	if err != nil {
+		return false, fmt.Errorf("Failed loading storage pool: %w", err)
+	}
+
+	if diskPool.Driver().Info().Remote && clusterMove {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // InstanceByVolumeName returns the instance associated with the given volume name.
@@ -1485,4 +1520,49 @@ func InstanceByVolumeName(s *state.State, poolName string, projectName string, v
 	}
 
 	return inst, instanceDeviceName, nil
+}
+
+// DeviceByPoolAndVolume returns a device from the devices map for the given pool and volume name.
+func DeviceByPoolAndVolume(deviceMap map[string]map[string]string, poolName string, volumeName string) string {
+	inner, ok := deviceMap[poolName]
+	if !ok {
+		return ""
+	}
+
+	v, ok := inner[volumeName]
+	if !ok {
+		return ""
+	}
+
+	return v
+}
+
+// DevicesMapFromBackupConfig builds a map of instance devices indexed by pool and volume name.
+func DevicesMapFromBackupConfig(config *backupConfig.Config) map[string]map[string]string {
+	devicesMap := map[string]map[string]string{}
+	for devName, dev := range config.Container.ExpandedDevices {
+		_, hasPool := devicesMap[dev["pool"]]
+		if !hasPool {
+			devicesMap[dev["pool"]] = map[string]string{}
+		}
+
+		devicesMap[dev["pool"]][dev["source"]] = devName
+	}
+
+	return devicesMap
+}
+
+// nbdOperationLock acquires a lock for NBD operations on an instance and
+// returns an unlock function.
+func nbdOperationLock(projectName string, instanceName string) (locking.UnlockFunc, error) {
+	l := logger.AddContext(logger.Ctx{"project": projectName, "instance": instanceName})
+	l.Debug("Acquiring NBD lock for instance")
+	defer l.Debug("NBD lock acquired for instance")
+
+	unlock, _ := locking.TryLock(fmt.Sprintf("NBDInstanceOperation_%s", project.Instance(projectName, instanceName)))
+	if unlock == nil {
+		return nil, fmt.Errorf("NBD operation for instance %s already in progress", instanceName)
+	}
+
+	return unlock, nil
 }

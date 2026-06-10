@@ -85,7 +85,15 @@ User keys can be used in search.
 :required: "no"
 :shortdesc: "Initial volume configuration for instance root disk devices"
 :type: "string"
+For root disk devices, this is used to override the storage pool's default volume
+configuration when creating the instance's root volume.
 
+For custom volumes, only `initial.uid`, `initial.gid` and `initial.mode` are
+accepted and they are used when auto-creating sub-directories inside the custom
+volume (when the `source` includes a sub-path that doesn't exist).
+
+`initial.uid`, `initial.gid` and `initial.mode` are also used to set the ownership
+and mode of the file system when the `source` is `tmpfs:` or `tmpfs-overlay:`.
 ```
 
 ```{config:option} io.bus devices-disk
@@ -2315,6 +2323,7 @@ See {ref}`instance-options-qemu` for more information.
 :shortdesc: "Which CPUs to expose to the instance"
 :type: "string"
 A number or a specific range of CPUs to expose to the instance.
+For virtual machines, a CPU topology of the form `sockets=2,cores=4,threads=2` may also be provided.
 
 See {ref}`instance-options-limits-cpu` for more information.
 ```
@@ -2817,16 +2826,28 @@ This system call can be used to get cgroup-based resource usage information.
 <!-- config group instance-snapshots start -->
 ```{config:option} snapshots.expiry instance-snapshots
 :liveupdate: "no"
-:shortdesc: "When snapshots are to be deleted"
+:shortdesc: "When newly created snapshots are to be deleted"
 :type: "string"
 Specify an expression like `1M 2H 3d 4w 5m 6y`.
+
+This value is used to compute the expiry date of newly created snapshots.
+It is added to the current time when a snapshot is taken, and the resulting timestamp is stored as that snapshot's individual expiry date.
+Changing this value only affects snapshots created after the change; the expiry date of existing snapshots is not modified.
+
+The supported units are `S` (seconds), `M` (minutes), `H` (hours), `d` (days), `w` (weeks), `m` (months) and `y` (years).
 ```
 
 ```{config:option} snapshots.expiry.manual instance-snapshots
 :liveupdate: "no"
-:shortdesc: "When snapshots are to be deleted (for those not created through scheduling)"
+:shortdesc: "When newly created snapshots are to be deleted (for those not created through scheduling)"
 :type: "string"
 Specify an expression like `1M 2H 3d 4w 5m 6y`.
+
+This value is used to compute the expiry date of newly created snapshots that are not created through scheduling.
+It is added to the current time when a snapshot is taken, and the resulting timestamp is stored as that snapshot's individual expiry date.
+Changing this value only affects snapshots created after the change; the expiry date of existing snapshots is not modified.
+
+See {config:option}`instance-snapshots:snapshots.expiry` for the supported units.
 ```
 
 ```{config:option} snapshots.pattern instance-snapshots
@@ -3073,6 +3094,12 @@ The cluster member that the instance lived on before evacuation.
 
 ```
 
+```{config:option} volatile.last_state.agent instance-volatile
+:shortdesc: "Instance agent state as of last host shutdown"
+:type: "string"
+
+```
+
 ```{config:option} volatile.last_state.idmap instance-volatile
 :shortdesc: "Serialized instance UID/GID map"
 :type: "string"
@@ -3273,6 +3300,7 @@ User keys can be used in search.
 ```{config:option} bgp.ipv4.nexthop network_bridge-common
 :condition: "BGP server"
 :default: "local address"
+:scope: "local"
 :shortdesc: "Override the next-hop for advertised prefixes"
 :type: "string"
 
@@ -3281,6 +3309,7 @@ User keys can be used in search.
 ```{config:option} bgp.ipv6.nexthop network_bridge-common
 :condition: "BGP server"
 :default: "local address"
+:scope: "local"
 :shortdesc: "Override the next-hop for advertised prefixes"
 :type: "string"
 
@@ -3315,6 +3344,14 @@ User keys can be used in search.
 :default: "`1500`"
 :shortdesc: "Bridge MTU (default varies if tunnel in use)"
 :type: "integer"
+
+```
+
+```{config:option} bridge.multicast_snooping network_bridge-common
+:condition: "native bridge"
+:default: "`true`"
+:shortdesc: "Whether to enable multicast snooping on the bridge"
+:type: "bool"
 
 ```
 
@@ -3826,6 +3863,7 @@ User keys can be used in search.
 
 ```{config:option} parent network_macvlan-common
 :condition: "-"
+:scope: "local"
 :shortdesc: "Parent interface to create macvlan NICs on"
 :type: "string"
 
@@ -3847,6 +3885,7 @@ User keys can be used in search.
 <!-- config group network_macvlan-common end -->
 <!-- config group network_ovn-common start -->
 ```{config:option} bridge.external_interfaces network_ovn-common
+:scope: "local"
 :shortdesc: "Comma-separated list of unconfigured network interfaces to include in the bridge"
 :type: "string"
 
@@ -4195,6 +4234,7 @@ User keys can be used in search.
 
 ```{config:option} parent network_physical-common
 :condition: "-"
+:scope: "local"
 :shortdesc: "Existing interface to use for network"
 :type: "string"
 
@@ -4318,6 +4358,7 @@ User keys can be used in search.
 
 ```{config:option} parent network_sriov-common
 :condition: "-"
+:scope: "local"
 :shortdesc: "Parent interface to create `sriov` NICs on"
 :type: "string"
 
@@ -5066,6 +5107,15 @@ If this option is not specified, the daemon falls back to the `NO_PROXY` environ
 
 ```
 
+```{config:option} core.shutdown_action server-core
+:defaultdesc: "`shutdown`"
+:scope: "global"
+:shortdesc: "Action to perform on server shutdown"
+:type: "string"
+Specify the action to take when the daemon is being shut down.
+Supported values are `shutdown` (stop all instances) and `evacuate` (attempt to evacuate the clustered server).
+```
+
 ```{config:option} core.shutdown_timeout server-core
 :defaultdesc: "`5`"
 :scope: "global"
@@ -5349,6 +5399,24 @@ When using custom automatic instance placement logic, this option stores the scr
 See {ref}`clustering-instance-placement-scriptlet` for more information.
 ```
 
+```{config:option} instances.tpm.platform_cert server-miscellaneous
+:scope: "global"
+:shortdesc: "Platform CA certificate used to provision TPM Endorsement Keys"
+:type: "string"
+PEM encoded platform CA certificate used to sign the Endorsement
+Key and platform certificate of newly created TPM devices.
+Must be set together with `instances.tpm.platform_key`.
+```
+
+```{config:option} instances.tpm.platform_key server-miscellaneous
+:scope: "global"
+:shortdesc: "Private key for the TPM platform CA certificate"
+:type: "string"
+PEM encoded private key matching `instances.tpm.platform_cert`.
+Used to sign the Endorsement Key and platform certificate of newly
+created TPM devices.
+```
+
 ```{config:option} network.ovn.ca_cert server-miscellaneous
 :defaultdesc: "Content of `/etc/ovn/ovn-central.crt` if present"
 :scope: "global"
@@ -5527,6 +5595,14 @@ Note that the claim must be contained in the access token.
 
 <!-- config group server-openfga end -->
 <!-- config group storage_btrfs-common start -->
+```{config:option} btrfs.create_options storage_btrfs-common
+:default: "-"
+:scope: "global"
+:shortdesc: "Additional options to pass to `mkfs.btrfs` when creating the pool"
+:type: "string"
+
+```
+
 ```{config:option} btrfs.mount_options storage_btrfs-common
 :default: "`user_subvol_rm_allowed`"
 :scope: "global"
@@ -5872,6 +5948,13 @@ Note that the claim must be contained in the access token.
 
 ```
 
+```{config:option} linstor.raw.* storage_linstor-common
+:scope: "global"
+:shortdesc: "Extra LINSTOR properties to set. For example, `BCache/PoolName` is encoded as `linstor.raw.BCache/PoolName`."
+:type: "string"
+
+```
+
 ```{config:option} linstor.resource_group.name storage_linstor-common
 :default: "`incus`"
 :scope: "global"
@@ -6146,7 +6229,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.expiry.manual storage_volume_btrfs-common
@@ -6154,7 +6237,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry.manual`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.pattern storage_volume_btrfs-common
@@ -6175,6 +6258,14 @@ Note that the claim must be contained in the access token.
 
 <!-- config group storage_volume_btrfs-common end -->
 <!-- config group storage_volume_ceph-common start -->
+```{config:option} block.create_options storage_volume_ceph-common
+:condition: "block-based volume with content type `filesystem`"
+:default: "same as `volume.block.create_options`"
+:shortdesc: "Additional options to pass to the file system creation tool when formatting the volume"
+:type: "string"
+
+```
+
 ```{config:option} block.filesystem storage_volume_ceph-common
 :condition: "block-based volume with content type `filesystem`"
 :default: "same as `volume.block.filesystem`"
@@ -6252,7 +6343,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.expiry.manual storage_volume_ceph-common
@@ -6260,7 +6351,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry.manual`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.pattern storage_volume_ceph-common
@@ -6342,7 +6433,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.expiry.manual storage_volume_cephfs-common
@@ -6350,7 +6441,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry.manual`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.pattern storage_volume_cephfs-common
@@ -6432,7 +6523,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.expiry.manual storage_volume_dir-common
@@ -6440,7 +6531,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry.manual`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.pattern storage_volume_dir-common
@@ -6461,6 +6552,14 @@ Note that the claim must be contained in the access token.
 
 <!-- config group storage_volume_dir-common end -->
 <!-- config group storage_volume_linstor-common start -->
+```{config:option} block.create_options storage_volume_linstor-common
+:condition: "block-based volume with content type `filesystem`"
+:default: "same as `volume.block.create_options`"
+:shortdesc: "Additional options to pass to the file system creation tool when formatting the volume"
+:type: "string"
+
+```
+
 ```{config:option} block.filesystem storage_volume_linstor-common
 :condition: "block-based volume with content type `filesystem`"
 :default: "same as `volume.block.filesystem`"
@@ -6525,6 +6624,13 @@ Note that the claim must be contained in the access token.
 
 ```
 
+```{config:option} linstor.raw.* storage_volume_linstor-common
+:scope: "global"
+:shortdesc: "Extra LINSTOR properties to set. For example, `BCache/PoolName` is encoded as `linstor.raw.BCache/PoolName`."
+:type: "string"
+
+```
+
 ```{config:option} linstor.remove_snapshots storage_volume_linstor-common
 :condition: "-"
 :default: "same as `volume.linstor.remove_snapshots` or `false`"
@@ -6570,7 +6676,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.expiry.manual storage_volume_linstor-common
@@ -6578,7 +6684,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry.manual`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.pattern storage_volume_linstor-common
@@ -6599,6 +6705,14 @@ Note that the claim must be contained in the access token.
 
 <!-- config group storage_volume_linstor-common end -->
 <!-- config group storage_volume_lvm-common start -->
+```{config:option} block.create_options storage_volume_lvm-common
+:condition: "block-based volume with content type `filesystem`"
+:default: "same as `volume.block.create_options`"
+:shortdesc: "Additional options to pass to the file system creation tool when formatting the volume"
+:type: "string"
+
+```
+
 ```{config:option} block.filesystem storage_volume_lvm-common
 :condition: "block-based volume with content type `filesystem`"
 :default: "same as `volume.block.filesystem`"
@@ -6699,7 +6813,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.expiry.manual storage_volume_lvm-common
@@ -6707,7 +6821,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry.manual`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.pattern storage_volume_lvm-common
@@ -6728,6 +6842,14 @@ Note that the claim must be contained in the access token.
 
 <!-- config group storage_volume_lvm-common end -->
 <!-- config group storage_volume_truenas-common start -->
+```{config:option} block.create_options storage_volume_truenas-common
+:condition: "-"
+:default: "same as `volume.block.create_options`"
+:shortdesc: "Additional options to pass to the file system creation tool when formatting the volume"
+:type: "string"
+
+```
+
 ```{config:option} block.filesystem storage_volume_truenas-common
 :condition: "-"
 :default: "same as `volume.block.filesystem`"
@@ -6805,7 +6927,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.expiry.manual storage_volume_truenas-common
@@ -6813,7 +6935,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry.manual`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.pattern storage_volume_truenas-common
@@ -6858,6 +6980,14 @@ Note that the claim must be contained in the access token.
 
 <!-- config group storage_volume_truenas-common end -->
 <!-- config group storage_volume_zfs-common start -->
+```{config:option} block.create_options storage_volume_zfs-common
+:condition: "block-based volume with content type `filesystem` (`zfs.block_mode` enabled)"
+:default: "same as `volume.block.create_options`"
+:shortdesc: "Additional options to pass to the file system creation tool when formatting the volume"
+:type: "string"
+
+```
+
 ```{config:option} block.filesystem storage_volume_zfs-common
 :condition: "block-based volume with content type `filesystem` (`zfs.block_mode` enabled)"
 :default: "same as `volume.block.filesystem`"
@@ -6935,7 +7065,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.expiry.manual storage_volume_zfs-common
@@ -6943,7 +7073,7 @@ Note that the claim must be contained in the access token.
 :default: "same as `volume.snapshot.expiry.manual`"
 :shortdesc: "{{snapshot_expiry_format}}"
 :type: "string"
-
+{{snapshot_expiry_detail}}
 ```
 
 ```{config:option} snapshots.pattern storage_volume_zfs-common

@@ -5,9 +5,9 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdAdmin struct {
@@ -19,7 +19,8 @@ func (c *cmdAdmin) command() *cobra.Command {
 	cmd.Use = cli.U("admin")
 	cmd.Short = i18n.G("Manage incus daemon")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Manage incus daemon`))
+		`Manage incus daemon`,
+	))
 
 	// os
 	adminOSCmd := cmdAdminOS{global: c.global}

@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/ip"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/server/ip"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // BridgeVLANFilteringStatus returns whether VLAN filtering is enabled on a bridge interface.
@@ -54,6 +54,21 @@ func BridgeVLANSetDefaultPVID(interfaceName string, vlanID string) error {
 // IsNativeBridge returns whether the bridge name specified is a Linux native bridge.
 func IsNativeBridge(bridgeName string) bool {
 	return util.PathExists(fmt.Sprintf("/sys/class/net/%s/bridge", bridgeName))
+}
+
+// BridgeMulticastSnoopingSetStatus sets the status of multicast snooping on a bridge interface.
+func BridgeMulticastSnoopingSetStatus(interfaceName string, status bool) error {
+	value := "0"
+	if status {
+		value = "1"
+	}
+
+	err := os.WriteFile(fmt.Sprintf("/sys/class/net/%s/bridge/multicast_snooping", interfaceName), []byte(value), 0)
+	if err != nil {
+		return fmt.Errorf("Failed setting multicast snooping on bridge %q: %w", interfaceName, err)
+	}
+
+	return nil
 }
 
 // AttachInterface attaches an interface to a bridge.

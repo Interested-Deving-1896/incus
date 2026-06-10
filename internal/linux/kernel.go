@@ -5,11 +5,12 @@ package linux
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // LoadModule loads the kernel module with the given name, by invoking
@@ -61,7 +62,7 @@ func Uname() (*Utsname, error) {
 
 func intArrayToString(arr any) string {
 	slice := reflect.ValueOf(arr)
-	s := ""
+	var s strings.Builder
 	for i := range slice.Len() {
 		val := slice.Index(i)
 		valInt := int64(-1)
@@ -81,8 +82,8 @@ func intArrayToString(arr any) string {
 			break
 		}
 
-		s += string(byte(valInt))
+		s.WriteString(string(byte(valInt)))
 	}
 
-	return s
+	return s.String()
 }

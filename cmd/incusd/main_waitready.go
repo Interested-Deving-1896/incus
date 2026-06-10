@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/shared/logger"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 type cmdWaitready struct {
@@ -87,7 +87,6 @@ func (c *cmdWaitready) run(_ *cobra.Command, _ []string) error {
 	if c.flagTimeout > 0 {
 		select {
 		case <-finger:
-			break
 		case <-time.After(time.Second * time.Duration(c.flagTimeout)):
 			return fmt.Errorf("Daemon still not running after %ds timeout (%v)", c.flagTimeout, errLast)
 		}

@@ -13,28 +13,26 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gorilla/mux"
-
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/jmap"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/operationtype"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/network"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	projecthelpers "github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/jmap"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/operationtype"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/network"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	projecthelpers "github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 var projectsCmd = APIEndpoint{
@@ -448,6 +446,12 @@ func projectCreateDefaultProfile(ctx context.Context, tx *db.ClusterTx, project 
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Project name
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    description: Project
@@ -476,7 +480,7 @@ func projectCreateDefaultProfile(ctx context.Context, tx *db.ClusterTx, project 
 func projectGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -521,6 +525,11 @@ func projectGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Project name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: project
 //	    description: Project configuration
@@ -541,7 +550,7 @@ func projectGet(d *Daemon, r *http.Request) response.Response {
 func projectPut(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -607,6 +616,11 @@ func projectPut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Project name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: project
 //	    description: Project configuration
@@ -627,7 +641,7 @@ func projectPut(d *Daemon, r *http.Request) response.Response {
 func projectPatch(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -825,6 +839,11 @@ func projectChange(ctx context.Context, s *state.State, project *api.Project, re
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Project name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: project
 //	    description: Project rename request
@@ -843,7 +862,7 @@ func projectChange(ctx context.Context, s *state.State, project *api.Project, re
 func projectPost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -938,6 +957,11 @@ func projectPost(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Project name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: force
 //	    description: Delete project and related artifacts
@@ -954,7 +978,7 @@ func projectPost(d *Daemon, r *http.Request) response.Response {
 func projectDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -1032,7 +1056,8 @@ func projectDelete(d *Daemon, r *http.Request) response.Response {
 			}
 
 			if elements[2] == "storage-pools" {
-				if elements[4] == "buckets" {
+				switch elements[4] {
+				case "buckets":
 					if entries["storage-buckets"] == nil {
 						entries["storage-buckets"] = []string{}
 					}
@@ -1044,7 +1069,7 @@ func projectDelete(d *Daemon, r *http.Request) response.Response {
 					}
 
 					entries["storage-buckets"] = append(entries["storage-buckets"], entry)
-				} else if elements[4] == "volumes" {
+				case "volumes":
 					if entries["storage-volumes"] == nil {
 						entries["storage-volumes"] = []string{}
 					}
@@ -1221,7 +1246,7 @@ func projectDelete(d *Daemon, r *http.Request) response.Response {
 		for _, volume := range entries["storage-volumes"] {
 			fields := strings.Split(volume, "/")
 			if len(fields) == 3 {
-				target.UseTarget(fields[2])
+				target = target.UseTarget(fields[2])
 			}
 
 			err := target.DeleteStoragePoolVolume(fields[0], "custom", fields[1])
@@ -1237,7 +1262,7 @@ func projectDelete(d *Daemon, r *http.Request) response.Response {
 		for _, volume := range entries["storage-buckets"] {
 			fields := strings.Split(volume, "/")
 			if len(fields) == 3 {
-				target.UseTarget(fields[2])
+				target = target.UseTarget(fields[2])
 			}
 
 			err := target.DeleteStoragePoolBucket(fields[0], fields[1])
@@ -1282,6 +1307,12 @@ func projectDelete(d *Daemon, r *http.Request) response.Response {
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Project name
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    description: Project state
@@ -1310,13 +1341,13 @@ func projectDelete(d *Daemon, r *http.Request) response.Response {
 func projectStateGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Setup the state struct.
-	state := api.ProjectState{}
+	projectState := api.ProjectState{}
 
 	// Get current limits and usage.
 	err = s.DB.Cluster.Transaction(r.Context(), func(ctx context.Context, tx *db.ClusterTx) error {
@@ -1325,7 +1356,7 @@ func projectStateGet(d *Daemon, r *http.Request) response.Response {
 			return err
 		}
 
-		state.Resources = result
+		projectState.Resources = result
 
 		return nil
 	})
@@ -1333,7 +1364,7 @@ func projectStateGet(d *Daemon, r *http.Request) response.Response {
 		return response.SmartError(err)
 	}
 
-	return response.SyncResponse(true, &state)
+	return response.SyncResponse(true, &projectState)
 }
 
 // Check if a project is empty.
@@ -1981,6 +2012,12 @@ func projectValidateRestrictedSubnets(s *state.State, value string) error {
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: name
+//	    description: Project name
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    description: Access
@@ -2011,7 +2048,7 @@ func projectValidateRestrictedSubnets(s *state.State, value string) error {
 func projectAccess(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	name, err := url.PathUnescape(mux.Vars(r)["name"])
+	name, err := pathVar(r, "name")
 	if err != nil {
 		return response.SmartError(err)
 	}

@@ -4,15 +4,18 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
+// RunningInUserNS returns true if the current process is running inside a user namespace.
 func RunningInUserNS() bool {
 	file, err := os.Open("/proc/self/uid_map")
 	if err != nil {
 		return false
 	}
 
-	defer func() { _ = file.Close() }()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	buf := bufio.NewReader(file)
 	l, _, err := buf.ReadLine()

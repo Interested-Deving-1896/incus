@@ -1,8 +1,8 @@
 package main
 
 import (
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/shared/api"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/shared/api"
 )
 
 func createContainer(c incus.InstanceServer, fingerprint string, name string, privileged bool) error {
@@ -33,7 +33,8 @@ func createContainer(c incus.InstanceServer, fingerprint string, name string, pr
 
 func startContainer(c incus.InstanceServer, name string) error {
 	op, err := c.UpdateInstanceState(
-		name, api.InstanceStatePut{Action: "start", Timeout: -1}, "")
+		name, api.InstanceStatePut{Action: "start", Timeout: -1}, "",
+	)
 	if err != nil {
 		return err
 	}
@@ -43,7 +44,8 @@ func startContainer(c incus.InstanceServer, name string) error {
 
 func stopContainer(c incus.InstanceServer, name string) error {
 	op, err := c.UpdateInstanceState(
-		name, api.InstanceStatePut{Action: "stop", Timeout: -1, Force: true}, "")
+		name, api.InstanceStatePut{Action: "stop", Timeout: -1, Force: true}, "",
+	)
 	if err != nil {
 		return err
 	}
@@ -53,7 +55,8 @@ func stopContainer(c incus.InstanceServer, name string) error {
 
 func freezeContainer(c incus.InstanceServer, name string) error {
 	op, err := c.UpdateInstanceState(
-		name, api.InstanceStatePut{Action: "freeze", Timeout: -1}, "")
+		name, api.InstanceStatePut{Action: "freeze", Timeout: -1}, "",
+	)
 	if err != nil {
 		return err
 	}

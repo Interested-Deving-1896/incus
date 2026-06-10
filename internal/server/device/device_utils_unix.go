@@ -13,13 +13,13 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	internalIO "github.com/lxc/incus/v6/internal/io"
-	"github.com/lxc/incus/v6/internal/linux"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/idmap"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/util"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/internal/linux"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/idmap"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // unixDefaultMode default mode to create unix devices with if not specified in device config.
@@ -36,11 +36,12 @@ func unixDeviceAttributes(path string) (string, uint32, uint32, error) {
 
 	// Check what kind of file it is
 	dType := ""
-	if stat.Mode&unix.S_IFMT == unix.S_IFBLK {
+	switch stat.Mode & unix.S_IFMT {
+	case unix.S_IFBLK:
 		dType = "b"
-	} else if stat.Mode&unix.S_IFMT == unix.S_IFCHR {
+	case unix.S_IFCHR:
 		dType = "c"
-	} else {
+	default:
 		return "", 0, 0, errors.New("Not a device")
 	}
 
@@ -158,7 +159,7 @@ func UnixDeviceCreate(s *state.State, idmapSet *idmap.Set, devicesPath string, p
 		// read the source device's mode and use that inside the instance.
 		d.Mode, err = internalIO.GetPathMode(srcPath)
 		if err != nil {
-			errno, isErrno := linux.GetErrno(err)
+			isErrno, errno := linux.GetErrno(err)
 			if !isErrno || !errors.Is(errno, unix.ENOENT) {
 				return nil, fmt.Errorf("Failed to retrieve mode of device %s: %w", srcPath, err)
 			}

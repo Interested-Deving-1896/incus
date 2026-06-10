@@ -15,13 +15,13 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
-	"github.com/lxc/incus/v6/shared/units"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
+	"github.com/lxc/incus/v7/shared/units"
 )
 
 type cmdStorage struct {
@@ -108,13 +108,14 @@ func (c *cmdStorageCreate) command() *cobra.Command {
 	cmd.Short = i18n.G("Create storage pools")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(`Create storage pools`))
 	cmd.Example = cli.FormatSection("", i18n.G(`incus storage create s1 dir
+    Create a storage pool s1
 
 incus storage create s1 dir < config.yaml
-    Create a storage pool using the content of config.yaml.
+    Create a storage pool s1 using the content of config.yaml
 	`))
 
-	cmd.Flags().StringVar(&c.storage.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
-	cmd.Flags().StringVar(&c.flagDescription, "description", "", i18n.G("Storage pool description")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.storage.flagTarget, "target", "", "", i18n.G("Cluster member name"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagDescription, "description", "", "", i18n.G("Storage pool description"))
 
 	cmd.RunE = c.run
 
@@ -130,7 +131,7 @@ incus storage create s1 dir < config.yaml
 }
 
 func (c *cmdStorageCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -220,7 +221,7 @@ func (c *cmdStorageDelete) command() *cobra.Command {
 }
 
 func (c *cmdStorageDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -263,10 +264,12 @@ func (c *cmdStorageEdit) command() *cobra.Command {
 	cmd.Use = cli.U("edit", cmdStorageEditUsage...)
 	cmd.Short = i18n.G("Edit storage pool configurations as YAML")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Edit storage pool configurations as YAML`))
+		`Edit storage pool configurations as YAML`,
+	))
 	cmd.Example = cli.FormatSection("", i18n.G(
 		`incus storage edit [<remote>:]<pool> < pool.yaml
-    Update a storage pool using the content of pool.yaml.`))
+    Update a storage pool using the content of pool.yaml.`,
+	))
 
 	cmd.RunE = c.run
 
@@ -295,11 +298,12 @@ func (c *cmdStorageEdit) helpTemplate() string {
 ### config:
 ###   size: "61203283968"
 ###   source: default
-###   zfs.pool_name: default`)
+###   zfs.pool_name: default`,
+	)
 }
 
 func (c *cmdStorageEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -387,10 +391,11 @@ func (c *cmdStorageGet) command() *cobra.Command {
 	cmd.Use = cli.U("get", cmdStorageGetUsage...)
 	cmd.Short = i18n.G("Get values for storage pool configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Get values for storage pool configuration keys`))
+		`Get values for storage pool configuration keys`,
+	))
 
-	cmd.Flags().StringVar(&c.storage.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Get the key as a storage property"))
+	cli.AddStringFlag(cmd.Flags(), &c.storage.flagTarget, "target", "", "", i18n.G("Cluster member name"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Get the key as a storage property"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -409,7 +414,7 @@ func (c *cmdStorageGet) command() *cobra.Command {
 }
 
 func (c *cmdStorageGet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageGetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageGetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -462,10 +467,11 @@ func (c *cmdStorageInfo) command() *cobra.Command {
 	cmd.Use = cli.U("info", cmdStorageInfoUsage...)
 	cmd.Short = i18n.G("Show useful information about storage pools")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Show useful information about storage pools`))
+		`Show useful information about storage pools`,
+	))
 
-	cmd.Flags().BoolVar(&c.flagBytes, "bytes", false, i18n.G("Show the used and free space in bytes"))
-	cmd.Flags().StringVar(&c.storage.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagBytes, "bytes", i18n.G("Show the used and free space in bytes"))
+	cli.AddStringFlag(cmd.Flags(), &c.storage.flagTarget, "target", "", "", i18n.G("Cluster member name"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -480,7 +486,7 @@ func (c *cmdStorageInfo) command() *cobra.Command {
 }
 
 func (c *cmdStorageInfo) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageInfoUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageInfoUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -641,7 +647,7 @@ Default column layout: nDdus
 
 == Columns ==
 The -c option takes a comma separated list of arguments that control
-which instance attributes to output when displaying in table or csv
+which storage pools attributes to output when displaying in table or csv
 format.
 
 Column arguments are either pre-defined shorthand chars (see below),
@@ -655,10 +661,10 @@ Pre-defined column shorthand chars:
   d - Description
   S - Source
   u - used by
-  s - state`))
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultStorageColumns, i18n.G("Columns")+"``")
-
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
+  s - state`,
+	))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultStorageColumns, "", i18n.G("Columns"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -736,7 +742,7 @@ func (c *cmdStorageList) stateColumnData(storage api.StoragePool) string {
 }
 
 func (c *cmdStorageList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -794,10 +800,11 @@ func (c *cmdStorageSet) command() *cobra.Command {
 		`Set storage pool configuration keys
 
 For backward compatibility, a single configuration key may still be set with:
-    incus storage set [<remote>:]<pool> <key> <value>`))
+    incus storage set [<remote>:]<pool> <key> <value>`,
+	))
 
-	cmd.Flags().StringVar(&c.storage.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Set the key as a storage property"))
+	cli.AddStringFlag(cmd.Flags(), &c.storage.flagTarget, "target", "", "", i18n.G("Cluster member name"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Set the key as a storage property"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -863,7 +870,7 @@ func (c *cmdStorageSet) set(cmd *cobra.Command, parsed []*u.Parsed) error {
 }
 
 func (c *cmdStorageSet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageSetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageSetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -886,10 +893,11 @@ func (c *cmdStorageShow) command() *cobra.Command {
 	cmd.Use = cli.U("show", cmdStorageShowUsage...)
 	cmd.Short = i18n.G("Show storage pool configurations and resources")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Show storage pool configurations and resources`))
+		`Show storage pool configurations and resources`,
+	))
 
-	cmd.Flags().BoolVar(&c.flagResources, "resources", false, i18n.G("Show the resources available to the storage pool"))
-	cmd.Flags().StringVar(&c.storage.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagResources, "resources", i18n.G("Show the resources available to the storage pool"))
+	cli.AddStringFlag(cmd.Flags(), &c.storage.flagTarget, "target", "", "", i18n.G("Cluster member name"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -904,7 +912,7 @@ func (c *cmdStorageShow) command() *cobra.Command {
 }
 
 func (c *cmdStorageShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -959,17 +967,18 @@ type cmdStorageUnset struct {
 	flagIsProperty bool
 }
 
-var cmdStorageUnsetUsage = u.Usage{u.Pool.Remote(), u.Key}
+var cmdStorageUnsetUsage = u.Usage{u.Pool.Remote(), u.Key.List(1)}
 
 func (c *cmdStorageUnset) command() *cobra.Command {
 	cmd := &cobra.Command{}
 	cmd.Use = cli.U("unset", cmdStorageUnsetUsage...)
 	cmd.Short = i18n.G("Unset storage pool configuration keys")
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G(
-		`Unset storage pool configuration keys`))
+		`Unset storage pool configuration keys`,
+	))
 
-	cmd.Flags().StringVar(&c.storage.flagTarget, "target", "", i18n.G("Cluster member name")+"``")
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Unset the key as a storage property"))
+	cli.AddStringFlag(cmd.Flags(), &c.storage.flagTarget, "target", "", "", i18n.G("Cluster member name"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Unset the keys as storage properties"))
 	cmd.RunE = c.run
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -988,7 +997,7 @@ func (c *cmdStorageUnset) command() *cobra.Command {
 }
 
 func (c *cmdStorageUnset) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdStorageUnsetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdStorageUnsetUsage, cmd, args)
 	if err != nil {
 		return err
 	}

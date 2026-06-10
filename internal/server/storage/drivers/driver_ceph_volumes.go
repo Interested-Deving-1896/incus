@@ -16,21 +16,21 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // CreateVolume creates an empty volume and can optionally fill it by executing the supplied
@@ -160,7 +160,8 @@ func (d *ceph) CreateVolume(vol Volume, filler *VolumeFiller, op *operations.Ope
 	RBDFilesystem := vol.ConfigBlockFilesystem()
 
 	if vol.contentType == ContentTypeFS {
-		_, err = makeFSType(devPath, RBDFilesystem, nil)
+		volCreateOptions := vol.ExpandedConfig("block.create_options")
+		_, err = makeFSType(devPath, RBDFilesystem, &mkfsOptions{ExtraArgs: volCreateOptions})
 		if err != nil {
 			return err
 		}
@@ -338,7 +339,7 @@ func (d *ceph) CreateVolumeFromCopy(vol Volume, srcVol Volume, copySnapshots boo
 			return err
 		}
 
-		defer func() { _ = d.rbdUnmapVolume(v, true) }()
+		defer logger.WarnOnError(func() error { return d.rbdUnmapVolume(v, true) }, "Failed to unmap volume")
 
 		if vol.contentType == ContentTypeFS {
 			// Re-generate the UUID. Do this first as ensuring permissions and setting quota can
@@ -474,7 +475,7 @@ func (d *ceph) CreateVolumeFromCopy(vol Volume, srcVol Volume, copySnapshots boo
 	lastSnap := ""
 
 	if len(snapshots) > 0 {
-		err := createParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
+		err := CreateParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
 		if err != nil {
 			return err
 		}
@@ -579,7 +580,7 @@ func (d *ceph) CreateVolumeFromMigration(vol Volume, conn io.ReadWriteCloser, vo
 	// Handle rbd migration.
 	if len(volTargetArgs.Snapshots) > 0 {
 		// Create the parent directory.
-		err := createParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
+		err := CreateParentSnapshotDirIfMissing(d.name, vol.volType, vol.name)
 		if err != nil {
 			return err
 		}
@@ -635,7 +636,7 @@ func (d *ceph) CreateVolumeFromMigration(vol Volume, conn io.ReadWriteCloser, vo
 		return err
 	}
 
-	defer func() { _ = d.rbdUnmapVolume(vol, true) }()
+	defer logger.WarnOnError(func() error { return d.rbdUnmapVolume(vol, true) }, "Failed to unmap volume")
 
 	// Re-generate the UUID.
 	err = d.generateUUID(vol.ConfigBlockFilesystem(), devPath)
@@ -710,7 +711,8 @@ func (d *ceph) DeleteVolume(vol Volume, op *operations.Operation) error {
 				"--pool", d.config["ceph.osd.pool_name"],
 				"snap",
 				"purge",
-				d.getRBDVolumeName(vol, "", false))
+				d.getRBDVolumeName(vol, "", false),
+			)
 			if err != nil {
 				return err
 			}
@@ -765,7 +767,8 @@ func (d *ceph) hasVolume(rbdVolumeName string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
-	_, err := subprocess.RunCommandContext(ctx,
+	_, err := subprocess.RunCommandContext(
+		ctx,
 		"rbd",
 		"--id", d.config["ceph.user.name"],
 		"--cluster", d.config["ceph.cluster_name"],
@@ -798,9 +801,9 @@ func (d *ceph) HasVolume(vol Volume) (bool, error) {
 // FillVolumeConfig populate volume with default config.
 func (d *ceph) FillVolumeConfig(vol Volume) error {
 	// Copy volume.* configuration options from pool.
-	// Exclude 'block.filesystem' and 'block.mount_options'
-	// as this ones are handled below in this function and depends from volume type
-	err := d.fillVolumeConfig(&vol, "block.filesystem", "block.mount_options")
+	// Exclude 'block.filesystem', 'block.mount_options', and 'block.create_options'
+	// as these are handled below in this function and depend on the volume type
+	err := d.fillVolumeConfig(&vol, "block.filesystem", "block.mount_options", "block.create_options")
 	if err != nil {
 		return err
 	}
@@ -829,6 +832,11 @@ func (d *ceph) FillVolumeConfig(vol Volume) error {
 			// Unchangeable volume property: Set unconditionally.
 			vol.config["block.mount_options"] = "discard"
 		}
+
+		// Inherit filesystem creation options from pool if not set.
+		if vol.config["block.create_options"] == "" {
+			vol.config["block.create_options"] = d.config["volume.block.create_options"]
+		}
 	}
 
 	return nil
@@ -854,6 +862,15 @@ func (d *ceph) commonVolumeRules() map[string]func(value string) error {
 		//  default: same as `volume.block.mount_options`
 		//  shortdesc: Mount options for block-backed file system volumes
 		"block.mount_options": validate.IsAny,
+
+		// gendoc:generate(entity=storage_volume_ceph, group=common, key=block.create_options)
+		//
+		// ---
+		//  type: string
+		//  condition: block-based volume with content type `filesystem`
+		//  default: same as `volume.block.create_options`
+		//  shortdesc: Additional options to pass to the file system creation tool when formatting the volume
+		"block.create_options": validate.IsAny,
 	}
 }
 
@@ -916,7 +933,7 @@ func (d *ceph) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: Size/quota of the storage volume
 
 	// gendoc:generate(entity=storage_volume_ceph, group=common, key=snapshots.expiry)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -924,7 +941,7 @@ func (d *ceph) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: {{snapshot_expiry_format}}
 
 	// gendoc:generate(entity=storage_volume_ceph, group=common, key=snapshots.expiry.manual)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -1016,7 +1033,8 @@ func (d *ceph) GetVolumeUsage(vol Volume) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
-	jsonInfo, err := subprocess.RunCommandContext(ctx,
+	jsonInfo, err := subprocess.RunCommandContext(
+		ctx,
 		"rbd",
 		"du",
 		"--format", "json",
@@ -1079,7 +1097,7 @@ func (d *ceph) SetVolumeQuota(vol Volume, size string, allowUnsafeResize bool, o
 	}
 
 	if ourMap {
-		defer func() { _ = d.rbdUnmapVolume(vol, true) }()
+		defer logger.WarnOnError(func() error { return d.rbdUnmapVolume(vol, true) }, "Failed to unmap volume")
 	}
 
 	oldSizeBytes, err := BlockDiskSizeBytes(devPath)
@@ -1185,7 +1203,8 @@ func (d *ceph) GetVolumeDiskPath(vol Volume) (string, error) {
 func (d *ceph) ListVolumes() ([]Volume, error) {
 	vols := make(map[string]Volume)
 
-	cmd := exec.Command("rbd",
+	cmd := exec.Command(
+		"rbd",
 		"--id", d.config["ceph.user.name"],
 		"--cluster", d.config["ceph.cluster_name"],
 		"--pool", d.config["ceph.osd.pool_name"],
@@ -1306,7 +1325,8 @@ func (d *ceph) MountVolume(vol Volume, op *operations.Operation) error {
 		reverter.Add(func() { _ = d.rbdUnmapVolume(vol, true) })
 	}
 
-	if vol.contentType == ContentTypeFS {
+	switch vol.contentType {
+	case ContentTypeFS:
 		mountPath := vol.MountPath()
 		if !linux.IsMountPoint(mountPath) {
 			err := vol.EnsureMountPath(false)
@@ -1331,7 +1351,8 @@ func (d *ceph) MountVolume(vol Volume, op *operations.Operation) error {
 
 			d.logger.Debug("Mounted RBD volume", logger.Ctx{"volName": vol.name, "dev": volDevPath, "path": mountPath, "options": mountOptions})
 		}
-	} else if vol.contentType == ContentTypeBlock {
+
+	case ContentTypeBlock:
 		// For VMs, mount the filesystem volume.
 		if vol.IsVMBlock() {
 			fsVol := vol.NewVMBlockFilesystemVolume()
@@ -1561,7 +1582,7 @@ func (d *ceph) MigrateVolume(vol Volume, conn io.ReadWriteCloser, volSrcArgs *lo
 		return err
 	}
 
-	defer func() { _ = d.rbdDeleteVolumeSnapshot(vol, runningSnapName) }()
+	defer logger.WarnOnError(func() error { return d.rbdDeleteVolumeSnapshot(vol, runningSnapName) }, "Failed to delete volume snapshot")
 
 	cur := d.getRBDVolumeName(vol, runningSnapName, true)
 
@@ -1594,12 +1615,12 @@ func (d *ceph) CreateVolumeSnapshot(snapVol Volume, op *operations.Operation) er
 		// of the underlying filesystem can be inconsistent or, in the worst case, empty.
 		unfreezeFS, err := d.filesystemFreeze(sourcePath)
 		if err == nil {
-			defer func() { _ = unfreezeFS() }()
+			defer logger.WarnOnError(unfreezeFS, "Failed to unfreeze filesystem")
 		}
 	}
 
 	// Create the parent directory.
-	err := createParentSnapshotDirIfMissing(d.name, snapVol.volType, parentName)
+	err := CreateParentSnapshotDirIfMissing(d.name, snapVol.volType, parentName)
 	if err != nil {
 		return err
 	}
@@ -1642,7 +1663,8 @@ func (d *ceph) DeleteVolumeSnapshot(snapVol Volume, op *operations.Operation) er
 		"--cluster", d.config["ceph.cluster_name"],
 		"--pool", d.config["ceph.osd.pool_name"],
 		"info",
-		d.getRBDVolumeName(snapVol, "", false))
+		d.getRBDVolumeName(snapVol, "", false),
+	)
 	if err != nil {
 		return nil
 	}
@@ -1900,7 +1922,7 @@ func (d *ceph) RestoreVolume(vol Volume, snapshotName string, op *operations.Ope
 	}
 
 	if ourUnmount {
-		defer func() { _ = d.MountVolume(vol, op) }()
+		defer logger.WarnOnError(func() error { return d.MountVolume(vol, op) }, "Failed to mount volume")
 	}
 
 	_, err = subprocess.RunCommand(
@@ -1911,7 +1933,8 @@ func (d *ceph) RestoreVolume(vol Volume, snapshotName string, op *operations.Ope
 		"snap",
 		"rollback",
 		"--snap", fmt.Sprintf("snapshot_%s", snapshotName),
-		d.getRBDVolumeName(vol, "", false))
+		d.getRBDVolumeName(vol, "", false),
+	)
 	if err != nil {
 		return err
 	}
@@ -1927,7 +1950,7 @@ func (d *ceph) RestoreVolume(vol Volume, snapshotName string, op *operations.Ope
 		return err
 	}
 
-	defer func() { _ = d.rbdUnmapVolume(snapVol, true) }()
+	defer logger.WarnOnError(func() error { return d.rbdUnmapVolume(snapVol, true) }, "Failed to unmap volume")
 
 	// Re-generate the UUID.
 	err = d.generateUUID(snapVol.ConfigBlockFilesystem(), devPath)

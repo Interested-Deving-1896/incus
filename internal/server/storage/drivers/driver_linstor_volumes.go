@@ -14,26 +14,26 @@ import (
 	linstorClient "github.com/LINBIT/golinstor/client"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // FillVolumeConfig populate volume with default config.
 func (d *linstor) FillVolumeConfig(vol Volume) error {
 	// Copy volume.* configuration options from pool.
-	// Exclude 'block.filesystem' and 'block.mount_options'
-	// as this ones are handled below in this function and depends from volume type.
-	err := d.fillVolumeConfig(&vol, "block.filesystem", "block.mount_options")
+	// Exclude 'block.filesystem', 'block.mount_options', and 'block.create_options'
+	// as these are handled below in this function and depend on the volume type.
+	err := d.fillVolumeConfig(&vol, "block.filesystem", "block.mount_options", "block.create_options")
 	if err != nil {
 		return err
 	}
@@ -62,6 +62,11 @@ func (d *linstor) FillVolumeConfig(vol Volume) error {
 			// Unchangeable volume property: Set unconditionally.
 			vol.config["block.mount_options"] = "discard"
 		}
+
+		// Inherit filesystem creation options from pool if not set.
+		if vol.config["block.create_options"] == "" {
+			vol.config["block.create_options"] = d.config["volume.block.create_options"]
+		}
 	}
 
 	return nil
@@ -87,6 +92,15 @@ func (d *linstor) commonVolumeRules() map[string]func(value string) error {
 		//  default: same as `volume.block.mount_options`
 		//  shortdesc: Mount options for block-backed file system volumes
 		"block.mount_options": validate.IsAny,
+
+		// gendoc:generate(entity=storage_volume_linstor, group=common, key=block.create_options)
+		//
+		// ---
+		//  type: string
+		//  condition: block-based volume with content type `filesystem`
+		//  default: same as `volume.block.create_options`
+		//  shortdesc: Additional options to pass to the file system creation tool when formatting the volume
+		"block.create_options": validate.IsAny,
 
 		// gendoc:generate(entity=storage_volume_linstor, group=common, key=drbd.on_no_quorum)
 		//
@@ -185,7 +199,7 @@ func (d *linstor) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: Size/quota of the storage volume
 
 	// gendoc:generate(entity=storage_volume_linstor, group=common, key=snapshots.expiry)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -193,7 +207,7 @@ func (d *linstor) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: {{snapshot_expiry_format}}
 
 	// gendoc:generate(entity=storage_volume_linstor, group=common, key=snapshots.expiry.manual)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -216,6 +230,13 @@ func (d *linstor) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  default: same as `volume.snapshot.schedule`
 	//  shortdesc: {{snapshot_schedule_format}}
 
+	// gendoc:generate(entity=storage_volume_linstor, group=common, key=linstor.raw.*)
+	//
+	// ---
+	//  type: string
+	//  scope: global
+	//  shortdesc: Extra LINSTOR properties to set. For example, `BCache/PoolName` is encoded as `linstor.raw.BCache/PoolName`.
+
 	commonRules := d.commonVolumeRules()
 
 	// Disallow block.* settings for regular custom block volumes. These settings only make sense
@@ -227,7 +248,7 @@ func (d *linstor) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 		delete(commonRules, "block.mount_options")
 	}
 
-	return d.validateVolume(vol, commonRules, removeUnknownKeys)
+	return d.validateVolume(vol, commonRules, removeUnknownKeys, LinstorRawConfigKeyPrefix)
 }
 
 // CreateVolume creates an empty volume and can optionally fill it by executing the supplied
@@ -303,8 +324,9 @@ func (d *linstor) CreateVolume(vol Volume, filler *VolumeFiller, op *operations.
 		}
 
 		volFilesystem := vol.ConfigBlockFilesystem()
+		volCreateOptions := vol.ExpandedConfig("block.create_options")
 
-		_, err = makeFSType(devPath, volFilesystem, nil)
+		_, err = makeFSType(devPath, volFilesystem, &mkfsOptions{ExtraArgs: volCreateOptions})
 		if err != nil {
 			return err
 		}
@@ -321,7 +343,8 @@ func (d *linstor) CreateVolume(vol Volume, filler *VolumeFiller, op *operations.
 		}
 
 		fsVolFilesystem := fsVol.ConfigBlockFilesystem()
-		_, err = makeFSType(fsVolDevPath, fsVolFilesystem, nil)
+		fsVolCreateOptions := fsVol.ExpandedConfig("block.create_options")
+		_, err = makeFSType(fsVolDevPath, fsVolFilesystem, &mkfsOptions{ExtraArgs: fsVolCreateOptions})
 
 		l.Debug("Created filesystem on the associated filesystem volume", logger.Ctx{"fsVolDevPath": fsVolDevPath, "fsVolFilesystem": fsVolFilesystem})
 		if err != nil {
@@ -826,12 +849,12 @@ func (d *linstor) CreateVolumeSnapshot(snapVol Volume, op *operations.Operation)
 		// LINSTOR snapshot can be inconsistent or, in the worst case, empty.
 		unfreezeFS, err := d.filesystemFreeze(sourcePath)
 		if err == nil {
-			defer func() { _ = unfreezeFS() }()
+			defer logger.WarnOnError(unfreezeFS, "Failed to unfreeze filesystem")
 		}
 	}
 
 	// Create the parent directory.
-	err := createParentSnapshotDirIfMissing(d.name, snapVol.volType, parentName)
+	err := CreateParentSnapshotDirIfMissing(d.name, snapVol.volType, parentName)
 	if err != nil {
 		return err
 	}
@@ -899,22 +922,8 @@ func (d *linstor) DeleteVolumeSnapshot(snapVol Volume, op *operations.Operation)
 	return nil
 }
 
-// RestoreVolume restores a volume from a snapshot.
-func (d *linstor) RestoreVolume(vol Volume, snapshotName string, op *operations.Operation) error {
-	ourUnmount, err := d.UnmountVolume(vol, false, op)
-	if err != nil {
-		return err
-	}
-
-	if ourUnmount {
-		defer func() { _ = d.MountVolume(vol, op) }()
-	}
-
-	snapVol, err := vol.NewSnapshot(snapshotName)
-	if err != nil {
-		return err
-	}
-
+// CanRestoreVolume checks whether a volume snapshot can be restored.
+func (d *linstor) CanRestoreVolume(vol Volume, snapshotName string) error {
 	resourceDefinition, err := d.getResourceDefinition(vol, false)
 	if err != nil {
 		return err
@@ -961,6 +970,30 @@ func (d *linstor) RestoreVolume(vol Volume, snapshotName string, op *operations.
 		// Setup custom error to tell the backend what to delete.
 		err := ErrDeleteSnapshots{}
 		err.Snapshots = snapshots
+		return err
+	}
+
+	return nil
+}
+
+// RestoreVolume restores a volume from a snapshot.
+func (d *linstor) RestoreVolume(vol Volume, snapshotName string, op *operations.Operation) error {
+	ourUnmount, err := d.UnmountVolume(vol, false, op)
+	if err != nil {
+		return err
+	}
+
+	if ourUnmount {
+		defer logger.WarnOnError(func() error { return d.MountVolume(vol, op) }, "Failed to mount volume")
+	}
+
+	snapVol, err := vol.NewSnapshot(snapshotName)
+	if err != nil {
+		return err
+	}
+
+	err = d.CanRestoreVolume(vol, snapshotName)
+	if err != nil {
 		return err
 	}
 

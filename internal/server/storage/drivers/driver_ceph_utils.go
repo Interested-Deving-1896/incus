@@ -16,15 +16,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // cephBlockVolSuffix suffix used for block content type volumes.
@@ -59,7 +59,8 @@ func (d *ceph) osdPoolExists() (bool, error) {
 		"pool",
 		"get",
 		d.config["ceph.osd.pool_name"],
-		"size")
+		"size",
+	)
 	if err != nil {
 		status, _ := linux.ExitStatus(err)
 		// If the error status code is 2, the pool definitely doesn't exist.
@@ -74,6 +75,32 @@ func (d *ceph) osdPoolExists() (bool, error) {
 	}
 
 	return true, nil
+}
+
+// rbdListPoolVolumes returns the list of RBD images present in the OSD pool.
+func (d *ceph) rbdListPoolVolumes() ([]string, error) {
+	out, err := subprocess.RunCommand(
+		"rbd",
+		"--id", d.config["ceph.user.name"],
+		"--cluster", d.config["ceph.cluster_name"],
+		"--pool", d.config["ceph.osd.pool_name"],
+		"ls",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	images := []string{}
+	for _, line := range strings.Split(out, "\n") {
+		name := strings.TrimSpace(line)
+		if name == "" {
+			continue
+		}
+
+		images = append(images, name)
+	}
+
+	return images, nil
 }
 
 // osdDeletePool destroys an OSD pool.
@@ -93,7 +120,8 @@ func (d *ceph) osdDeletePool() error {
 		"delete",
 		d.config["ceph.osd.pool_name"],
 		d.config["ceph.osd.pool_name"],
-		"--yes-i-really-really-mean-it")
+		"--yes-i-really-really-mean-it",
+	)
 	if err != nil {
 		return err
 	}
@@ -152,7 +180,8 @@ func (d *ceph) rbdDeleteVolume(vol Volume) error {
 		"--cluster", d.config["ceph.cluster_name"],
 		"--pool", d.config["ceph.osd.pool_name"],
 		"rm",
-		d.getRBDVolumeName(vol, "", false))
+		d.getRBDVolumeName(vol, "", false),
+	)
 	if err != nil {
 		return err
 	}
@@ -171,7 +200,8 @@ func (d *ceph) rbdMapVolume(vol Volume) (string, error) {
 		"--cluster", d.config["ceph.cluster_name"],
 		"--pool", d.config["ceph.osd.pool_name"],
 		"map",
-		rbdName)
+		rbdName,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -202,7 +232,8 @@ again:
 		"--cluster", d.config["ceph.cluster_name"],
 		"--pool", d.config["ceph.osd.pool_name"],
 		"unmap",
-		rbdVol)
+		rbdVol,
+	)
 	if err != nil {
 		var runError subprocess.RunError
 		if errors.As(err, &runError) {
@@ -254,7 +285,8 @@ again:
 		"--cluster", d.config["ceph.cluster_name"],
 		"--pool", d.config["ceph.osd.pool_name"],
 		"unmap",
-		d.getRBDVolumeName(vol, snapshotName, false))
+		d.getRBDVolumeName(vol, snapshotName, false),
+	)
 	if err != nil {
 		var runError subprocess.RunError
 		if errors.As(err, &runError) {
@@ -287,7 +319,8 @@ func (d *ceph) rbdCreateVolumeSnapshot(vol Volume, snapshotName string) error {
 		"snap",
 		"create",
 		"--snap", snapshotName,
-		d.getRBDVolumeName(vol, "", false))
+		d.getRBDVolumeName(vol, "", false),
+	)
 	if err != nil {
 		return err
 	}
@@ -306,7 +339,8 @@ func (d *ceph) rbdProtectVolumeSnapshot(vol Volume, snapshotName string) error {
 		"snap",
 		"protect",
 		"--snap", snapshotName,
-		d.getRBDVolumeName(vol, "", false))
+		d.getRBDVolumeName(vol, "", false),
+	)
 	if err != nil {
 		var runError subprocess.RunError
 		if errors.As(err, &runError) {
@@ -337,7 +371,8 @@ func (d *ceph) rbdUnprotectVolumeSnapshot(vol Volume, snapshotName string) error
 		"snap",
 		"unprotect",
 		"--snap", snapshotName,
-		d.getRBDVolumeName(vol, "", false))
+		d.getRBDVolumeName(vol, "", false),
+	)
 	if err != nil {
 		var runError subprocess.RunError
 		if errors.As(err, &runError) {
@@ -397,7 +432,8 @@ func (d *ceph) rbdListSnapshotClones(vol Volume, snapshotName string) ([]string,
 		"--pool", d.config["ceph.osd.pool_name"],
 		"children",
 		"--image", d.getRBDVolumeName(vol, "", false),
-		"--snap", snapshotName)
+		"--snap", snapshotName,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -479,7 +515,8 @@ func (d *ceph) rbdRenameVolumeSnapshot(vol Volume, oldSnapshotName string, newSn
 		"snap",
 		"rename",
 		d.getRBDVolumeName(vol, oldSnapshotName, true),
-		d.getRBDVolumeName(vol, newSnapshotName, true))
+		d.getRBDVolumeName(vol, newSnapshotName, true),
+	)
 	if err != nil {
 		return err
 	}
@@ -501,7 +538,8 @@ func (d *ceph) rbdGetVolumeParent(vol Volume) (string, error) {
 		"--cluster", d.config["ceph.cluster_name"],
 		"--pool", d.config["ceph.osd.pool_name"],
 		"info",
-		d.getRBDVolumeName(vol, "", false))
+		d.getRBDVolumeName(vol, "", false),
+	)
 	if err != nil {
 		return "", err
 	}
@@ -536,7 +574,8 @@ func (d *ceph) rbdDeleteVolumeSnapshot(vol Volume, snapshotName string) error {
 		"--pool", d.config["ceph.osd.pool_name"],
 		"snap",
 		"rm",
-		d.getRBDVolumeName(vol, snapshotName, false))
+		d.getRBDVolumeName(vol, snapshotName, false),
+	)
 	if err != nil {
 		return err
 	}
@@ -559,7 +598,8 @@ func (d *ceph) rbdListVolumeSnapshots(vol Volume) ([]string, error) {
 		"--format", "json",
 		"snap",
 		"ls",
-		d.getRBDVolumeName(vol, "", false))
+		d.getRBDVolumeName(vol, "", false),
+	)
 	if err != nil {
 		return []string{}, err
 	}
@@ -618,7 +658,8 @@ func (d *ceph) copyWithSnapshots(sourceVolumeName string, targetVolumeName strin
 		"--id", d.config["ceph.user.name"],
 		"--cluster", d.config["ceph.cluster_name"],
 		"-",
-		targetVolumeName)
+		targetVolumeName,
+	)
 
 	rbdRecvCmd.Stdin, _ = rbdSendCmd.StdoutPipe()
 	rbdRecvCmd.Stdout = os.Stdout
@@ -911,8 +952,9 @@ func (d *ceph) parseParent(parent string) (Volume, string, error) {
 		name = strings.SplitN(name, "image_", 2)[1]
 
 		// Check for block indicator.
-		if strings.HasSuffix(name, ".block") {
-			name = strings.TrimSuffix(name, ".block")
+		before, ok := strings.CutSuffix(name, ".block")
+		if ok {
+			name = before
 			vol.contentType = ContentTypeBlock
 		} else {
 			vol.contentType = ContentTypeFS
@@ -953,11 +995,12 @@ func (d *ceph) parseParent(parent string) (Volume, string, error) {
 		name = strings.SplitN(name, "custom_", 2)[1]
 
 		// Check for block or ISO indicator.
-		if strings.HasSuffix(name, ".block") {
-			name = strings.TrimSuffix(name, ".block")
+		before, ok := strings.CutSuffix(name, ".block")
+		if ok {
+			name = before
 			vol.contentType = ContentTypeBlock
-		} else if strings.HasSuffix(name, ".iso") {
-			name = strings.TrimSuffix(name, ".iso")
+		} else if before, ok := strings.CutSuffix(name, ".iso"); ok {
+			name = before
 			vol.contentType = ContentTypeISO
 		} else {
 			vol.contentType = ContentTypeFS
@@ -987,8 +1030,9 @@ func (d *ceph) parseParent(parent string) (Volume, string, error) {
 		name = strings.SplitN(name, "container_", 2)[1]
 
 		// Check for block indicator.
-		if strings.HasSuffix(name, ".block") {
-			name = strings.TrimSuffix(name, ".block")
+		before, ok := strings.CutSuffix(name, ".block")
+		if ok {
+			name = before
 			vol.contentType = ContentTypeBlock
 		} else {
 			vol.contentType = ContentTypeFS
@@ -1018,8 +1062,9 @@ func (d *ceph) parseParent(parent string) (Volume, string, error) {
 		name = strings.SplitN(name, "virtual-machine_", 2)[1]
 
 		// Check for block indicator.
-		if strings.HasSuffix(name, ".block") {
-			name = strings.TrimSuffix(name, ".block")
+		before, ok := strings.CutSuffix(name, ".block")
+		if ok {
+			name = before
 			vol.contentType = ContentTypeBlock
 		} else {
 			vol.contentType = ContentTypeFS
@@ -1204,7 +1249,7 @@ func (d *ceph) getRBDVolumeName(vol Volume, snapName string, withPoolName bool) 
 //	rbd export-diff pool1/container_a@snapshot_snap1 --from-snap snapshot_snap0 - | rbd import-diff - pool2/container_a
 //	rbd export-diff pool1/container_a --from-snap snapshot_snap1 - | rbd import-diff - pool2/container_a
 func (d *ceph) sendVolume(conn io.ReadWriteCloser, volumeName string, volumeParentName string, tracker *ioprogress.ProgressTracker) error {
-	defer func() { _ = conn.Close() }()
+	defer logger.WarnOnError(conn.Close, "Failed to close connection")
 
 	args := []string{
 		"export-diff",
@@ -1322,7 +1367,8 @@ func (d *ceph) resizeVolume(vol Volume, sizeBytes int64, allowShrink bool) error
 		args = append(args, "--allow-shrink")
 	}
 
-	args = append(args,
+	args = append(
+		args,
 		"--id", d.config["ceph.user.name"],
 		"--cluster", d.config["ceph.cluster_name"],
 		"--pool", d.config["ceph.osd.pool_name"],

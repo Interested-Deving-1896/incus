@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // ErrDeviceIsUSB is returned when dealing with a USB device.
@@ -34,7 +35,7 @@ func ParseUeventFile(ueventFilePath string) (Device, error) {
 		return dev, err
 	}
 
-	defer func() { _ = file.Close() }()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

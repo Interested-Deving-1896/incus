@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,24 +12,24 @@ import (
 	"slices"
 	"time"
 
-	incus "github.com/lxc/incus/v6/client"
-	internalIO "github.com/lxc/incus/v6/internal/io"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/locking"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/cancel"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	internalIO "github.com/lxc/incus/v7/internal/io"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/locking"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/cancel"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // imageDownloadArgs used with imageDownload.
@@ -372,14 +373,14 @@ func imageDownload(ctx context.Context, r *http.Request, s *state.State, op *ope
 			return nil, false, err
 		}
 
-		defer func() { _ = dest.Close() }()
+		defer logger.WarnOnError(dest.Close, "Failed to close image file")
 
 		destRootfs, err := os.Create(destName + ".rootfs")
 		if err != nil {
 			return nil, false, err
 		}
 
-		defer func() { _ = destRootfs.Close() }()
+		defer logger.WarnOnError(destRootfs.Close, "Failed to close rootfs file")
 
 		// Get the image information
 		if info == nil {
@@ -474,7 +475,11 @@ func imageDownload(ctx context.Context, r *http.Request, s *state.State, op *ope
 		}
 
 		// Use relatively short response header timeout so as not to hold the image lock open too long.
-		httpTransport := httpClient.Transport.(*http.Transport)
+		httpTransport, ok := httpClient.Transport.(*http.Transport)
+		if !ok {
+			return nil, false, errors.New("Unexpected HTTP transport type")
+		}
+
 		httpTransport.ResponseHeaderTimeout = 30 * time.Second
 
 		req, err := http.NewRequest("GET", args.Server, nil)
@@ -513,7 +518,7 @@ func imageDownload(ctx context.Context, r *http.Request, s *state.State, op *ope
 			return nil, false, err
 		}
 
-		defer func() { _ = f.Close() }()
+		defer logger.WarnOnError(f.Close, "Failed to close image file")
 
 		// Hashing
 		hash256 := sha256.New()

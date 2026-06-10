@@ -3,11 +3,11 @@ package main
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdRename struct {
@@ -35,8 +35,7 @@ func (c *cmdRename) command() *cobra.Command {
 }
 
 func (c *cmdRename) run(cmd *cobra.Command, args []string) error {
-	conf := c.global.conf
-	parsed, err := cmdRenameUsage.Parse(conf, cmd, args)
+	parsed, err := c.global.Parse(cmdRenameUsage, cmd, args)
 	if err != nil {
 		return err
 	}

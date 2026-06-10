@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	incus "github.com/lxc/incus/v6/client"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/tcp"
-	"github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/client"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/tcp"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 var debug bool
@@ -43,6 +43,7 @@ type devIncusResponse struct {
 	contentType string
 }
 
+// Render writes the response to the provided http.ResponseWriter.
 func (r *devIncusResponse) Render(w http.ResponseWriter) error {
 	var err error
 
@@ -153,6 +154,7 @@ func SyncResponsePlain(success bool, compress bool, metadata string) Response {
 	return &syncResponse{success: success, metadata: metadata, plaintext: true, compress: compress}
 }
 
+// Render writes the response to the provided http.ResponseWriter.
 func (r *syncResponse) Render(w http.ResponseWriter) error {
 	// Set an appropriate ETag header
 	if r.etag != nil {
@@ -212,7 +214,7 @@ func (r *syncResponse) Render(w http.ResponseWriter) error {
 		if r.metadata != nil {
 			if r.compress {
 				comp := gzip.NewWriter(w)
-				defer comp.Close()
+				defer logger.WarnOnError(comp.Close, "Failed to close gzip writer")
 
 				_, err := comp.Write([]byte(r.metadata.(string)))
 				if err != nil {
@@ -344,6 +346,7 @@ func (r *errorResponse) Code() int {
 	return r.code
 }
 
+// Render writes the response to the provided http.ResponseWriter.
 func (r *errorResponse) Render(w http.ResponseWriter) error {
 	var output io.Writer
 
@@ -412,6 +415,7 @@ func FileResponse(r *http.Request, files []FileResponseEntry, headers map[string
 	return &fileResponse{r, files, headers}
 }
 
+// Render writes the response to the provided http.ResponseWriter.
 func (r *fileResponse) Render(w http.ResponseWriter) error {
 	if r.headers != nil {
 		for k, v := range r.headers {
@@ -444,7 +448,7 @@ func (r *fileResponse) Render(w http.ResponseWriter) error {
 				return err
 			}
 
-			defer func() { _ = f.Close() }()
+			defer logger.WarnOnError(f.Close, "Failed to close file")
 
 			fi, err := f.Stat()
 			if err != nil {
@@ -471,38 +475,45 @@ func (r *fileResponse) Render(w http.ResponseWriter) error {
 
 	// Now the complex multipart answer.
 	mw := multipart.NewWriter(w)
-	defer func() { _ = mw.Close() }()
+	defer logger.WarnOnError(mw.Close, "Failed to close multipart writer")
 
 	w.Header().Set("Content-Type", mw.FormDataContentType())
 	w.Header().Set("Transfer-Encoding", "chunked")
 
 	for _, entry := range r.files {
-		var rd io.Reader
-		if entry.File != nil {
-			rd = entry.File
-		} else {
-			fd, err := os.Open(entry.Path)
+		err := func() error {
+			var rd io.Reader
+			if entry.File != nil {
+				rd = entry.File
+			} else {
+				fd, err := os.Open(entry.Path)
+				if err != nil {
+					return err
+				}
+
+				defer logger.WarnOnError(fd.Close, "Failed to close file")
+
+				rd = fd
+			}
+
+			fw, err := mw.CreateFormFile(entry.Identifier, entry.Filename)
 			if err != nil {
 				return err
 			}
 
-			defer func() { _ = fd.Close() }()
+			_, err = util.SafeCopy(fw, rd)
+			if err != nil {
+				return err
+			}
 
-			rd = fd
-		}
+			if entry.Cleanup != nil {
+				entry.Cleanup()
+			}
 
-		fw, err := mw.CreateFormFile(entry.Identifier, entry.Filename)
+			return nil
+		}()
 		if err != nil {
 			return err
-		}
-
-		_, err = util.SafeCopy(fw, rd)
-		if err != nil {
-			return err
-		}
-
-		if entry.Cleanup != nil {
-			entry.Cleanup()
 		}
 	}
 
@@ -532,6 +543,7 @@ func ForwardedResponse(client incus.InstanceServer, request *http.Request) Respo
 	}
 }
 
+// Render writes the response to the provided http.ResponseWriter.
 func (r *forwardedResponse) Render(w http.ResponseWriter) error {
 	info, err := r.client.GetConnectionInfo()
 	if err != nil {
@@ -590,6 +602,7 @@ func ManualResponse(hook func(w http.ResponseWriter) error) Response {
 	return &manualResponse{hook: hook}
 }
 
+// Render writes the response to the provided http.ResponseWriter.
 func (r *manualResponse) Render(w http.ResponseWriter) error {
 	return r.hook(w)
 }
@@ -641,7 +654,7 @@ func (r *upgradeResponse) Render(w http.ResponseWriter) error {
 		defer r.cleanup()
 	}
 
-	defer func() { _ = r.conn.Close() }()
+	defer logger.WarnOnError(r.conn.Close, "Failed to close connection")
 
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
@@ -653,7 +666,7 @@ func (r *upgradeResponse) Render(w http.ResponseWriter) error {
 		return api.StatusErrorf(http.StatusInternalServerError, "Failed to hijack connection: %v", err)
 	}
 
-	defer func() { _ = remoteConn.Close() }()
+	defer logger.WarnOnError(remoteConn.Close, "Failed to close remote connection")
 
 	remoteTCP, _ := tcp.ExtractConn(remoteConn)
 	if remoteTCP != nil {
@@ -685,10 +698,7 @@ func (r *upgradeResponse) Render(w http.ResponseWriter) error {
 	})
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		_, err := util.SafeCopy(remoteConn, r.conn)
 		if err != nil {
 			if ctx.Err() == nil {
@@ -698,7 +708,7 @@ func (r *upgradeResponse) Render(w http.ResponseWriter) error {
 
 		cancel()               // Cancel context first so when remoteConn is closed it doesn't cause a warning.
 		_ = remoteConn.Close() // Trigger the cancellation of the util.SafeCopy reading from remoteConn.
-	}()
+	})
 
 	_, err = util.SafeCopy(r.conn, remoteConn)
 	if err != nil {
@@ -736,7 +746,7 @@ func (r *pipeResponse) Code() int {
 
 // Render writes the response.
 func (r *pipeResponse) Render(w http.ResponseWriter) error {
-	defer func() { _ = r.reader.Close() }()
+	defer logger.WarnOnError(r.reader.Close, "Failed to close reader")
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.WriteHeader(r.Code())
 
@@ -748,7 +758,14 @@ func (r *pipeResponse) Render(w http.ResponseWriter) error {
 	}
 
 	_, err := util.SafeCopy(w, r.reader)
-	return err
+	if err != nil {
+		// It's too late to send a clean error back to the client, so
+		// instead use the Go HTTP ErrAbortHandler logic to terminate the
+		// connection. This does not cause the daemon itself to panic.
+		panic(http.ErrAbortHandler)
+	}
+
+	return nil
 }
 
 // String returns a quick description of the response.

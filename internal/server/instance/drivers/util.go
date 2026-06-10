@@ -17,18 +17,18 @@ import (
 
 	yaml "go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/cfg"
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/qmp"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/state"
-	internalUtil "github.com/lxc/incus/v6/internal/util"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/resources"
-	"github.com/lxc/incus/v6/shared/units"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/cfg"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/qmp"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/state"
+	internalUtil "github.com/lxc/incus/v7/internal/util"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/resources"
+	"github.com/lxc/incus/v7/shared/units"
 )
 
 // GetClusterCPUFlags returns the list of shared CPU flags across.
@@ -131,13 +131,9 @@ func qemuEscapeCmdline(value string) string {
 	return strings.ReplaceAll(value, ",", ",,")
 }
 
-// roundDownToBlockSize returns the largest multiple of blockSize less than or equal to the input value.
-func roundDownToBlockSize(value int64, blockSize int64) int64 {
-	if value%blockSize == 0 {
-		return value
-	}
-
-	return ((value / blockSize) - 1) * blockSize
+// roundUpToBlockSize returns the smallest multiple of blockSize greater than or equal to the input value.
+func roundUpToBlockSize(value int64, blockSize int64) int64 {
+	return ((value + blockSize - 1) / blockSize) * blockSize
 }
 
 // memoryConfigSectionToMap converts a memory object of type cfg.Section to type map[string]any.
@@ -161,7 +157,7 @@ func memoryConfigSectionToMap(section *cfg.Section) map[string]any {
 				continue
 			}
 
-			obj["size"] = roundDownToBlockSize(int64(memSizeMB)*1024*1024, blockSize)
+			obj["size"] = roundUpToBlockSize(int64(memSizeMB)*1024*1024, blockSize)
 		} else if key == "merge" || key == "dump" || key == "prealloc" || key == "share" || key == "reserve" {
 			val := false
 			if value == "on" {

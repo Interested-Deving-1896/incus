@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/instance/drivers/cfg"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/resources"
+	"github.com/lxc/incus/v7/internal/server/instance/drivers/cfg"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/resources"
 )
 
 func writeHeader(sb *strings.Builder, comment string, name string) {
@@ -142,7 +142,8 @@ func qemuBase(opts *qemuBaseOpts) []cfg.Section {
 		cfg.Section{
 			Name:    "boot-opts",
 			Entries: map[string]string{"strict": "on"},
-		})
+		},
+	)
 }
 
 type qemuMemoryOpts struct {
@@ -188,11 +189,12 @@ type qemuDevEntriesOpts struct {
 func qemuDeviceEntries(opts *qemuDevEntriesOpts) map[string]string {
 	entries := make(map[string]string)
 
-	if opts.dev.busName == "pci" || opts.dev.busName == "pcie" {
+	switch opts.dev.busName {
+	case "pci", "pcie":
 		entries["driver"] = opts.pciName
 		entries["bus"] = opts.dev.devBus
 		entries["addr"] = opts.dev.devAddr
-	} else if opts.dev.busName == "ccw" {
+	case "ccw":
 		entries["driver"] = opts.ccwName
 	}
 
@@ -450,12 +452,13 @@ func qemuVsock(opts *qemuVsockOpts) []cfg.Section {
 type qemuGpuOpts struct {
 	dev          qemuDevOpts
 	architecture int
+	virtioVGA    bool
 }
 
 func qemuGPU(opts *qemuGpuOpts) []cfg.Section {
 	var pciName string
 
-	if opts.architecture == osarch.ARCH_64BIT_INTEL_X86 {
+	if opts.architecture == osarch.ARCH_64BIT_INTEL_X86 && opts.virtioVGA {
 		pciName = "virtio-vga"
 	} else {
 		pciName = "virtio-gpu-pci"
@@ -510,19 +513,18 @@ type qemuNumaEntry struct {
 }
 
 type qemuCPUOpts struct {
-	architecture        string
-	cpuCount            int
-	cpuRequested        int
-	cpuSockets          int
-	cpuCores            int
-	cpuThreads          int
-	cpuNumaNodes        []uint64
-	cpuNumaMapping      []qemuNumaEntry
-	cpuNumaHostNodes    []uint64
-	hugepages           string
-	memory              int64
-	memoryHostNodes     []int64
-	qemuMemObjectFormat string
+	architecture     string
+	cpuCount         int
+	cpuRequested     int
+	cpuSockets       int
+	cpuCores         int
+	cpuThreads       int
+	cpuNumaNodes     []uint64
+	cpuNumaMapping   []qemuNumaEntry
+	cpuNumaHostNodes []uint64
+	hugepages        string
+	memory           int64
+	memoryHostNodes  []int64
 }
 
 func qemuCPUNumaHostNode(opts *qemuCPUOpts, index int) []cfg.Section {
@@ -600,13 +602,7 @@ func qemuCPU(opts *qemuCPUOpts, pinning bool) []cfg.Section {
 			numaHostNode[0].Entries["policy"] = "bind"
 
 			for index, element := range opts.memoryHostNodes {
-				var hostNodesKey string
-				if opts.qemuMemObjectFormat == "indexed" {
-					hostNodesKey = fmt.Sprintf("host-nodes.%d", index)
-				} else {
-					hostNodesKey = "host-nodes"
-				}
-
+				hostNodesKey := fmt.Sprintf("host-nodes.%d", index)
 				numaHostNode[0].Entries[hostNodesKey] = fmt.Sprintf("%d", element)
 			}
 		}
@@ -624,14 +620,7 @@ func qemuCPU(opts *qemuCPUOpts, pinning bool) []cfg.Section {
 			numaHostNode[0].Entries["share"] = "on"
 		}
 
-		var hostNodesKey string
-		if opts.qemuMemObjectFormat == "indexed" {
-			hostNodesKey = "host-nodes.0"
-		} else {
-			hostNodesKey = "host-nodes"
-		}
-
-		numaHostNode[0].Entries[hostNodesKey] = fmt.Sprintf("%d", element)
+		numaHostNode[0].Entries["host-nodes.0"] = fmt.Sprintf("%d", element)
 		sections = append(sections, numaHostNode...)
 	}
 
@@ -732,7 +721,8 @@ func qemuHostDrive(opts *qemuHostDriveOpts) []cfg.Section {
 	var entries map[string]string
 	deviceOpts := qemuDevEntriesOpts{dev: opts.dev}
 
-	if opts.protocol == "9p" {
+	switch opts.protocol {
+	case "9p":
 		var readonly string
 		if opts.readonly {
 			readonly = "on"
@@ -757,7 +747,7 @@ func qemuHostDrive(opts *qemuHostDriveOpts) []cfg.Section {
 		entries = qemuDeviceEntries(&deviceOpts)
 		entries["mount_tag"] = opts.mountTag
 		entries["fsdev"] = opts.name
-	} else if opts.protocol == "virtio-fs" {
+	case "virtio-fs":
 		driveSection = cfg.Section{
 			Name:    fmt.Sprintf(`chardev "%s"`, opts.name),
 			Comment: opts.comment,
@@ -772,7 +762,7 @@ func qemuHostDrive(opts *qemuHostDriveOpts) []cfg.Section {
 		entries = qemuDeviceEntries(&deviceOpts)
 		entries["tag"] = opts.mountTag
 		entries["chardev"] = opts.name
-	} else {
+	default:
 		return []cfg.Section{}
 	}
 

@@ -13,15 +13,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lxc/incus/v6/internal/server/sys"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/subprocess"
+	"github.com/lxc/incus/v7/internal/server/sys"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/subprocess"
 )
 
 type nullWriteCloser struct {
 	io.Writer
 }
 
+// Close is a no-op that satisfies the io.WriteCloser interface.
 func (nwc *nullWriteCloser) Close() error {
 	return nil
 }
@@ -153,7 +154,7 @@ func qemuImgProfileLoad(sysOS *sys.OS, imgPath string, dstPath string, allowedCm
 // qemuImgProfile generates the AppArmor profile template from the given destination path.
 func qemuImgProfile(profileName string, imgPath string, dstPath string, allowedCmdPaths []string) (string, error) {
 	// Render the profile.
-	var sb *strings.Builder = &strings.Builder{}
+	sb := &strings.Builder{}
 	err := qemuImgProfileTpl.Execute(sb, map[string]any{
 		"name":            profileName,
 		"pathToImg":       imgPath,

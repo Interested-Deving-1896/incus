@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lxc/incus/v6/shared/resources"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/resources"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // deviceJoinPath joins together prefix and text delimited by a "." for device path generation.
@@ -50,8 +50,6 @@ func checkAttachedRunningProcesses(devicePath string) ([]string, error) {
 			continue // If we can't read a process's maps file, skip it.
 		}
 
-		defer f.Close()
-
 		scanner := bufio.NewScanner(f)
 		for scanner.Scan() {
 			if strings.Contains(scanner.Text(), devicePath) {
@@ -59,6 +57,8 @@ func checkAttachedRunningProcesses(devicePath string) ([]string, error) {
 				break
 			}
 		}
+
+		_ = f.Close()
 	}
 
 	return processes, nil

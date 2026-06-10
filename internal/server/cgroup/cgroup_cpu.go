@@ -23,11 +23,7 @@ func TaskSchedulerTrigger(srcType string, srcName string, srcStatus string) {
 func ParseCPU(cpuAllowance string, cpuPriority string) (int64, int64, int64, error) {
 	var err error
 
-	// Max shares depending on backend.
-	maxShares := int64(1024)
-	if cgControllers["cpu"] == V2 {
-		maxShares = 100
-	}
+	maxShares := int64(100)
 
 	// Parse priority
 	cpuShares := int64(0)
@@ -42,15 +38,13 @@ func ParseCPU(cpuAllowance string, cpuPriority string) (int64, int64, int64, err
 
 	// Parse allowance
 	cpuCfsQuota := int64(-1)
-	cpuCfsPeriod := int64(100000)
-	if cgControllers["cpu"] == V2 {
-		cpuCfsPeriod = -1
-	}
+	cpuCfsPeriod := int64(-1)
 
 	if cpuAllowance != "" {
-		if strings.HasSuffix(cpuAllowance, "%") {
+		before, ok := strings.CutSuffix(cpuAllowance, "%")
+		if ok {
 			// Percentage based allocation
-			percent, err := strconv.Atoi(strings.TrimSuffix(cpuAllowance, "%"))
+			percent, err := strconv.Atoi(before)
 			if err != nil {
 				return -1, -1, -1, err
 			}

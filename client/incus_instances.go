@@ -18,14 +18,15 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/sftp"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/cancel"
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	"github.com/lxc/incus/v6/shared/tcp"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/ws"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/cancel"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/tcp"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/ws"
 )
 
 // Instance handling functions.
@@ -583,7 +584,7 @@ func (r *ProtocolIncus) CreateInstanceFromBackup(args InstanceBackupArgs) (Opera
 		return nil, err
 	}
 
-	defer func() { _ = resp.Body.Close() }()
+	defer logger.WarnOnError(resp.Body.Close, "Failed to close response body")
 
 	// Handle errors
 	response, _, err := incusParseResponse(resp)
@@ -876,6 +877,7 @@ func (r *ProtocolIncus) CopyInstance(source InstanceServer, instance api.Instanc
 		Live:              req.Source.Live,
 		InstanceOnly:      req.Source.InstanceOnly,
 		AllowInconsistent: req.Source.AllowInconsistent,
+		Devices:           req.Devices,
 	}
 
 	// Push mode migration
@@ -1451,7 +1453,8 @@ func (r *ProtocolIncus) GetInstanceFile(instanceName string, filePath string) (i
 	if r.IsAgent() {
 		requestURL, err = urlEncode(
 			fmt.Sprintf("%s/1.0/files", r.httpBaseURL.String()),
-			map[string]string{"path": filePath})
+			map[string]string{"path": filePath},
+		)
 	} else {
 		var path string
 
@@ -1463,7 +1466,8 @@ func (r *ProtocolIncus) GetInstanceFile(instanceName string, filePath string) (i
 		// Prepare the HTTP request
 		requestURL, err = urlEncode(
 			fmt.Sprintf("%s/1.0%s/%s/files", r.httpBaseURL.String(), path, url.PathEscape(instanceName)),
-			map[string]string{"path": filePath})
+			map[string]string{"path": filePath},
+		)
 	}
 
 	if err != nil {
@@ -1717,6 +1721,20 @@ func (r *ProtocolIncus) rawConn(apiURL *url.URL, protocol string) (net.Conn, err
 	}
 
 	return conn, nil
+}
+
+// GetInstanceNBDConn returns a connection to the instance's NBD endpoint exposing all of its disks.
+func (r *ProtocolIncus) GetInstanceNBDConn(instanceName string) (net.Conn, error) {
+	if !r.HasExtension("instance_nbd") {
+		return nil, errors.New(`The server is missing the required "instance_nbd" API extension`)
+	}
+
+	apiURL := api.NewURL()
+	apiURL.URL = r.httpBaseURL // Preload the URL with the client base URL.
+	apiURL.Path("1.0", "instances", instanceName, "nbd")
+	r.setURLQueryAttributes(&apiURL.URL)
+
+	return r.rawConn(&apiURL.URL, "nbd")
 }
 
 // GetInstanceFileSFTPConn returns a connection to the instance's SFTP endpoint.
@@ -2972,7 +2990,7 @@ func (r *ProtocolIncus) GetInstanceBackupFile(instanceName string, name string, 
 		return nil, err
 	}
 
-	defer func() { _ = response.Body.Close() }()
+	defer logger.WarnOnError(response.Body.Close, "Failed to close response body")
 	defer close(doneCh)
 
 	if response.StatusCode != http.StatusOK {
@@ -3049,7 +3067,7 @@ func (r *ProtocolIncus) CreateInstanceBackupStream(instanceName string, backup a
 		return err
 	}
 
-	defer func() { _ = response.Body.Close() }()
+	defer logger.WarnOnError(response.Body.Close, "Failed to close response body")
 	defer close(doneCh)
 
 	if response.StatusCode != http.StatusOK {
@@ -3198,4 +3216,24 @@ func (r *ProtocolIncus) GetInstanceDebugMemory(name string, format string) (io.R
 	}
 
 	return resp.Body, nil
+}
+
+// CreateInstanceBitmap requests that Incus creates a new bitmap for the instance.
+func (r *ProtocolIncus) CreateInstanceBitmap(name string, bitmap api.StorageVolumeBitmapsPost) error {
+	if !r.HasExtension("storage_volume_nbd") {
+		return errors.New("The server is missing the required \"storage_volume_nbd\" API extension")
+	}
+
+	path, _, err := r.instanceTypeToPath(api.InstanceTypeAny)
+	if err != nil {
+		return err
+	}
+
+	// Send the request
+	_, _, err = r.query("POST", fmt.Sprintf("%s/%s/bitmaps", path, url.PathEscape(name)), bitmap, "")
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

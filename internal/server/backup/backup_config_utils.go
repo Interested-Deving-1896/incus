@@ -8,19 +8,20 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/backup/config"
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/osarch"
+	"github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/backup/config"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/osarch"
 )
 
 // ConfigToInstanceDBArgs converts the instance config in the backup config to DB InstanceArgs.
-func ConfigToInstanceDBArgs(state *state.State, c *config.Config, projectName string, applyProfiles bool) (*db.InstanceArgs, error) {
+func ConfigToInstanceDBArgs(s *state.State, c *config.Config, projectName string, applyProfiles bool) (*db.InstanceArgs, error) {
 	if c.Container == nil {
 		return nil, nil
 	}
@@ -44,7 +45,7 @@ func ConfigToInstanceDBArgs(state *state.State, c *config.Config, projectName st
 	}
 
 	if applyProfiles {
-		err := state.DB.Cluster.Transaction(context.TODO(), func(ctx context.Context, tx *db.ClusterTx) error {
+		err := s.DB.Cluster.Transaction(context.TODO(), func(ctx context.Context, tx *db.ClusterTx) error {
 			inst.Profiles = make([]api.Profile, 0, len(c.Container.Profiles))
 			profiles, err := cluster.GetProfilesIfEnabled(ctx, tx.Tx(), projectName, c.Container.Profiles)
 			if err != nil {
@@ -156,11 +157,11 @@ func UpdateInstanceConfig(c *db.Cluster, b Info, mountPath string) error {
 	// Change the pool in the backup.yaml.
 	backup.Pool = pool
 
-	if updateRootDevicePool(backup.Container.Devices, pool.Name) {
+	if backup.Container != nil && updateRootDevicePool(backup.Container.Devices, pool.Name) {
 		rootDiskDeviceFound = true
 	}
 
-	if updateRootDevicePool(backup.Container.ExpandedDevices, pool.Name) {
+	if backup.Container != nil && updateRootDevicePool(backup.Container.ExpandedDevices, pool.Name) {
 		rootDiskDeviceFound = true
 	}
 
@@ -180,7 +181,7 @@ func UpdateInstanceConfig(c *db.Cluster, b Info, mountPath string) error {
 		return err
 	}
 
-	defer func() { _ = file.Close() }()
+	defer logger.WarnOnError(file.Close, "Failed to close file")
 
 	data, err := yaml.Dump(&backup, yaml.V2)
 	if err != nil {

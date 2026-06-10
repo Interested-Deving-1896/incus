@@ -7,9 +7,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/server/endpoints/listeners"
-	"github.com/lxc/incus/v6/internal/server/request"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/server/endpoints/listeners"
+	"github.com/lxc/incus/v7/internal/server/request"
 )
 
 // ErrNotUnixSocket is returned when the underlying connection isn't a unix socket.
@@ -17,7 +17,12 @@ var ErrNotUnixSocket = errors.New("Connection isn't a unix socket")
 
 // GetConnFromContext extracts the connection from the request context on a HTTP listener.
 func GetConnFromContext(ctx context.Context) net.Conn {
-	return ctx.Value(request.CtxConn).(net.Conn)
+	conn, ok := ctx.Value(request.CtxConn).(net.Conn)
+	if !ok {
+		return nil
+	}
+
+	return conn
 }
 
 // GetCredFromContext extracts the unix credentials from the request context on a HTTP listener.

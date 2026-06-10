@@ -8,19 +8,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/server/db"
-	"github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/db/warningtype"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	storageDrivers "github.com/lxc/incus/v6/internal/server/storage/drivers"
-	"github.com/lxc/incus/v6/internal/server/warnings"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/internal/server/db"
+	"github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/db/warningtype"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
+	"github.com/lxc/incus/v7/internal/server/warnings"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 // Simple cache used to store the activated drivers on this server.
@@ -33,17 +33,17 @@ var (
 
 // readStoragePoolDriversCache returns supported and used storage driver info.
 func readStoragePoolDriversCache() ([]api.ServerStorageDriverInfo, map[string]string) {
-	usedDrivers := storagePoolUsedDriversCacheVal.Load()
-	if usedDrivers == nil {
+	usedDrivers, ok := storagePoolUsedDriversCacheVal.Load().(map[string]string)
+	if !ok {
 		usedDrivers = map[string]string{}
 	}
 
-	supportedDrivers := storagePoolSupportedDriversCacheVal.Load()
-	if supportedDrivers == nil {
+	supportedDrivers, ok := storagePoolSupportedDriversCacheVal.Load().([]api.ServerStorageDriverInfo)
+	if !ok {
 		supportedDrivers = []api.ServerStorageDriverInfo{}
 	}
 
-	return supportedDrivers.([]api.ServerStorageDriverInfo), usedDrivers.(map[string]string)
+	return supportedDrivers, usedDrivers
 }
 
 func storageStartup(s *state.State) error {

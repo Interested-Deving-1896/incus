@@ -9,22 +9,22 @@ import (
 	"strings"
 	"time"
 
-	incus "github.com/lxc/incus/v6/client"
-	internalInstance "github.com/lxc/incus/v6/internal/instance"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/cluster/request"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/network"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	incus "github.com/lxc/incus/v7/client"
+	internalInstance "github.com/lxc/incus/v7/internal/instance"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/cluster/request"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/network"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // zone represents a Network zone.
@@ -37,7 +37,7 @@ type zone struct {
 }
 
 // init initialize internal variables.
-func (d *zone) init(state *state.State, id int64, projectName string, info *api.NetworkZone) {
+func (d *zone) init(s *state.State, id int64, projectName string, info *api.NetworkZone) {
 	if info == nil {
 		d.info = &api.NetworkZone{}
 	} else {
@@ -47,7 +47,7 @@ func (d *zone) init(state *state.State, id int64, projectName string, info *api.
 	d.logger = logger.AddContext(logger.Ctx{"project": projectName, "networkzone": d.info.Name})
 	d.id = id
 	d.projectName = projectName
-	d.state = state
+	d.state = s
 
 	if d.info.Config == nil {
 		d.info.Config = make(map[string]string)
@@ -59,7 +59,7 @@ func (d *zone) ID() int64 {
 	return d.id
 }
 
-// Name returns the project.
+// Project returns the project name.
 func (d *zone) Project() string {
 	return d.projectName
 }

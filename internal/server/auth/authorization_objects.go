@@ -7,9 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/version"
+	"github.com/lxc/incus/v7/internal/version"
 )
 
 // Object is a string alias that represents an authorization object. These are formatted strings that
@@ -62,7 +60,7 @@ func (o Object) projectAndElements() (string, []string) {
 	_, identifier, _ := strings.Cut(o.String(), objectTypeDelimiter)
 
 	var projectName string
-	escapedObjectComponents := strings.SplitN(identifier, objectElementDelimiter, -1)
+	escapedObjectComponents := strings.Split(identifier, objectElementDelimiter)
 	components := make([]string, 0, len(escapedObjectComponents))
 	for i, escapedComponent := range escapedObjectComponents {
 		if validator.requireProject && i == 0 {
@@ -191,28 +189,23 @@ func ObjectFromRequest(r *http.Request, objectType ObjectType, expandProject fun
 	location := values.Get("target")
 
 	muxValues := make([]string, 0, len(muxVars))
-	vars := mux.Vars(r)
 	for _, muxVar := range muxVars {
-		var err error
 		var muxValue string
 
 		if muxVar == "location" {
-			// Special handling for the location which is not present as a real mux var.
+			// Special handling for the location which is not present as a real path variable.
 			if location != "" {
 				muxValue = location
 			} else if objectType == ObjectTypeStorageVolume {
-				muxValue = expandVolumeLocation(projectName, vars["poolName"], vars["type"], vars["volumeName"])
+				muxValue = expandVolumeLocation(projectName, r.PathValue("poolName"), r.PathValue("type"), r.PathValue("volumeName"))
 			}
 
 			if muxValue == "" {
 				continue
 			}
 		} else {
-			muxValue, err = url.PathUnescape(vars[muxVar])
-			if err != nil {
-				return "", fmt.Errorf("Failed to unescape mux var %q for object type %q: %w", muxVar, objectType, err)
-			}
-
+			// The HTTP router already URL-decodes path segments.
+			muxValue = r.PathValue(muxVar)
 			if muxValue == "" {
 				return "", fmt.Errorf("Mux var %q not found for object type %q", muxVar, objectType)
 			}

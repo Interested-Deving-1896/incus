@@ -13,12 +13,12 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	"github.com/lxc/incus/v6/shared/api"
-	cli "github.com/lxc/incus/v6/shared/cmd"
-	"github.com/lxc/incus/v6/shared/termios"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	"github.com/lxc/incus/v7/shared/api"
+	cli "github.com/lxc/incus/v7/shared/cmd"
+	"github.com/lxc/incus/v7/shared/termios"
 )
 
 type cmdNetworkPeer struct {
@@ -97,7 +97,7 @@ Default column layout: ndpts
 
 == Columns ==
 The -c option takes a comma separated list of arguments that control
-which network zone attributes to output when displaying in table or csv
+which network peer attributes to output when displaying in table or csv
 format.
 
 Column arguments are either pre-defined shorthand chars (see below),
@@ -110,11 +110,12 @@ Pre-defined column shorthand chars:
   d - description
   p - Peer
   t - Type
-  s - State`))
+  s - State`,
+	))
 
 	cmd.RunE = c.run
-	cmd.Flags().StringVarP(&c.flagFormat, "format", "f", c.global.defaultListFormat(), i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`)+"``")
-	cmd.Flags().StringVarP(&c.flagColumns, "columns", "c", defaultNetworkPeerListColumns, i18n.G("Columns")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagFormat, "format|f", c.global.defaultListFormat(), "", i18n.G(`Format (csv|json|table|yaml|compact|markdown), use suffix ",noheader" to disable headers and ",header" to enable it if missing, e.g. csv,header`))
+	cli.AddStringFlag(cmd.Flags(), &c.flagColumns, "columns|c", defaultNetworkPeerListColumns, "", i18n.G("Columns"))
 
 	cmd.PreRunE = func(cmd *cobra.Command, _ []string) error {
 		return cli.ValidateFlagFormatForListOutput(cmd.Flag("format").Value.String())
@@ -192,7 +193,7 @@ func (c *cmdNetworkPeerList) stateColumnData(peer api.NetworkPeer) string {
 }
 
 func (c *cmdNetworkPeerList) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkPeerListUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkPeerListUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -262,7 +263,7 @@ func (c *cmdNetworkPeerShow) command() *cobra.Command {
 }
 
 func (c *cmdNetworkPeerShow) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkPeerShowUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkPeerShowUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -316,8 +317,8 @@ incus network peer create default peer3 web/default < config.yaml
 
 	cmd.RunE = c.run
 
-	cmd.Flags().StringVar(&c.flagType, "type", "local", i18n.G("Type of peer (local or remote)")+"``")
-	cmd.Flags().StringVar(&c.flagDescription, "description", "", i18n.G("Peer description")+"``")
+	cli.AddStringFlag(cmd.Flags(), &c.flagType, "type|t", "local", "", i18n.G("Type of peer (local or remote)"))
+	cli.AddStringFlag(cmd.Flags(), &c.flagDescription, "description", "", "", i18n.G("Peer description"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -331,7 +332,7 @@ incus network peer create default peer3 web/default < config.yaml
 }
 
 func (c *cmdNetworkPeerCreate) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkPeerCreateUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkPeerCreateUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -430,7 +431,7 @@ func (c *cmdNetworkPeerGet) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Get values for network peer configuration keys"))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Get the key as a network peer property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Get the key as a network peer property"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -452,7 +453,7 @@ func (c *cmdNetworkPeerGet) command() *cobra.Command {
 }
 
 func (c *cmdNetworkPeerGet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkPeerGetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkPeerGetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -505,10 +506,11 @@ func (c *cmdNetworkPeerSet) command() *cobra.Command {
 		`Set network peer keys
 
 For backward compatibility, a single configuration key may still be set with:
-    incus network set [<remote>:]<network> <peer_name> <key> <value>`))
+    incus network set [<remote>:]<network> <peer_name> <key> <value>`,
+	))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Set the key as a network peer property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Set the key as a network peer property"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -568,7 +570,7 @@ func (c *cmdNetworkPeerSet) set(cmd *cobra.Command, parsed []*u.Parsed) error {
 }
 
 func (c *cmdNetworkPeerSet) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkPeerSetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkPeerSetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -585,7 +587,7 @@ type cmdNetworkPeerUnset struct {
 	flagIsProperty bool
 }
 
-var cmdNetworkPeerUnsetUsage = u.Usage{u.Network.Remote(), u.Peer, u.Key}
+var cmdNetworkPeerUnsetUsage = u.Usage{u.Network.Remote(), u.Peer, u.Key.List(1)}
 
 func (c *cmdNetworkPeerUnset) command() *cobra.Command {
 	cmd := &cobra.Command{}
@@ -594,7 +596,7 @@ func (c *cmdNetworkPeerUnset) command() *cobra.Command {
 	cmd.Long = cli.FormatSection(color.DescriptionPrefix, i18n.G("Unset network peer keys"))
 	cmd.RunE = c.run
 
-	cmd.Flags().BoolVarP(&c.flagIsProperty, "property", "p", false, i18n.G("Unset the key as a network peer property"))
+	cli.AddBoolFlag(cmd.Flags(), &c.flagIsProperty, "property|p", i18n.G("Unset the keys as network peer properties"))
 
 	cmd.ValidArgsFunction = func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
@@ -616,7 +618,7 @@ func (c *cmdNetworkPeerUnset) command() *cobra.Command {
 }
 
 func (c *cmdNetworkPeerUnset) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkPeerUnsetUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkPeerUnsetUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -668,11 +670,12 @@ func (c *cmdNetworkPeerEdit) helpTemplate() string {
 ### target_network: mynet
 ### status: Pending
 ###
-### Note that the name, target_project, target_network and status fields cannot be changed.`)
+### Note that the name, target_project, target_network and status fields cannot be changed.`,
+	)
 }
 
 func (c *cmdNetworkPeerEdit) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkPeerEditUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkPeerEditUsage, cmd, args)
 	if err != nil {
 		return err
 	}
@@ -780,7 +783,7 @@ func (c *cmdNetworkPeerDelete) command() *cobra.Command {
 }
 
 func (c *cmdNetworkPeerDelete) run(cmd *cobra.Command, args []string) error {
-	parsed, err := cmdNetworkPeerDeleteUsage.Parse(c.global.conf, cmd, args)
+	parsed, err := c.global.Parse(cmdNetworkPeerDeleteUsage, cmd, args)
 	if err != nil {
 		return err
 	}

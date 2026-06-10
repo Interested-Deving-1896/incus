@@ -6,7 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/lxc/incus/v6/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/subprocess"
 )
 
 // ClearBlock fully resets a block device or disk file using the most efficient mechanism available.
@@ -15,6 +16,8 @@ import (
 //
 // An offset can be specified to only reset a part of a device.
 func ClearBlock(blockPath string, blockOffset int64) error {
+	logger.Debug("Clearing block device", logger.Ctx{"dev": blockPath, "offset": blockOffset})
+
 	// Open the block device for checking.
 	fd, err := os.OpenFile(blockPath, os.O_RDWR, 0o644)
 	if err != nil {
@@ -26,7 +29,7 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 		return err
 	}
 
-	defer fd.Close()
+	defer logger.WarnOnError(fd.Close, "Failed to close file")
 
 	// Get the size of the file/block.
 	size, err := fd.Seek(0, io.SeekEnd)
@@ -51,6 +54,8 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 		if err != nil {
 			return err
 		}
+
+		logger.Debug("Cleared block device", logger.Ctx{"dev": blockPath, "offset": blockOffset, "method": "truncate"})
 
 		return nil
 	}
@@ -162,7 +167,7 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 			return err
 		}
 
-		defer fd.Close()
+		defer logger.WarnOnError(fd.Close, "Failed to close file")
 
 		found, err = checkMarkers(fd)
 		if err != nil {
@@ -170,6 +175,8 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 		}
 
 		if found == 0 {
+			logger.Debug("Cleared block device", logger.Ctx{"dev": blockPath, "offset": blockOffset, "method": "secure-discard"})
+
 			// All markers are gone, secure discard succeeded.
 			return nil
 		}
@@ -187,7 +194,7 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 			return err
 		}
 
-		defer fd.Close()
+		defer logger.WarnOnError(fd.Close, "Failed to close file")
 
 		found, err = checkMarkers(fd)
 		if err != nil {
@@ -195,6 +202,8 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 		}
 
 		if found == 0 {
+			logger.Debug("Cleared block device", logger.Ctx{"dev": blockPath, "offset": blockOffset, "method": "discard"})
+
 			// All markers are gone, regular discard succeeded.
 			return nil
 		}
@@ -212,7 +221,7 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 			return err
 		}
 
-		defer fd.Close()
+		defer logger.WarnOnError(fd.Close, "Failed to close file")
 
 		found, err = checkMarkers(fd)
 		if err != nil {
@@ -220,6 +229,8 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 		}
 
 		if found == 0 {
+			logger.Debug("Cleared block device", logger.Ctx{"dev": blockPath, "offset": blockOffset, "method": "zero-discard"})
+
 			// All markers are gone, device zero-ing succeeded.
 			return nil
 		}
@@ -234,14 +245,14 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 		return err
 	}
 
-	defer zero.Close()
+	defer logger.WarnOnError(zero.Close, "Failed to close file")
 
 	fd, err = os.OpenFile(blockPath, os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
 
-	defer fd.Close()
+	defer logger.WarnOnError(fd.Close, "Failed to close file")
 
 	_, err = fd.Seek(blockOffset, 0)
 	if err != nil {
@@ -256,6 +267,8 @@ func ClearBlock(blockPath string, blockOffset int64) error {
 	if n != (size - blockOffset) {
 		return fmt.Errorf("Only managed to reset %d bytes out of %d", n, size)
 	}
+
+	logger.Debug("Cleared block device", logger.Ctx{"dev": blockPath, "offset": blockOffset, "method": "zero-overwrite"})
 
 	return nil
 }

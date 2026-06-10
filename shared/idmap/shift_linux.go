@@ -409,8 +409,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	_ "github.com/lxc/incus/v6/shared/cgo" // Used by cgo
-	"github.com/lxc/incus/v6/shared/logger"
+	_ "github.com/lxc/incus/v7/shared/cgo" // Used by cgo
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // ShiftOwner updates the uid and gid for a file within a specific basepath.
@@ -522,9 +523,9 @@ func shiftACLType(path string, aclType int, shiftIDs func(uid int64, gid int64) 
 		// Shift the value
 		newID := int64(-1)
 		if tag == C.ACL_USER {
-			newID, _ = shiftIDs((int64)(*idp), -1)
+			newID, _ = shiftIDs(int64(*idp), -1)
 		} else {
-			_, newID = shiftIDs(-1, (int64)(*idp))
+			_, newID = shiftIDs(-1, int64(*idp))
 		}
 
 		// Skip values that are out of range.
@@ -559,8 +560,8 @@ func SupportsVFS3FSCaps(prefix string) bool {
 		return false
 	}
 
-	defer func() { _ = tmpfile.Close() }()
-	defer func() { _ = os.Remove(tmpfile.Name()) }()
+	defer logger.WarnOnError(tmpfile.Close, "Failed to close temporary file")
+	defer logger.WarnOnError(func() error { return os.Remove(tmpfile.Name()) }, "Failed to remove temporary file")
 
 	err = os.Chmod(tmpfile.Name(), 0o001)
 	if err != nil {
@@ -699,6 +700,10 @@ const (
 
 // CanIdmapMount checks if the provided path and filesystem can use VFS idmapped mounts.
 func CanIdmapMount(path string, fstype string) bool {
+	if util.IsTrue(os.Getenv("INCUS_IDMAPPED_MOUNTS_DISABLE")) {
+		return false
+	}
+
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
 	cfstype := C.CString(fstype)

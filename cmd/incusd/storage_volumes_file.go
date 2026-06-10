@@ -4,38 +4,35 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/server/state"
-	storagePools "github.com/lxc/incus/v6/internal/server/storage"
-	storageDrivers "github.com/lxc/incus/v6/internal/server/storage/drivers"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/server/state"
+	storagePools "github.com/lxc/incus/v7/internal/server/storage"
+	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
 )
 
 func storagePoolVolumeTypeFileHandler(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	volumeTypeName, err := url.PathUnescape(mux.Vars(r)["type"])
+	volumeTypeName, err := pathVar(r, "type")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Get the name of the storage volume.
-	volumeName, err := url.PathUnescape(mux.Vars(r)["volumeName"])
+	volumeName, err := pathVar(r, "volumeName")
 	if err != nil {
 		return response.SmartError(err)
 	}
 
 	// Get the name of the storage pool the volume is supposed to be attached to.
-	poolName, err := url.PathUnescape(mux.Vars(r)["poolName"])
+	poolName, err := pathVar(r, "poolName")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -112,6 +109,21 @@ func storagePoolVolumeTypeFileHandler(d *Daemon, r *http.Request) response.Respo
 //	  - application/json
 //	  - application/octet-stream
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: path
 //	    description: Path to the file
@@ -193,6 +205,21 @@ func storageVolumeFileGet(s *state.State, vol storageDrivers.Volume, volumeProje
 //
 //	---
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: path
 //	    description: Path to the file
@@ -261,6 +288,21 @@ func storageVolumeFileHead(s *state.State, vol storageDrivers.Volume, volumeProj
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: path
 //	    description: Path to the file
@@ -321,7 +363,7 @@ func storageVolumeFilePost(s *state.State, vol storageDrivers.Volume, volumeProj
 		return response.SmartError(err)
 	}
 
-	defer func() { _ = client.Close() }()
+	defer logger.WarnOnError(client.Close, "Failed to close SFTP client")
 
 	return fileSFTPPost(client, path, r, func() {
 		s.Events.SendLifecycle(volumeProjectName, lifecycle.StorageVolumeFilePushed.Event(vol, string(vol.Type()), volumeProjectName, nil, logger.Ctx{"path": path}))
@@ -338,6 +380,21 @@ func storageVolumeFilePost(s *state.State, vol storageDrivers.Volume, volumeProj
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: poolName
+//	    description: Storage pool name
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: type
+//	    description: Storage volume type
+//	    type: string
+//	    required: true
+//	  - in: path
+//	    name: volumeName
+//	    description: Storage volume name
+//	    type: string
+//	    required: true
 //	  - in: query
 //	    name: path
 //	    description: Path to the file
@@ -371,7 +428,7 @@ func storageVolumeFileDelete(s *state.State, vol storageDrivers.Volume, volumePr
 		return response.SmartError(err)
 	}
 
-	defer func() { _ = client.Close() }()
+	defer logger.WarnOnError(client.Close, "Failed to close SFTP client")
 
 	return fileSFTPDelete(client, path, r, func() {
 		s.Events.SendLifecycle(volumeProjectName, lifecycle.StorageVolumeFileDeleted.Event(vol, string(vol.Type()), volumeProjectName, nil, logger.Ctx{"path": path}))

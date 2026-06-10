@@ -14,17 +14,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/linux"
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/internal/server/state"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/subprocess"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/linux"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/internal/server/state"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 const lvmVgPoolMarker = "incus_pool" // Indicator tag used to mark volume groups as in use.
@@ -129,9 +129,10 @@ func (d *lvm) init(s *state.State, name string, config map[string]string, log lo
 		_, exists := d.config["lvm.vg_name"]
 		if !exists {
 			sourceType := d.getSourceType(d.config["source"])
-			if sourceType == lvmSourceTypeDefault || sourceType == lvmSourceTypePhysicalDevice {
+			switch sourceType {
+			case lvmSourceTypeDefault, lvmSourceTypePhysicalDevice:
 				d.config["lvm.vg_name"] = d.name
-			} else if sourceType == lvmSourceTypeVolumeGroup {
+			case lvmSourceTypeVolumeGroup:
 				d.config["lvm.vg_name"] = d.config["source"]
 			}
 		}
@@ -217,7 +218,8 @@ func (d *lvm) Create() error {
 		}
 	}
 
-	if sourceType == lvmSourceTypeDefault {
+	switch sourceType {
+	case lvmSourceTypeDefault:
 		if d.clustered {
 			return errors.New("lvmcluster requires a shared physical device or a pre-existing shared VG to be used as source")
 		}
@@ -268,7 +270,7 @@ func (d *lvm) Create() error {
 			return err
 		}
 
-		defer func() { _ = loopDeviceAutoDetach(loopDevPath) }()
+		defer logger.WarnOnError(func() error { return loopDeviceAutoDetach(loopDevPath) }, "Failed to detach loop device")
 
 		// Check if the physical volume already exists.
 		pvName = loopDevPath
@@ -290,7 +292,8 @@ func (d *lvm) Create() error {
 		if vgExists {
 			return fmt.Errorf("A volume group already exists called %q", d.config["lvm.vg_name"])
 		}
-	} else if sourceType == lvmSourceTypePhysicalDevice {
+
+	case lvmSourceTypePhysicalDevice:
 		// We are using an existing physical device.
 		srcPath := d.config["source"]
 
@@ -335,7 +338,8 @@ func (d *lvm) Create() error {
 		if err != nil {
 			return err
 		}
-	} else if sourceType == lvmSourceTypeVolumeGroup {
+
+	case lvmSourceTypeVolumeGroup:
 		// We are using an existing volume group, so physical must exist already.
 		pvExists = true
 
@@ -359,7 +363,8 @@ func (d *lvm) Create() error {
 		if !vgExists {
 			return fmt.Errorf("The requested volume group %q does not exist", d.config["lvm.vg_name"])
 		}
-	} else {
+
+	default:
 		return errors.New("Invalid source property")
 	}
 
@@ -527,7 +532,7 @@ func (d *lvm) Delete(op *operations.Operation) error {
 			return err
 		}
 
-		defer func() { _ = loopDeviceAutoDetach(loopDevPath) }()
+		defer logger.WarnOnError(func() error { return loopDeviceAutoDetach(loopDevPath) }, "Failed to detach loop device")
 	}
 
 	vgExists, vgTags, err := d.volumeGroupExists(d.config["lvm.vg_name"])
@@ -583,6 +588,24 @@ func (d *lvm) Delete(op *operations.Operation) error {
 
 		// Remove volume group if needed.
 		if removeVg {
+			if d.clustered {
+				// In lvmlockd version 2.03.31 (2025-02-27), there appears to be a bug causing an inconsistent state
+				// between sanlock and lvmlockd during sahred VG removal, which results in lock-related errors.
+				// Unmount the pool (perform vgchange --lockstop) to release and clear all shared locks.
+				// Next, change the VG lock type to 'none'. Changing the lock type to 'none' avoids this behavior by
+				// converting the VG to a non-shared configuration.
+				// After that, the VG can be removed using the standard non-shared LVM removal procedure.
+				_, err := d.Unmount()
+				if err != nil {
+					return err
+				}
+
+				_, err = subprocess.TryRunCommand("vgchange", "-y", "--locktype", "none", "--lockopt", "force", d.config["lvm.vg_name"])
+				if err != nil {
+					return fmt.Errorf("Failed to change lock type to none for %q", d.config["lvm.vg_name"])
+				}
+			}
+
 			// When deleting a shared VG, it may take more than a minute for the previously released shared locks to clear.
 			_, err := subprocess.TryRunCommandAttemptsDuration(240, 500*time.Millisecond, "vgremove", "-f", d.config["lvm.vg_name"])
 			if err != nil {
@@ -635,6 +658,7 @@ func (d *lvm) Delete(op *operations.Operation) error {
 	return nil
 }
 
+// Validate checks that all provided keys are supported and that no conflicting or missing config exists.
 func (d *lvm) Validate(config map[string]string) error {
 	// gendoc:generate(entity=storage_lvm, group=common, key=source)
 	//
@@ -881,7 +905,7 @@ func (d *lvm) Update(changedConfig map[string]string) error {
 			return err
 		}
 
-		defer func() { _ = f.Close() }()
+		defer logger.WarnOnError(f.Close, "Failed to close file")
 
 		sizeBytes, _ := units.ParseByteSizeString(size)
 

@@ -862,11 +862,11 @@ test_clustering_storage() {
         # Attach a custom volume to a container on node1
         INCUS_DIR="${INCUS_ONE_DIR}" incus storage volume create pool1 v1
         INCUS_DIR="${INCUS_ONE_DIR}" incus init --target node1 -s pool1 testimage baz
-        INCUS_DIR="${INCUS_ONE_DIR}" incus storage volume attach pool1 custom/v1 baz testDevice /opt
+        INCUS_DIR="${INCUS_ONE_DIR}" incus storage volume attach pool1 v1 baz testDevice /opt
 
         # Trying to attach a custom volume to a container on another node fails
         INCUS_DIR="${INCUS_TWO_DIR}" incus init --target node2 -s pool1 testimage buz
-        ! INCUS_DIR="${INCUS_TWO_DIR}" incus storage volume attach pool1 custom/v1 buz testDevice /opt || false
+        ! INCUS_DIR="${INCUS_TWO_DIR}" incus storage volume attach pool1 v1 buz testDevice /opt || false
 
         # Create an unrelated volume and rename it on a node which differs from the
         # one running the container (issue #6435).
@@ -2435,7 +2435,7 @@ test_clustering_rebalance() {
     INCUS_DIR="${INCUS_ONE_DIR}" incus cluster show node4 | grep -q "\- database$"
 
     # Respawn the second node. It won't be able to disrupt the current leader,
-    # since dqlite uses pre-vote.
+    # since cowsql uses pre-vote.
     respawn_incus_cluster_member "${ns2}" "${INCUS_TWO_DIR}"
     sleep 12
 

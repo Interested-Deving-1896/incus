@@ -20,7 +20,7 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // ErrOIDCExpired is returned when the token is expired and we can't retry the request ourselves.

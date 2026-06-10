@@ -12,11 +12,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/cmd/incus/color"
-	u "github.com/lxc/incus/v6/cmd/incus/usage"
-	"github.com/lxc/incus/v6/internal/i18n"
-	cli "github.com/lxc/incus/v6/shared/cmd"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/cmd/incus/color"
+	u "github.com/lxc/incus/v7/cmd/incus/usage"
+	"github.com/lxc/incus/v7/internal/i18n"
+	cli "github.com/lxc/incus/v7/shared/cmd"
 )
 
 type cmdAdminShutdown struct {
@@ -40,14 +40,14 @@ func (c *cmdAdminShutdown) command() *cobra.Command {
   This can take quite a while as instances can take a long time to
   shutdown, especially if a non-standard timeout was configured for them.`))
 	cmd.RunE = c.run
-	cmd.Flags().IntVarP(&c.flagTimeout, "timeout", "t", 0, "Number of seconds to wait before giving up"+"``")
-	cmd.Flags().BoolVarP(&c.flagForce, "force", "f", false, "Force shutdown instead of waiting for running operations to finish"+"``")
+	cli.AddIntFlag(cmd.Flags(), &c.flagTimeout, "timeout|t", 0, "Number of seconds to wait before giving up")
+	cli.AddBoolFlag(cmd.Flags(), &c.flagForce, "force|f", "Force shutdown instead of waiting for running operations to finish")
 
 	return cmd
 }
 
 func (c *cmdAdminShutdown) run(cmd *cobra.Command, args []string) error {
-	_, err := cmdAdminShutdownUsage.Parse(c.global.conf, cmd, args)
+	_, err := c.global.Parse(cmdAdminShutdownUsage, cmd, args)
 	if err != nil {
 		return err
 	}

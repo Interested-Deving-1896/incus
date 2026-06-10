@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	incus "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/internal/server/sys"
+	incus "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/internal/server/sys"
 )
 
 // The daemon is started and a client can connect to it via unix socket.
@@ -51,6 +51,6 @@ func newConfig() *DaemonConfig {
 	return &DaemonConfig{
 		RaftLatency:        0.8,
 		Trace:              []string{"dqlite"},
-		DqliteSetupTimeout: 10 * time.Second,
+		CowsqlSetupTimeout: 10 * time.Second,
 	}
 }

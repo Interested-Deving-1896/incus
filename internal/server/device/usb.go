@@ -8,12 +8,12 @@ import (
 	"path"
 	"strings"
 
-	deviceConfig "github.com/lxc/incus/v6/internal/server/device/config"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/instance/instancetype"
-	"github.com/lxc/incus/v6/shared/osarch"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	deviceConfig "github.com/lxc/incus/v7/internal/server/device/config"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/instance/instancetype"
+	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // usbDevPath is the path where USB devices can be enumerated.
@@ -158,12 +158,14 @@ func (d *usb) Register() error {
 
 		runConf := deviceConfig.RunConfig{}
 
-		if e.Action == "add" {
+		switch e.Action {
+		case "add":
 			err := unixDeviceSetupCharNum(state, devicesPath, "unix", deviceName, devConfig, e.Major, e.Minor, e.Path, false, &runConf)
 			if err != nil {
 				return nil, err
 			}
-		} else if e.Action == "remove" {
+
+		case "remove":
 			relativeTargetPath := strings.TrimPrefix(e.Path, "/")
 			err := unixDeviceRemove(devicesPath, "unix", deviceName, relativeTargetPath, &runConf)
 			if err != nil {

@@ -6,24 +6,21 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
-	"github.com/gorilla/mux"
-
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/lifecycle"
-	"github.com/lxc/incus/v6/internal/server/project"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	localUtil "github.com/lxc/incus/v6/internal/server/util"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/lifecycle"
+	"github.com/lxc/incus/v7/internal/server/project"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	localUtil "github.com/lxc/incus/v7/internal/server/util"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 var networkIntegrationsCmd = APIEndpoint{
@@ -372,6 +369,12 @@ func networkIntegrationsPost(d *Daemon, r *http.Request) response.Response {
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: integration
+//	    description: Integration name
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    $ref: "#/responses/EmptySyncResponse"
@@ -385,7 +388,7 @@ func networkIntegrationDelete(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	// Get the integration name.
-	integrationName, err := url.PathUnescape(mux.Vars(r)["integration"])
+	integrationName, err := pathVar(r, "integration")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -465,6 +468,12 @@ func networkIntegrationDelete(d *Daemon, r *http.Request) response.Response {
 //	---
 //	produces:
 //	  - application/json
+//	parameters:
+//	  - in: path
+//	    name: integration
+//	    description: Integration name
+//	    type: string
+//	    required: true
 //	responses:
 //	  "200":
 //	    description: integration
@@ -494,7 +503,7 @@ func networkIntegrationGet(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	// Get the integration name.
-	integrationName, err := url.PathUnescape(mux.Vars(r)["integration"])
+	integrationName, err := pathVar(r, "integration")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -599,6 +608,11 @@ func networkIntegrationGet(d *Daemon, r *http.Request) response.Response {
 //  produces:
 //    - application/json
 //  parameters:
+//    - in: path
+//      name: integration
+//      description: Integration name
+//      type: string
+//      required: true
 //    - in: body
 //      name: integration
 //      description: integration configuration
@@ -629,6 +643,11 @@ func networkIntegrationGet(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: integration
+//	    description: Integration name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: integration
 //	    description: integration configuration
@@ -649,7 +668,7 @@ func networkIntegrationGet(d *Daemon, r *http.Request) response.Response {
 func networkIntegrationPut(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
-	integrationName, err := url.PathUnescape(mux.Vars(r)["integration"])
+	integrationName, err := pathVar(r, "integration")
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -790,6 +809,11 @@ func networkIntegrationPut(d *Daemon, r *http.Request) response.Response {
 //	produces:
 //	  - application/json
 //	parameters:
+//	  - in: path
+//	    name: integration
+//	    description: Integration name
+//	    type: string
+//	    required: true
 //	  - in: body
 //	    name: integration
 //	    description: integration configuration
@@ -809,7 +833,7 @@ func networkIntegrationPost(d *Daemon, r *http.Request) response.Response {
 	s := d.State()
 
 	// Get the integration name.
-	integrationName, err := url.PathUnescape(mux.Vars(r)["integration"])
+	integrationName, err := pathVar(r, "integration")
 	if err != nil {
 		return response.SmartError(err)
 	}

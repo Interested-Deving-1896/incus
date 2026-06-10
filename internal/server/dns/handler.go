@@ -8,14 +8,15 @@ import (
 
 	"github.com/miekg/dns"
 
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
 )
 
 type dnsHandler struct {
 	server *Server
 }
 
+// ServeDNS handles an incoming DNS query and writes the response.
 func (d dnsHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	// Don't allow concurrent queries.
 	d.server.mu.Lock()

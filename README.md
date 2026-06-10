@@ -25,8 +25,6 @@ Incus is a true open source community project, free of any [CLA](https://en.wiki
 remains released under the [Apache 2.0 license](https://www.apache.org/licenses/LICENSE-2.0).
 It's maintained by the same team of developers that first created LXD.
 
-LXD users wishing to migrate to Incus can easily do so through a migration tool called [`lxd-to-incus`](https://linuxcontainers.org/incus/docs/main/howto/server_migrate_lxd/).
-
 ## Get started
 
 See [Getting started](https://linuxcontainers.org/incus/docs/main/tutorial/first_steps/) in the Incus documentation for installation instructions and first steps.
@@ -40,7 +38,7 @@ See [Getting started](https://linuxcontainers.org/incus/docs/main/tutorial/first
 Type                | Service               | Status
 ---                 | ---                   | ---
 Tests               | GitHub                | [![Build Status](https://github.com/lxc/incus/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/lxc/incus/actions?query=event%3Apush+branch%3Amain)
-Go documentation    | Godoc                 | [![GoDoc](https://godoc.org/github.com/lxc/incus/v6/client?status.svg)](https://godoc.org/github.com/lxc/incus/v6/client)
+Go documentation    | Godoc                 | [![GoDoc](https://godoc.org/github.com/lxc/incus/v7/client?status.svg)](https://godoc.org/github.com/lxc/incus/v7/client)
 Static analysis     | GoReport              | [![Go Report Card](https://goreportcard.com/badge/github.com/lxc/incus)](https://goreportcard.com/report/github.com/lxc/incus)
 Translations        | Weblate               | [![Translation status](https://hosted.weblate.org/widget/incus/svg-badge.svg)](https://hosted.weblate.org/projects/incus/)
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/lxc/incus/v6/internal/i18n"
+	"github.com/lxc/incus/v7/internal/i18n"
 )
 
 func (c *cmdWebui) run(cmd *cobra.Command, args []string) error {

@@ -12,18 +12,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lxc/incus/v6/internal/filter"
-	"github.com/lxc/incus/v6/internal/server/auth"
-	"github.com/lxc/incus/v6/internal/server/cluster"
-	"github.com/lxc/incus/v6/internal/server/db"
-	dbCluster "github.com/lxc/incus/v6/internal/server/db/cluster"
-	"github.com/lxc/incus/v6/internal/server/instance"
-	"github.com/lxc/incus/v6/internal/server/request"
-	"github.com/lxc/incus/v6/internal/server/response"
-	"github.com/lxc/incus/v6/internal/version"
-	"github.com/lxc/incus/v6/shared/api"
-	localtls "github.com/lxc/incus/v6/shared/tls"
-	"github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/internal/filter"
+	"github.com/lxc/incus/v7/internal/server/auth"
+	"github.com/lxc/incus/v7/internal/server/cluster"
+	"github.com/lxc/incus/v7/internal/server/db"
+	dbCluster "github.com/lxc/incus/v7/internal/server/db/cluster"
+	"github.com/lxc/incus/v7/internal/server/instance"
+	"github.com/lxc/incus/v7/internal/server/request"
+	"github.com/lxc/incus/v7/internal/server/response"
+	"github.com/lxc/incus/v7/internal/version"
+	"github.com/lxc/incus/v7/shared/api"
+	localtls "github.com/lxc/incus/v7/shared/tls"
+	"github.com/lxc/incus/v7/shared/util"
 )
 
 // swagger:operation GET /1.0/instances instances instances_get
@@ -391,9 +391,7 @@ func instancesGet(d *Daemon, r *http.Request) response.Response {
 			queue := make(chan db.Instance, threads)
 
 			for range threads {
-				wg.Add(1)
-
-				go func() {
+				wg.Go(func() {
 					for {
 						dbInst, more := <-queue
 						if !more {
@@ -423,9 +421,7 @@ func instancesGet(d *Daemon, r *http.Request) response.Response {
 							resultFullListAppend(c)
 						}
 					}
-
-					wg.Done()
-				}()
+				})
 			}
 
 			for _, inst := range instances {

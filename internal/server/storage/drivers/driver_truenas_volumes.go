@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -14,18 +15,18 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/incus/v6/internal/instancewriter"
-	"github.com/lxc/incus/v6/internal/linux"
-	"github.com/lxc/incus/v6/internal/migration"
-	"github.com/lxc/incus/v6/internal/server/backup"
-	localMigration "github.com/lxc/incus/v6/internal/server/migration"
-	"github.com/lxc/incus/v6/internal/server/operations"
-	"github.com/lxc/incus/v6/shared/api"
-	"github.com/lxc/incus/v6/shared/logger"
-	"github.com/lxc/incus/v6/shared/revert"
-	"github.com/lxc/incus/v6/shared/units"
-	"github.com/lxc/incus/v6/shared/util"
-	"github.com/lxc/incus/v6/shared/validate"
+	"github.com/lxc/incus/v7/internal/instancewriter"
+	"github.com/lxc/incus/v7/internal/linux"
+	"github.com/lxc/incus/v7/internal/migration"
+	"github.com/lxc/incus/v7/internal/server/backup"
+	localMigration "github.com/lxc/incus/v7/internal/server/migration"
+	"github.com/lxc/incus/v7/internal/server/operations"
+	"github.com/lxc/incus/v7/shared/api"
+	"github.com/lxc/incus/v7/shared/logger"
+	"github.com/lxc/incus/v7/shared/revert"
+	"github.com/lxc/incus/v7/shared/units"
+	"github.com/lxc/incus/v7/shared/util"
+	"github.com/lxc/incus/v7/shared/validate"
 )
 
 // CreateVolume creates an empty volume and can optionally fill it by executing the supplied
@@ -196,8 +197,9 @@ func (d *truenas) CreateVolume(vol Volume, filler *VolumeFiller, op *operations.
 		}
 
 		fsVolFilesystem := vol.ConfigBlockFilesystem()
+		volCreateOptions := vol.ExpandedConfig("block.create_options")
 
-		_, err = makeFSType(devPath, fsVolFilesystem, nil)
+		_, err = makeFSType(devPath, fsVolFilesystem, &mkfsOptions{ExtraArgs: volCreateOptions})
 
 		// de-activate even if there is an err
 		err2 := d.deactivateIscsiDataset(dataset)
@@ -797,6 +799,15 @@ func (d *truenas) commonVolumeRules() map[string]func(value string) error {
 		//  shortdesc: Mount options for block-backed file system volumes
 		"block.mount_options": validate.IsAny,
 
+		// gendoc:generate(entity=storage_volume_truenas, group=common, key=block.create_options)
+		//
+		// ---
+		//  type: string
+		//  condition: -
+		//  default: same as `volume.block.create_options`
+		//  shortdesc: Additional options to pass to the file system creation tool when formatting the volume
+		"block.create_options": validate.IsAny,
+
 		// gendoc:generate(entity=storage_volume_truenas, group=common, key=truenas.blocksize)
 		//
 		// ---
@@ -885,7 +896,7 @@ func (d *truenas) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: Size/quota of the storage volume
 
 	// gendoc:generate(entity=storage_volume_truenas, group=common, key=snapshots.expiry)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -893,7 +904,7 @@ func (d *truenas) ValidateVolume(vol Volume, removeUnknownKeys bool) error {
 	//  shortdesc: {{snapshot_expiry_format}}
 
 	// gendoc:generate(entity=storage_volume_truenas, group=common, key=snapshots.expiry.manual)
-	//
+	// {{snapshot_expiry_detail}}
 	// ---
 	//  type: string
 	//  condition: custom volume
@@ -942,9 +953,7 @@ func (d *truenas) UpdateVolume(vol Volume, changedConfig map[string]string) erro
 	}
 
 	defer func() {
-		for k, v := range old {
-			vol.config[k] = v
-		}
+		maps.Copy(vol.config, old)
 	}()
 
 	// If any of the relevant keys changed, re-apply the quota.
@@ -1039,7 +1048,6 @@ func (d *truenas) SetVolumeQuota(vol Volume, size string, allowUnsafeResize bool
 	}
 
 	if vol.contentType == ContentTypeFS {
-
 		if vol.volType == VolumeTypeImage {
 			return fmt.Errorf("Image volumes cannot be resized: %w", ErrCannotBeShrunk)
 		}
@@ -1082,21 +1090,6 @@ func (d *truenas) SetVolumeQuota(vol Volume, size string, allowUnsafeResize bool
 				return err
 			}
 		} else if sizeBytes > oldVolSizeBytes {
-
-			// Grow FileSystem
-
-			if !tnHasIscsiRefresh {
-				if inUse {
-					return fmt.Errorf("Growing an online TrueNAS filesystem requires iSCSI Refresh support. Please update the TrueNAS tool: %w", ErrInUse)
-				}
-
-				// Deactivate if necessary, so we can re-activate after changing the zvol size, since we can't use refresh
-				_, err = d.deactivateVolume(vol)
-				if err != nil {
-					return err
-				}
-			}
-
 			// Grow block device first, ignoring any shrink errors, which could happen because we've already ignored a shrink error when shrinking.
 			err = d.setVolsize(dataset, sizeBytes, false)
 			if err != nil {
@@ -1119,7 +1112,7 @@ func (d *truenas) SetVolumeQuota(vol Volume, size string, allowUnsafeResize bool
 				return err
 			}
 
-			if tnHasIscsiRefresh && actualSize < sizeBytes {
+			if actualSize < sizeBytes {
 				// refresh until it does actually grow
 				for range 20 {
 					// rescan iscsi devices to pickup any size change
@@ -1156,7 +1149,6 @@ func (d *truenas) SetVolumeQuota(vol Volume, size string, allowUnsafeResize bool
 			l.Debug("TrueNAS volume filesystem grown")
 		}
 	} else {
-
 		// Block Volume.
 
 		// Block image volumes cannot be resized because they have a readonly snapshot that doesn't get
@@ -1641,7 +1633,7 @@ func (d *truenas) CreateVolumeSnapshot(vol Volume, op *operations.Operation) err
 	defer reverter.Fail()
 
 	// Create the parent directory.
-	err := createParentSnapshotDirIfMissing(d.name, vol.volType, parentName)
+	err := CreateParentSnapshotDirIfMissing(d.name, vol.volType, parentName)
 	if err != nil {
 		return err
 	}
@@ -1953,12 +1945,8 @@ func (d *truenas) VolumeSnapshots(vol Volume, op *operations.Operation) ([]strin
 	return snapshots, nil
 }
 
-// RestoreVolume restores a volume from a snapshot.
-func (d *truenas) RestoreVolume(vol Volume, snapshotName string, op *operations.Operation) error {
-	return d.restoreVolume(vol, snapshotName, false, op)
-}
-
-func (d *truenas) restoreVolume(vol Volume, snapshotName string, isMigration bool, op *operations.Operation) error {
+// CanRestoreVolume checks whether a volume snapshot can be restored.
+func (d *truenas) CanRestoreVolume(vol Volume, snapshotName string) error {
 	// Get the list of snapshots.
 	dataset := d.dataset(vol, false)
 	entries, err := d.getDatasets(dataset, "snapshot")
@@ -2001,6 +1989,22 @@ func (d *truenas) restoreVolume(vol Volume, snapshotName string, isMigration boo
 		// Setup custom error to tell the backend what to delete.
 		err := ErrDeleteSnapshots{}
 		err.Snapshots = snapshots
+		return err
+	}
+
+	return nil
+}
+
+// RestoreVolume restores a volume from a snapshot.
+func (d *truenas) RestoreVolume(vol Volume, snapshotName string, op *operations.Operation) error {
+	return d.restoreVolume(vol, snapshotName, false, op)
+}
+
+func (d *truenas) restoreVolume(vol Volume, snapshotName string, isMigration bool, op *operations.Operation) error {
+	dataset := d.dataset(vol, false)
+
+	err := d.CanRestoreVolume(vol, snapshotName)
+	if err != nil {
 		return err
 	}
 
@@ -2118,7 +2122,7 @@ func (d *truenas) FillVolumeConfig(vol Volume) error {
 	// Copy volume.* configuration options from pool.
 	// If vol has a source, ignore the block mode related config keys from the pool.
 	if vol.hasSource || vol.IsVMBlock() || vol.volType == VolumeTypeCustom && vol.contentType == ContentTypeBlock {
-		excludedKeys = []string{"block.filesystem", "block.mount_options"}
+		excludedKeys = []string{"block.filesystem", "block.mount_options", "block.create_options"}
 	}
 
 	// Copy volume.* configuration options from pool.
@@ -2153,6 +2157,11 @@ func (d *truenas) FillVolumeConfig(vol Volume) error {
 		if vol.config["block.mount_options"] == "" {
 			// Unchangeable volume property: Set unconditionally.
 			vol.config["block.mount_options"] = "discard"
+		}
+
+		// Inherit filesystem creation options from pool if not set.
+		if vol.config["block.create_options"] == "" {
+			vol.config["block.create_options"] = d.config["volume.block.create_options"]
 		}
 	}
 
