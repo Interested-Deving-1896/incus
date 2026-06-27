@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: LXD\n"
 "Report-Msgid-Bugs-To: lxc-devel@lists.linuxcontainers.org\n"
-"POT-Creation-Date: 2026-06-13 22:43-0300\n"
+"POT-Creation-Date: 2026-06-25 21:26-0400\n"
 "PO-Revision-Date: 2026-06-15 23:51+0000\n"
 "Last-Translator: Hiroaki Nakamura <hnakamur@gmail.com>\n"
 "Language-Team: Japanese <https://hosted.weblate.org/projects/incus/cli/ja/>\n"
@@ -624,7 +624,8 @@ msgstr "%q は IP アドレスではありません"
 #: cmd/incus/admin_recover.go:207
 #, c-format
 msgid "%s %q on pool %q in project %q (includes %d snapshots)"
-msgstr "%s %q（プール %q 上, プロジェクト %q 内, スナップショット %d 個を含む）"
+msgstr ""
+"%s %q（プール %q 上, プロジェクト %q 内, スナップショット %d 個を含む）"
 
 #: cmd/incus/image.go:1143
 #, c-format
@@ -800,7 +801,7 @@ msgstr "ADDRESS"
 msgid "ADDRESSES"
 msgstr "ADDRESS"
 
-#: cmd/incus/alias.go:154 cmd/incus/image.go:1110 cmd/incus/image_alias.go:248
+#: cmd/incus/alias.go:155 cmd/incus/image.go:1110 cmd/incus/image_alias.go:248
 msgid "ALIAS"
 msgstr "ALIAS"
 
@@ -1019,12 +1020,12 @@ msgstr "管理者アクセスキー: %s"
 msgid "Admin secret key: %s"
 msgstr "管理者秘密鍵: %s"
 
-#: cmd/incus/alias.go:91 cmd/incus/alias.go:205
+#: cmd/incus/alias.go:92 cmd/incus/alias.go:206
 #, c-format
 msgid "Alias %s already exists"
 msgstr "エイリアス %s は既に存在します"
 
-#: cmd/incus/alias.go:199 cmd/incus/alias.go:254
+#: cmd/incus/alias.go:200 cmd/incus/alias.go:255
 #, c-format
 msgid "Alias %s doesn't exist"
 msgstr "エイリアス %s は存在しません"
@@ -1093,9 +1094,10 @@ msgstr "既存のクラスターに join しますか?"
 #: cmd/incus/cluster.go:1530
 #, c-format
 msgid "Are you sure you want to %s cluster member %q? (yes/no) [default=no]: "
-msgstr "本当に %s しますか? （対象: クラスターメンバー %q） (yes/no) [default=no]: "
+msgstr ""
+"本当に %s しますか? （対象: クラスターメンバー %q） (yes/no) [default=no]: "
 
-#: cmd/incus/console.go:444
+#: cmd/incus/console.go:453
 msgid "As neither could be found, the raw SPICE socket can be found at:"
 msgstr "どちらもみつかりませんでした。raw SPICE ソケットはこちらにあります:"
 
@@ -1131,11 +1133,11 @@ msgstr "新しいカスタムストレージボリュームをプロファイル
 msgid "Attach new network interfaces to instances"
 msgstr "新たなネットワークインターフェースをインスタンスに追加します"
 
-#: cmd/incus/console.go:46
+#: cmd/incus/console.go:47
 msgid "Attach to instance consoles"
 msgstr "インスタンスのコンソールに接続します"
 
-#: cmd/incus/console.go:47
+#: cmd/incus/console.go:48
 msgid ""
 "Attach to instance consoles\n"
 "\n"
@@ -1425,7 +1427,8 @@ msgstr ""
 
 #: cmd/incus/storage_volume.go:436
 msgid "Cannot set --target when source server is not clustered"
-msgstr "コピー元のサーバーがクラスターに属していない場合は --target は指定できません"
+msgstr ""
+"コピー元のサーバーがクラスターに属していない場合は --target は指定できません"
 
 #: cmd/incus/storage_volume.go:450
 msgid "Cannot set --volume-only when copying a snapshot"
@@ -1459,7 +1462,8 @@ msgstr "証明書の説明"
 #, c-format
 msgid ""
 "Certificate fingerprint mismatch between certificate token and server %q"
-msgstr "証明書のフィンガープリントが証明書トークンとサーバの間で一致しません %q"
+msgstr ""
+"証明書のフィンガープリントが証明書トークンとサーバの間で一致しません %q"
 
 #: cmd/incus/cluster.go:1742 cmd/incus/cluster.go:1940
 #, c-format
@@ -1648,8 +1652,8 @@ msgid ""
 "Compression algorithm to use (none for uncompressed, ignored for ISO storage "
 "volumes)"
 msgstr ""
-"使用する圧縮アルゴリズムを指定します (圧縮しない場合は none、ISO "
-"ストレージボリュームの場合は無視されます)"
+"使用する圧縮アルゴリズムを指定します (圧縮しない場合は none、ISO ストレージボ"
+"リュームの場合は無視されます)"
 
 #: cmd/incus/copy.go:59 cmd/incus/create.go:62 cmd/incus/import.go:43
 msgid "Config key/value to apply to the new instance"
@@ -1774,8 +1778,8 @@ msgstr ""
 " - relay: CLI がコピー元と先のサーバーに接続し、データを中継する（コピー元と"
 "先両方がネットワークをリッスンしている必要がある）\n"
 "\n"
-"すべてのサーバーバージョンとの互換性のため、pull 転送モードがデフォルトです"
-"。\n"
+"すべてのサーバーバージョンとの互換性のため、pull 転送モードがデフォルトで"
+"す。\n"
 
 #: cmd/incus/config_device.go:368 cmd/incus/config_device.go:369
 msgid "Copy profile inherited devices and override configuration keys"
@@ -1930,8 +1934,8 @@ msgid ""
 msgstr ""
 "インスタンスのスナップショットを作成します\n"
 "\n"
-"--stateful を指定すると、インスタンスの実行状態（プロセスのメモリ状態、TCP"
-"コネクション、など…を含む）を保存しようとします。"
+"--stateful を指定すると、インスタンスの実行状態（プロセスのメモリ状態、TCPコ"
+"ネクション、など…を含む）を保存しようとします。"
 
 #: cmd/incus/create.go:49 cmd/incus/create.go:50
 msgid "Create instances from images"
@@ -2072,7 +2076,8 @@ msgstr "DRM:"
 #: cmd/incus/admin_waitready.go:101
 #, c-format
 msgid "Daemon still not running after %ds timeout (%v)"
-msgstr "%d 秒のタイムアウトが経過しましたが、デーモンがまだ実行中ではありません (%v)"
+msgstr ""
+"%d 秒のタイムアウトが経過しましたが、デーモンがまだ実行中ではありません (%v)"
 
 #: cmd/incus/admin_shutdown.go:98
 #, c-format
@@ -2494,8 +2499,8 @@ msgid ""
 "During incremental copy, exclude source snapshots earlier than latest target "
 "snapshot"
 msgstr ""
-"インクリメンタルコピーの際、最新のターゲットスナップショットより前の"
-"ソーススナップショットを除外する"
+"インクリメンタルコピーの際、最新のターゲットスナップショットより前のソースス"
+"ナップショットを除外する"
 
 #: cmd/incus/storage_volume.go:397
 msgid ""
@@ -2652,7 +2657,8 @@ msgstr "信頼済みクライアント設定をYAMLで編集します"
 #: cmd/incus/top.go:96 cmd/incus/warning.go:236
 #, c-format
 msgid "Empty column entry (redundant, leading or trailing command) in '%s'"
-msgstr "'%s' 中のカラムエントリが空です (カラムの指定に空文字列が指定されています)"
+msgstr ""
+"'%s' 中のカラムエントリが空です (カラムの指定に空文字列が指定されています)"
 
 #: cmd/incus/cluster.go:775
 msgid "Enable clustering on a single non-clustered server"
@@ -2763,7 +2769,7 @@ msgstr "プロパティの設定解除エラー: %v"
 msgid "Error updating template file: %s"
 msgstr "テンプレートファイル更新のエラー: %s"
 
-#: cmd/incus/main.go:425
+#: cmd/incus/main.go:429
 #, c-format
 msgid "Error while executing alias expansion: %s\n"
 msgstr "エイリアスの展開の実行中にエラー発生しました: %s\n"
@@ -2781,8 +2787,8 @@ msgstr "クラスターのメンバーを待避させます"
 msgid ""
 "Evacuate cluster member\n"
 "\n"
-"The action flag allows overriding the default server-side action (\"cluster."
-"evacuate\" instance configuration option)"
+"The action flag allows overriding the default server-side action "
+"(\"cluster.evacuate\" instance configuration option)"
 msgstr ""
 
 #: cmd/incus/cluster.go:1555
@@ -2801,7 +2807,8 @@ msgstr "例:"
 
 #: cmd/incus/admin_sql.go:29
 msgid "Execute a SQL query against the local or global database"
-msgstr "ローカルまたはグローバルのデータベースに対して SQL クエリーを実行します"
+msgstr ""
+"ローカルまたはグローバルのデータベースに対して SQL クエリーを実行します"
 
 #: cmd/incus/admin_sql.go:30
 #, fuzzy
@@ -2839,8 +2846,8 @@ msgstr ""
 "  ローカルデータベースは、コマンドの対象となるクラスターメンバー特有であり、"
 "（メンバーのネットワークアドレスのような）メンバー固有のデータを含みます。\n"
 "\n"
-"  グローバルデータベースは、クラスター内のすべてのメンバーで共通であり、（"
-"プロファイルやコンテナなどのような）クラスター固有のデータを含みます。\n"
+"  グローバルデータベースは、クラスター内のすべてのメンバーで共通であり、（プ"
+"ロファイルやコンテナなどのような）クラスター固有のデータを含みます。\n"
 "\n"
 "  クラスターに属さないサーバーで実行している場合、同じことが当てはまります。"
 "そのインスタンスは、実際は単独メンバーのクラスターです。\n"
@@ -2963,16 +2970,16 @@ msgid ""
 "file.\n"
 "\t\tThis can be useful for debugging or analysis purposes."
 msgstr ""
-"実行中の仮想マシンの現在のメモリー状態をダンプファイルにエクスポートします"
-"。\n"
+"実行中の仮想マシンの現在のメモリー状態をダンプファイルにエクスポートしま"
+"す。\n"
 "\t\tデバッグや解析に役立ちます。"
 
 #: cmd/incus/storage_volume.go:2257
 msgid ""
 "Export the volume without its snapshots (ignored for ISO storage volumes)"
 msgstr ""
-"ボリュームをスナップショットなしでエクスポートします（ISO "
-"ストレージボリュームは無視されます）"
+"ボリュームをスナップショットなしでエクスポートします（ISO ストレージボリュー"
+"ムは無視されます）"
 
 #: cmd/incus/storage_bucket.go:1426
 #, c-format
@@ -3111,7 +3118,7 @@ msgstr "SSH ホスト鍵の読み取りに失敗しました: %w"
 msgid "Failed parsing validation response: %w"
 msgstr "バリデーションレスポンスの読み取りに失敗しました: %w"
 
-#: cmd/incus/console.go:422
+#: cmd/incus/console.go:431
 #, c-format
 msgid "Failed starting command: %w"
 msgstr "コマンドの実行に失敗しました: %w"
@@ -3321,7 +3328,8 @@ msgstr "現在のサーバー設定の取得に失敗しました: %w"
 #, c-format
 msgid ""
 "Failed to retrieve current server network configuration for project %q: %w"
-msgstr "プロジェクト %q の現在のサーバーのネットワーク設定の取得に失敗しました: %w"
+msgstr ""
+"プロジェクト %q の現在のサーバーのネットワーク設定の取得に失敗しました: %w"
 
 #: cmd/incus/admin_init_auto.go:131
 #, c-format
@@ -3462,27 +3470,28 @@ msgid ""
 "\n"
 "Are you really sure you want to force removing %s? (yes/no): "
 msgstr ""
-"クラスタからサーバを強制的に削除するのは最後の手段としてのみ実行してください"
-"。\n"
+"クラスタからサーバを強制的に削除するのは最後の手段としてのみ実行してくださ"
+"い。\n"
 "\n"
 "削除されたサーバはこの操作のあとは機能せず、LXD のフルリセットが必要になりま"
-"す。サーバに存在していた可能性のある残りのインスタンス、イメージ、"
-"ストレージボリュームは失われます。\n"
+"す。サーバに存在していた可能性のある残りのインスタンス、イメージ、ストレージ"
+"ボリュームは失われます。\n"
 "\n"
-"可能なら、適切な手順で削除することをおすすめします。適切な手順で行うには、"
-"クラスタから完全にサーバを削除する前に、影響を受けるインスタンス、イメージ、"
-"ストレージボリュームを他のサーバに移動する必要があります。\n"
+"可能なら、適切な手順で削除することをおすすめします。適切な手順で行うには、ク"
+"ラスタから完全にサーバを削除する前に、影響を受けるインスタンス、イメージ、ス"
+"トレージボリュームを他のサーバに移動する必要があります。\n"
 "\n"
 "--force オプションは、サーバが死んだ場合、サーバの再インストール後、他に復旧"
 "の見込みがまったくない場合にのみ使用してください。\n"
 "\n"
 "本当に強制的に %s を削除してもよろしいですか? (yes/no): "
 
-#: cmd/incus/console.go:55
+#: cmd/incus/console.go:56
 msgid ""
 "Forces a connection to the console, even if there is already an active "
 "session"
-msgstr "すでにアクティブなセッションがある場合でも、コンソールへの接続を強制します"
+msgstr ""
+"すでにアクティブなセッションがある場合でも、コンソールへの接続を強制します"
 
 #: cmd/incus/network_address_set.go:100
 msgid "Format (csv|json|table|yaml|compact|markdown)"
@@ -3497,7 +3506,7 @@ msgstr ""
 "はサフィックス \",noheader\" を、必要に応じて有効にするには\",header\" を使用"
 "します（例: csv,header）。"
 
-#: cmd/incus/admin_sql.go:57 cmd/incus/alias.go:117 cmd/incus/cluster.go:173
+#: cmd/incus/admin_sql.go:57 cmd/incus/alias.go:118 cmd/incus/cluster.go:173
 #: cmd/incus/cluster_group.go:444 cmd/incus/config_template.go:272
 #: cmd/incus/config_trust.go:403 cmd/incus/config_trust.go:588
 #: cmd/incus/image.go:1078 cmd/incus/image_alias.go:210 cmd/incus/list.go:143
@@ -3516,8 +3525,8 @@ msgid ""
 "disable headers and \",header\" to enable it if missing, e.g. csv,header"
 msgstr ""
 "フォーマット（csv|json|table|yaml|compact|markdown）。ヘッダーを無効にするに"
-"はサフィックス \",noheader\" を、ヘッダーがない場合に有効にするには"
-"サフィックス \",header\" を使用します（例: csv,header）。"
+"はサフィックス \",noheader\" を、ヘッダーがない場合に有効にするにはサフィック"
+"ス \",header\" を使用します（例: csv,header）。"
 
 #: cmd/incus/monitor.go:60
 msgid "Format (json|pretty|yaml)"
@@ -3539,8 +3548,8 @@ msgstr "フォーマット (table|compact)"
 msgid ""
 "Format of memory dump (e.g. elf, win-dmp, kdump-zlib, kdump-raw-zlib, ...)"
 msgstr ""
-"メモリーダンプのフォーマット（例: elf, win-dmp, kdump-zlib, kdump-raw-zlib, "
-"...）"
+"メモリーダンプのフォーマット（例: elf, win-dmp, kdump-zlib, kdump-raw-"
+"zlib, ...）"
 
 #: cmd/incus/network.go:966
 msgid "Forward delay"
@@ -3591,8 +3600,8 @@ msgid ""
 "This is useful for remote authentication workflows where a token is passed "
 "to another Incus server."
 msgstr ""
-"既存のクライアント証明書と秘密鍵からクライアントトラストトークンを生成します"
-"。\n"
+"既存のクライアント証明書と秘密鍵からクライアントトラストトークンを生成しま"
+"す。\n"
 "\n"
 "これは、他の Incus サーバーに渡されるリモート認証ワークフローに役立ちます。"
 
@@ -3968,7 +3977,7 @@ msgstr ""
 "存在するスナップショット名の場合は既存のスナップショットを削除したあとに新し"
 "いスナップショットを作成します"
 
-#: cmd/incus/main.go:533
+#: cmd/incus/main.go:582
 #, fuzzy
 msgid ""
 "If this is your first time running Incus on this machine, you should also "
@@ -4032,7 +4041,8 @@ msgstr "起動直後にインスタンスのコンソールに接続します"
 
 #: cmd/incus/import.go:33
 msgid "Import backups of instances including their snapshots."
-msgstr "インスタンスのバックアップをスナップショットを含んだ状態でインポートします。"
+msgstr ""
+"インスタンスのバックアップをスナップショットを含んだ状態でインポートします。"
 
 #: cmd/incus/storage_bucket.go:1483
 #, fuzzy
@@ -4074,7 +4084,8 @@ msgstr "ストレージバケットを一覧表示します"
 
 #: cmd/incus/storage_volume.go:2527
 msgid "Import type needs to be \"backup\" or \"iso\""
-msgstr "インポートするタイプは \"backup\" もしくは \"iso\" である必要があります"
+msgstr ""
+"インポートするタイプは \"backup\" もしくは \"iso\" である必要があります"
 
 #: cmd/incus/storage_volume.go:2470
 msgid "Import type, backup or iso (default \"backup\")"
@@ -4212,7 +4223,13 @@ msgstr "'%s' は正しくない設定項目 (key) です (%s 中の)"
 #: cmd/incus/list.go:557
 #, c-format
 msgid "Invalid config key column format (too many fields): '%s'"
-msgstr "不正な設定項目のカラムフォーマットです (フィールド数が多すぎます): '%s'"
+msgstr ""
+"不正な設定項目のカラムフォーマットです (フィールド数が多すぎます): '%s'"
+
+#: cmd/incus/default.go:85
+#, fuzzy, c-format
+msgid "Invalid default %q"
+msgstr "不正なフォーマット %s"
 
 #: cmd/incus/publish.go:194
 #, fuzzy, c-format
@@ -4254,7 +4271,8 @@ msgstr "'%s' は最大幅の値として不正です (整数でなくてはな�
 #, c-format
 msgid ""
 "Invalid name in '%s', empty string is only allowed when defining maxWidth"
-msgstr "'%s' は不正な名前です。空文字列は maxWidth を指定しているときのみ指定できます"
+msgstr ""
+"'%s' は不正な名前です。空文字列は maxWidth を指定しているときのみ指定できます"
 
 #: cmd/incus/network_peer.go:351
 #, fuzzy
@@ -4280,6 +4298,16 @@ msgstr "不正な送り先 %s"
 #, fuzzy, c-format
 msgid "Invalid type %q"
 msgstr "不正な送り先 %s"
+
+#: cmd/incus/default.go:123
+#, fuzzy, c-format
+msgid "Invalid value %q for console_type"
+msgstr "不正な送り先 %s"
+
+#: cmd/incus/default.go:110
+#, fuzzy, c-format
+msgid "Invalid value %q for list_format"
+msgstr "不正なソース %s"
 
 #: cmd/incus/info.go:248
 #, c-format
@@ -4427,7 +4455,7 @@ msgstr ""
 msgid "List address sets across all projects"
 msgstr "すべてのプロジェクトのインスタンスを表示します"
 
-#: cmd/incus/alias.go:115 cmd/incus/alias.go:116
+#: cmd/incus/alias.go:116 cmd/incus/alias.go:117
 msgid "List aliases"
 msgstr "エイリアスを一覧表示します"
 
@@ -5274,8 +5302,8 @@ msgid ""
 "  f - Base Image Fingerprint (short)\n"
 "  F - Base Image Fingerprint (long)\n"
 "\n"
-"Custom columns are defined with \"[config:|devices:]key[:name][:"
-"maxWidth]\":\n"
+"Custom columns are defined with \"[config:|devices:]key[:name][:maxWidth]"
+"\":\n"
 "  KEY: The (extended) config or devices key to display. If [config:|"
 "devices:] is omitted then it defaults to config key.\n"
 "  NAME: Name to display in the column header.\n"
@@ -5290,13 +5318,13 @@ msgstr ""
 "Fast モードのカラムレイアウト: nsacPt\n"
 "\n"
 "== フィルタ ==\n"
-"単一の \"web\" のようなキーワードを指定すると、名前が \"web\" ではじまる"
-"インスタンスが一覧表示されます。\n"
+"単一の \"web\" のようなキーワードを指定すると、名前が \"web\" ではじまるイン"
+"スタンスが一覧表示されます。\n"
 "インスタンス名の正規表現 (例: .*web.*01$)。\n"
 "設定項目を参照するキーと値のペア。これらの場合、名前空間は最短の一意な識別子"
 "に短縮できます。\n"
-"短縮形のキーを使ったキーと値のペア。複数の値は ',' で区切らなければなりません"
-"。使用できる表現は:\n"
+"短縮形のキーを使ったキーと値のペア。複数の値は ',' で区切らなければなりませ"
+"ん。使用できる表現は:\n"
 "  - type={instance type}\n"
 "  - status={instance current lifecycle status}\n"
 "  - architecture={instance architecture}\n"
@@ -5314,8 +5342,8 @@ msgstr ""
 "  - \"type=container status=running\" 実行中のコンテナインスタンスをすべて表"
 "示します\n"
 "\n"
-"設定項目もしくは値とマッチする正規表現 (例:volatile.eth0.hwaddr=00:16:3e:.*)"
-"。\n"
+"設定項目もしくは値とマッチする正規表現 "
+"(例:volatile.eth0.hwaddr=00:16:3e:.*)。\n"
 "\n"
 "複数のフィルタを指定した場合は、指定したフィルタが順に追加され、\n"
 "すべてのフィルタを満たすインスタンスが選択されます。\n"
@@ -5356,8 +5384,8 @@ msgstr ""
 "\"[config:|devices:]key[:name][:maxWidth]\" のように指定するカスタムカラム:\n"
 "  KEY: 表示する (拡張された) 設定キー。[config:|devices:] が省略された場合は "
 "config が指定されたものとします\n"
-"  NAME: カラムのヘッダに表示する名前。指定しない場合、もしくは空の場合の"
-"デフォルトはキー。\n"
+"  NAME: カラムのヘッダに表示する名前。指定しない場合、もしくは空の場合のデ"
+"フォルトはキー。\n"
 "\n"
 "  MAXWIDTH: カラムの最大幅 (結果がこれより長い場合は切り詰められます)\n"
 "  デフォルトは -1 (制限なし)。0 はカラムのヘッダサイズに制限します。"
@@ -6072,6 +6100,11 @@ msgstr "イメージを public にする"
 msgid "Manage and attach instances to networks"
 msgstr "ネットワークを管理し、インスタンスをネットワークに接続します"
 
+#: cmd/incus/default.go:24 cmd/incus/default.go:25
+#, fuzzy
+msgid "Manage client defaults"
+msgstr "信頼済みのクライアントを管理します"
+
 #: cmd/incus/cluster_group.go:37 cmd/incus/cluster_group.go:38
 msgid "Manage cluster groups"
 msgstr "クラスターグループを管理します"
@@ -6264,13 +6297,13 @@ msgstr "ストレージボリュームを管理します"
 msgid ""
 "Manage storage volumes\n"
 "\n"
-"Unless specified through a prefix, all volume operations affect "
-"\"custom\" (user created) volumes."
+"Unless specified through a prefix, all volume operations affect \"custom\" "
+"(user created) volumes."
 msgstr ""
 "ストレージボリュームを管理します\n"
 "\n"
-"プレフィックスで指定しない限りは、ボリュームに対する操作はすべて "
-"\"カスタム\" (ユーザが作成した) ボリュームに対して行われます。"
+"プレフィックスで指定しない限りは、ボリュームに対する操作はすべて \"カスタム"
+"\" (ユーザが作成した) ボリュームに対して行われます。"
 
 #: cmd/incus/remote.go:52 cmd/incus/remote.go:53
 msgid "Manage the list of remote servers"
@@ -6465,10 +6498,10 @@ msgstr ""
 "LXD サーバー内、または LXD サーバー間でインスタンスを移動する\n"
 "\n"
 "転送モード（--mode）:\n"
-" - pull: 移動先サーバーが移動元サーバーからデータを取得する（移動元は"
-"ネットワークをリッスンしている必要がある）\n"
-" - push: 移動元サーバーが移動先サーバーにデータをプッシュする（移動先は"
-"ネットワークをリッスンしている必要がある）\n"
+" - pull: 移動先サーバーが移動元サーバーからデータを取得する（移動元はネット"
+"ワークをリッスンしている必要がある）\n"
+" - push: 移動元サーバーが移動先サーバーにデータをプッシュする（移動先はネット"
+"ワークをリッスンしている必要がある）\n"
 " - relay: CLI が移動元と先のサーバーに接続し、データを中継する（移動元と先両"
 "方がネットワークをリッスンしている必要がある）\n"
 "\n"
@@ -6489,11 +6522,13 @@ msgstr "ストレージボリュームの移動中: %s"
 
 #: cmd/incus/network_forward.go:978 cmd/incus/network_load_balancer.go:1105
 msgid "Multiple ports match. Use --force to remove them all"
-msgstr "複数のポートにマッチしました。すべて削除するには --force を指定してください"
+msgstr ""
+"複数のポートにマッチしました。すべて削除するには --force を指定してください"
 
 #: cmd/incus/network_acl.go:1046
 msgid "Multiple rules match. Use --force to remove them all"
-msgstr "複数のルールにマッチしました。すべて削除するには --force を指定してください"
+msgstr ""
+"複数のルールにマッチしました。すべて削除するには --force を指定してください"
 
 #: cmd/incus/image.go:727
 msgid "Must run as root to import from directory"
@@ -6871,7 +6906,8 @@ msgstr "メンバー %s に対する証明書追加トークンがリモート�
 #: cmd/incus/cluster.go:1335
 #, c-format
 msgid "No cluster join token for member %s on remote: %s"
-msgstr "メンバー %s に対するクラスターへの join トークンがリモート %s にありません"
+msgstr ""
+"メンバー %s に対するクラスターへの join トークンがリモート %s にありません"
 
 #: cmd/incus/network.go:558
 msgid "No device found for this network"
@@ -6904,8 +6940,8 @@ msgstr "利用可能なストレージバックエンドがありません"
 #: cmd/incus/admin_recover.go:213
 msgid "No unknown storage pools or volumes found. Nothing to do."
 msgstr ""
-"未知のストレージプールやボリュームが見つかりません。実行することがありません"
-"。"
+"未知のストレージプールやボリュームが見つかりません。実行することがありませ"
+"ん。"
 
 #: cmd/incus/info.go:528
 #, c-format
@@ -6917,8 +6953,8 @@ msgid ""
 "None of --storage-pool, --storage-create-device or --storage-create-loop may "
 "be used with the 'dir' backend"
 msgstr ""
-"--storage-pool, --storage-create-device, --storage-create-loop のいずれも"
-"、'dir' バックエンドでは使えません"
+"--storage-pool, --storage-create-device, --storage-create-loop のいずれ"
+"も、'dir' バックエンドでは使えません"
 
 #: cmd/incus/admin_init_interactive.go:406
 msgid "Number of placement groups"
@@ -7066,7 +7102,7 @@ msgstr "送信パケット"
 msgid "Partitions:"
 msgstr "パーティション:"
 
-#: cmd/incus/main.go:493 cmd/incus/remote.go:885
+#: cmd/incus/main.go:542 cmd/incus/remote.go:885
 #, c-format
 msgid "Password for %s: "
 msgstr "%s のパスワード: "
@@ -7461,10 +7497,10 @@ msgstr ""
 "既存または未知のストレージプールから失われたインスタンスを復旧させます\n"
 "\n"
 "  このコマンドは主に障害からの復旧に使われます。未知のストレージについて質問"
-"し、既存のストレージプールを参照しながら、ストレージへのアクセスを試みます"
-"。\n"
-"  そして、プール上に存在しているがデータベースには存在しないインスタンスや"
-"ボリュームを特定します。\n"
+"し、既存のストレージプールを参照しながら、ストレージへのアクセスを試みま"
+"す。\n"
+"  そして、プール上に存在しているがデータベースには存在しないインスタンスやボ"
+"リュームを特定します。\n"
 "  そして、データベースレコードの再作成を提案します。"
 
 #: cmd/incus/file.go:450 cmd/incus/file.go:682
@@ -7541,8 +7577,8 @@ msgid ""
 "Remove %s and everything it contains (instances, images, volumes, "
 "networks, ...) (yes/no): "
 msgstr ""
-"%s とそれに含まれるすべて（インスタンス、イメージ、ボリューム、ネットワーク、"
-"…）を削除します (yes/no): "
+"%s とそれに含まれるすべて（インスタンス、イメージ、ボリューム、ネットワー"
+"ク、…）を削除します (yes/no): "
 
 #: cmd/incus/cluster_group.go:567
 msgid "Remove a cluster member from a cluster group"
@@ -7561,7 +7597,7 @@ msgstr "ネットワークゾーンレコードエントリを削除します"
 msgid "Remove addresses from a network address set"
 msgstr "ネットワークゾーンレコードからエントリを削除します"
 
-#: cmd/incus/alias.go:228 cmd/incus/alias.go:229
+#: cmd/incus/alias.go:229 cmd/incus/alias.go:230
 msgid "Remove aliases"
 msgstr "エイリアスを削除します"
 
@@ -7640,7 +7676,7 @@ msgstr "クラスターグループの名前を変更します"
 msgid "Rename a cluster member"
 msgstr "クラスターメンバの名前を変更します"
 
-#: cmd/incus/alias.go:173 cmd/incus/alias.go:174 cmd/incus/image_alias.go:363
+#: cmd/incus/alias.go:174 cmd/incus/alias.go:175 cmd/incus/image_alias.go:363
 #: cmd/incus/image_alias.go:364
 msgid "Rename aliases"
 msgstr "エイリアスの名前を変更します"
@@ -7777,7 +7813,7 @@ msgstr "証明書の使用を1つ以上のプロジェクトに制限します"
 msgid "Resume instances"
 msgstr "インスタンスを再起動します"
 
-#: cmd/incus/console.go:56
+#: cmd/incus/console.go:57
 msgid "Retrieve the instance's console log"
 msgstr "インスタンスのコンソールログを取得します"
 
@@ -8002,6 +8038,11 @@ msgstr ""
 #: cmd/incus/file.go:922 cmd/incus/storage_volume_file.go:350
 msgid "Set authentication user when using SSH SFTP listener"
 msgstr "SSH SFTP リスナーを使う際の認証ユーザーを設定する"
+
+#: cmd/incus/default.go:57 cmd/incus/default.go:58
+#, fuzzy
+msgid "Set client defaults"
+msgstr "get-default"
 
 #: cmd/incus/config_device.go:569
 msgid "Set device configuration keys"
@@ -8422,7 +8463,8 @@ msgstr "インスタンスプロパティとして設定します"
 
 #: cmd/incus/file.go:920 cmd/incus/storage_volume_file.go:348
 msgid "Setup SSH SFTP listener on address:port instead of mounting"
-msgstr "マウントの代わりに address:port で SSH SFTP リスナーをセットアップします"
+msgstr ""
+"マウントの代わりに address:port で SSH SFTP リスナーをセットアップします"
 
 #: cmd/incus/admin_init.go:59
 msgid "Setup device based storage using DEVICE"
@@ -8439,6 +8481,11 @@ msgstr "デバッグメッセージをすべて表示します"
 #: cmd/incus/main.go:176
 msgid "Show all information messages"
 msgstr "詳細な情報を出力します"
+
+#: cmd/incus/default.go:165 cmd/incus/default.go:166
+#, fuzzy
+msgid "Show client defaults"
+msgstr "デフォルトのリモートを表示します"
 
 #: cmd/incus/cluster_group.go:693 cmd/incus/cluster_group.go:694
 msgid "Show cluster group configurations"
@@ -8485,7 +8532,7 @@ msgstr "インスタンスもしくはサーバの情報を表示します"
 msgid "Show instance snapshot configuration"
 msgstr "インスタンスもしくはサーバの設定を表示します"
 
-#: cmd/incus/main.go:364 cmd/incus/main.go:365
+#: cmd/incus/main.go:368 cmd/incus/main.go:369
 msgid "Show less common commands"
 msgstr "全てのコマンドを表示します (主なコマンドだけではなく)"
 
@@ -8932,7 +8979,7 @@ msgstr "システム:"
 msgid "TAKEN AT"
 msgstr "TAKEN AT"
 
-#: cmd/incus/alias.go:155
+#: cmd/incus/alias.go:156
 msgid "TARGET"
 msgstr "TARGET"
 
@@ -8979,7 +9026,8 @@ msgstr "LXD サーバはすでにクラスターに属しています"
 
 #: cmd/incus/admin_shutdown.go:34
 msgid "Tell the daemon to shutdown all instances and exit"
-msgstr "すべてのインスタンスをシャットダウンして終了するようにデーモンに指示します"
+msgstr ""
+"すべてのインスタンスをシャットダウンして終了するようにデーモンに指示します"
 
 #: cmd/incus/admin_shutdown.go:35
 msgid ""
@@ -9005,7 +9053,7 @@ msgstr ""
 msgid "The %s storage pool already exists"
 msgstr "デバイスはすでに存在します"
 
-#: cmd/incus/console.go:135
+#: cmd/incus/console.go:136
 msgid "The --show-log flag is only supported for by 'console' output type"
 msgstr "--show-log フラグは 'console' アウトプットタイプの時だけ使えます"
 
@@ -9027,13 +9075,13 @@ msgid ""
 "before running \"init\" again."
 msgstr ""
 "LVM のシンプロビジョニング用のツールが見つかりません。\n"
-"シンプロビジョニングを使わないで LVM を使うことはできますが、"
-"オーバープロビジョニングが無効になります。\n"
-"そして、スペースに対する要件が増加し、イメージ、インスタンス、"
-"スナップショットの作成時間が増加します。\n"
+"シンプロビジョニングを使わないで LVM を使うことはできますが、オーバープロビ"
+"ジョニングが無効になります。\n"
+"そして、スペースに対する要件が増加し、イメージ、インスタンス、スナップショッ"
+"トの作成時間が増加します。\n"
 "\n"
-"シンプロビジョニングを使いたい場合は、すぐに中止して、Linux"
-"ディストリビューションからツールをインストールし、\n"
+"シンプロビジョニングを使いたい場合は、すぐに中止して、Linuxディストリビュー"
+"ションからツールをインストールし、\n"
 "再度 \"init\" を実行する前に、\"thin_check\" コマンドが実行できることを確認し"
 "てください。"
 
@@ -9045,14 +9093,14 @@ msgid ""
 "\n"
 "You can invoke it through \"incusd cluster\"."
 msgstr ""
-"\"cluster\" サブコマンドは、サーバーの内部データにアクセスする必要があります"
-"。\n"
+"\"cluster\" サブコマンドは、サーバーの内部データにアクセスする必要がありま"
+"す。\n"
 "そのため、\"incus\" コマンドではなく、実際には \"incusd\" バイナリーの一部で"
 "す。\n"
 "\n"
 "\"incusd cluster\" から呼び出すことができます。"
 
-#: cmd/incus/console.go:443
+#: cmd/incus/console.go:452
 #, fuzzy
 msgid ""
 "The client automatically uses either spicy or remote-viewer when present."
@@ -9215,8 +9263,8 @@ msgstr "リカバリープロセスは次のストレージプールをスキャ
 msgid ""
 "The requested backend '%s' isn't available on your system (missing tools)"
 msgstr ""
-"入力したバックエンド '%s' がシステム上で使えません（必要なツールがありません"
-"）"
+"入力したバックエンド '%s' がシステム上で使えません（必要なツールがありませ"
+"ん）"
 
 #: cmd/incus/admin_init_auto.go:22
 #, c-format
@@ -9246,7 +9294,7 @@ msgstr ""
 "入力したストレージプール \"%s\" はすでに存在しています。他の名前を入力してく"
 "ださい。"
 
-#: cmd/incus/webui_unix.go:57
+#: cmd/incus/webui_unix.go:61
 msgid "The server doesn't have a web UI installed"
 msgstr "サーバーに Web UI がインストールされていません"
 
@@ -9289,7 +9337,7 @@ msgstr "作成するタイプ（file, symlink, directory）"
 msgid "There is no config key to set on an instance snapshot."
 msgstr "インスタンスのスナップショットに設定する設定キーはありません。"
 
-#: cmd/incus/main.go:416
+#: cmd/incus/main.go:420
 #, fuzzy
 msgid ""
 "This client hasn't been configured to use a remote server yet.\n"
@@ -9299,8 +9347,8 @@ msgid ""
 "If you already added a remote server, make it the default with \"incus "
 "remote switch NAME\"."
 msgstr ""
-"このクライアントは、まだリモートの LXD サーバを使うようには設定されていません"
-"。\n"
+"このクライアントは、まだリモートの LXD サーバを使うようには設定されていませ"
+"ん。\n"
 "お使いのプラットフォームでは、ネイティブな Linux インスタンスは実行できません"
 "ので、リモートの LXD サーバに接続しなければなりません。\n"
 "\n"
@@ -9365,13 +9413,14 @@ msgstr ""
 #: cmd/incus/create.go:429
 #, fuzzy
 msgid "To create a new network, use: incus network create"
-msgstr "新しいネットワークを作成するには、lxc network create を使用してください"
+msgstr ""
+"新しいネットワークを作成するには、lxc network create を使用してください"
 
-#: cmd/incus/console.go:237
+#: cmd/incus/console.go:238
 msgid "To detach from the console, press: <ctrl>+a q"
 msgstr "コンソールから切り離すには <ctrl>+a q を押します"
 
-#: cmd/incus/main.go:541
+#: cmd/incus/main.go:590
 #, fuzzy, c-format
 msgid ""
 "To start your first container, try: incus launch images:%s\n"
@@ -9446,13 +9495,13 @@ msgstr "タイプ"
 msgid "Type of certificate"
 msgstr "証明書の形式"
 
-#: cmd/incus/console.go:57
+#: cmd/incus/console.go:58
 msgid ""
 "Type of connection to establish: 'console' for serial console, 'vga' for "
 "SPICE graphical output"
 msgstr ""
-"確立する接続のタイプ: シリアルコンソールの場合は 'console'、SPICE での"
-"グラフィカル出力の場合は 'vga'"
+"確立する接続のタイプ: シリアルコンソールの場合は 'console'、SPICE でのグラ"
+"フィカル出力の場合は 'vga'"
 
 #: cmd/incus/network_peer.go:320
 msgid "Type of peer (local or remote)"
@@ -9474,7 +9523,7 @@ msgid "UPLOAD DATE"
 msgstr "UPLOAD DATE"
 
 #: cmd/incus/cluster.go:198 cmd/incus/remote.go:1055
-#: cmd/incus/usage/usage.go:865
+#: cmd/incus/usage/usage.go:866
 msgid "URL"
 msgstr "URL"
 
@@ -9550,7 +9599,7 @@ msgstr "クライアント %q の未知のチャンネルタイプ: %s"
 msgid "Unknown column shorthand char '%c' in '%s'"
 msgstr "未知のカラム名の短縮形です '%c' ('%s' 中)"
 
-#: cmd/incus/console.go:165
+#: cmd/incus/console.go:166
 #, c-format
 msgid "Unknown console type %q"
 msgstr "未知のコンソールタイプ %q"
@@ -9570,7 +9619,7 @@ msgstr "未知の設定: %s"
 msgid "Unknown key: %s"
 msgstr "未知の設定: %s"
 
-#: cmd/incus/console.go:125
+#: cmd/incus/console.go:126
 #, c-format
 msgid "Unknown output type %q"
 msgstr "未知の出力タイプ: %q"
@@ -9587,6 +9636,10 @@ msgstr "クラスターメンバーの設定を削除します"
 #: cmd/incus/move.go:64
 msgid "Unset all profiles on the target instance"
 msgstr "移動先のインスタンスのすべてのプロファイルを削除します"
+
+#: cmd/incus/default.go:202 cmd/incus/default.go:203
+msgid "Unset client defaults"
+msgstr ""
 
 #: cmd/incus/config_device.go:765 cmd/incus/config_device.go:766
 msgid "Unset device configuration keys"
@@ -9794,7 +9847,8 @@ msgstr "クラスター証明書を更新します"
 msgid ""
 "Update cluster certificate with PEM certificate and key read from input "
 "files."
-msgstr "入力ファイルから読み込んだ PEM 証明書と鍵でクラスター証明書を更新します。"
+msgstr ""
+"入力ファイルから読み込んだ PEM 証明書と鍵でクラスター証明書を更新します。"
 
 #: cmd/incus/admin_update_certificate.go:30
 #, fuzzy
@@ -10036,7 +10090,7 @@ msgstr ""
 "ると理論的には、そうしない場合に比べて、親コンテナを攻撃してより多くの\n"
 "特権を得られる可能性があるため、安全性は若干低くなります。"
 
-#: cmd/incus/webui_unix.go:105
+#: cmd/incus/webui_unix.go:109
 #, c-format
 msgid "Web server running at: %s"
 msgstr "Web サーバーの実行 URL: %s"
@@ -10100,9 +10154,9 @@ msgid ""
 "Wipe the instance root disk and re-initialize with a new image (or empty "
 "volume)."
 msgstr ""
-"インスタンスのroot disk上でデータをすべて削除し、再初期化します。異なる"
-"イメージや --empty が指定されていない場合は、インスタンスの再初期化には元の"
-"イメージを使います。"
+"インスタンスのroot disk上でデータをすべて削除し、再初期化します。異なるイメー"
+"ジや --empty が指定されていない場合は、インスタンスの再初期化には元のイメージ"
+"を使います。"
 
 #: cmd/incus/storage_volume.go:1790
 msgid ""
@@ -10170,7 +10224,8 @@ msgstr "既存のブリッジかホストのインターフェースを使用し
 msgid ""
 "Would you like to use an existing empty block device (e.g. a disk or "
 "partition)?"
-msgstr "既存の空のブロックデバイス（ディスクやパーティションなど）を使用しますか?"
+msgstr ""
+"既存の空のブロックデバイス（ディスクやパーティションなど）を使用しますか?"
 
 #: cmd/incus/admin_init_interactive.go:34
 msgid "Would you like to use clustering?"
@@ -10289,16 +10344,20 @@ msgstr "説明"
 msgid "current"
 msgstr "現在値"
 
+#: cmd/incus/usage/usage.go:822
+msgid "default"
+msgstr "default"
+
 #: cmd/incus/storage.go:526
 msgid "description"
 msgstr "説明"
 
-#: cmd/incus/usage/usage.go:822
+#: cmd/incus/usage/usage.go:823
 #, fuzzy
 msgid "device"
 msgstr "device"
 
-#: cmd/incus/usage/usage.go:824
+#: cmd/incus/usage/usage.go:825
 #, fuzzy
 msgid "directory"
 msgstr "%s はディレクトリではありません"
@@ -10307,7 +10366,7 @@ msgstr "%s はディレクトリではありません"
 msgid "disabled"
 msgstr "無効"
 
-#: cmd/incus/storage.go:525 cmd/incus/usage/usage.go:825
+#: cmd/incus/storage.go:525 cmd/incus/usage/usage.go:826
 msgid "driver"
 msgstr "ドライバ"
 
@@ -10330,31 +10389,31 @@ msgstr "エラー: %v"
 msgid "expected %s"
 msgstr "期待される %s"
 
-#: cmd/incus/usage/usage.go:827
+#: cmd/incus/usage/usage.go:828
 #, fuzzy
 msgid "expiry"
 msgstr "エクスパイリー"
 
-#: cmd/incus/usage/usage.go:828
+#: cmd/incus/usage/usage.go:829
 msgid "file"
 msgstr "file"
 
-#: cmd/incus/usage/usage.go:829
+#: cmd/incus/usage/usage.go:830
 #, fuzzy
 msgid "filter"
 msgstr "VLAN フィルタリング"
 
-#: cmd/incus/usage/usage.go:830
+#: cmd/incus/usage/usage.go:831
 #, fuzzy
 msgid "fingerprint"
 msgstr "証明書のフィンガープリント: %s"
 
-#: cmd/incus/usage/usage.go:831
+#: cmd/incus/usage/usage.go:832
 #, fuzzy
 msgid "group"
 msgstr "グループ"
 
-#: cmd/incus/usage/usage.go:832
+#: cmd/incus/usage/usage.go:833
 msgid "image"
 msgstr "image"
 
@@ -10370,7 +10429,7 @@ msgid ""
 "    Create a command for displaying file content of instances"
 msgstr ""
 
-#: cmd/incus/alias.go:230
+#: cmd/incus/alias.go:231
 #, fuzzy
 msgid ""
 "incus alias remove my-list\n"
@@ -10379,7 +10438,7 @@ msgstr ""
 "lxc alias remove my-list\n"
 "     \"my-list\" というエイリアスを削除します。"
 
-#: cmd/incus/alias.go:175
+#: cmd/incus/alias.go:176
 #, fuzzy
 msgid ""
 "incus alias rename list my-list\n"
@@ -10500,8 +10559,8 @@ msgid ""
 "incus create images:debian/12 u1 < config.yaml\n"
 "    Create the instance with configuration from config.yaml\n"
 "\n"
-"incus launch images:debian/12 v2 --vm -d root,size=50GiB -d root,io."
-"bus=nvme\n"
+"incus launch images:debian/12 v2 --vm -d root,size=50GiB -d "
+"root,io.bus=nvme\n"
 "    Create and start a virtual machine, overriding the disk size and bus"
 msgstr ""
 "lxc init ubuntu:22.04 u1\n"
@@ -10661,8 +10720,8 @@ msgid ""
 "    Create and start a container named \"c1\"\n"
 "\n"
 "incus launch images:debian/12 c2 < config.yaml\n"
-"    Create and start a container named \"c2\" with configuration from config."
-"yaml\n"
+"    Create and start a container named \"c2\" with configuration from "
+"config.yaml\n"
 "\n"
 "incus launch images:debian/12 c3 -t aws:t2.micro\n"
 "    Create and start a container named \"c3\" using the same size as an AWS "
@@ -10672,8 +10731,8 @@ msgid ""
 "    Create and start a virtual machine named \"v1\" with 4 vCPUs and 4GiB of "
 "RAM\n"
 "\n"
-"incus launch images:debian/12 v2 --vm -d root,size=50GiB -d root,io."
-"bus=nvme\n"
+"incus launch images:debian/12 v2 --vm -d root,size=50GiB -d "
+"root,io.bus=nvme\n"
 "    Create and start a virtual machine named \"v2\", overriding the disk "
 "size and bus"
 msgstr ""
@@ -10688,8 +10747,8 @@ msgstr ""
 #: cmd/incus/list.go:131
 #, fuzzy
 msgid ""
-"incus list -c nFs46,volatile.eth0.hwaddr:MAC,config:image.os,devices:eth0."
-"parent:ETHP\n"
+"incus list -c "
+"nFs46,volatile.eth0.hwaddr:MAC,config:image.os,devices:eth0.parent:ETHP\n"
 "  Show instances using the \"NAME\", \"BASE IMAGE\", \"STATE\", \"IPV4\", "
 "\"IPV6\" and \"MAC\" columns.\n"
 "  \"BASE IMAGE\", \"MAC\" and \"IMAGE OS\" are custom columns generated from "
@@ -10701,8 +10760,8 @@ msgid ""
 msgstr ""
 "lxc list -c "
 "nFs46,volatile.eth0.hwaddr:MAC,config:image.os,devices:eth0.parent:ETHP\n"
-"  \"NAME\"、\"BASE IMAGE\"、\"STATE\"、\"IPV4\"、\"IPV6\"、\"MAC\" カラムを使"
-"ってインスタンスを一覧表示します。\n"
+"  \"NAME\"、\"BASE IMAGE\"、\"STATE\"、\"IPV4\"、\"IPV6\"、\"MAC\" カラムを"
+"使ってインスタンスを一覧表示します。\n"
 "  \"BASE IMAGE\" と \"MAC\" と \"IMAGE OS\" はインスタンスの設定から生成した"
 "カスタムカラムです。\n"
 "  \"ETHP\" はデバイスの設定から生成したカスタムカラムです。\n"
@@ -10744,8 +10803,8 @@ msgid ""
 msgstr ""
 "incus move [<remote>:]<source instance> [<remote>:][<destination instance>] "
 "[--instance-only]\n"
-"    2 つのホスト間でインスタンスを移動します。移動先の名前が異なる場合は"
-"リネームします。\n"
+"    2 つのホスト間でインスタンスを移動します。移動先の名前が異なる場合はリ"
+"ネームします。\n"
 "\n"
 "incus move <old name> <new name> [--instance-only]\n"
 "    ローカルのインスタンスをリネームします。\n"
@@ -10797,8 +10856,8 @@ msgstr ""
 "    foo という名前の新しいネットワークを作成します\n"
 "\n"
 "incus network create bar network=baz --type ovn\n"
-"    上流ネットワークに baz を使用する、bar という名前の新しい OVN "
-"ネットワークを作成します"
+"    上流ネットワークに baz を使用する、bar という名前の新しい OVN ネットワー"
+"クを作成します"
 
 #: cmd/incus/network_forward.go:313
 #, fuzzy
@@ -10820,8 +10879,8 @@ msgid ""
 "   Create network integration o1 of type ovn\n"
 "\n"
 "incus network integration create o1 ovn < config.yaml\n"
-"    Create network integration o1 of type ovn with configuration from config."
-"yaml"
+"    Create network integration o1 of type ovn with configuration from "
+"config.yaml"
 msgstr ""
 "lxc init ubuntu:22.04 u1\n"
 "\n"
@@ -10831,10 +10890,10 @@ msgstr ""
 #: cmd/incus/network_integration.go:226
 #, fuzzy
 msgid ""
-"incus network integration edit <network integration> < network-integration."
-"yaml\n"
-"    Update a network integration using the content of network-integration."
-"yaml"
+"incus network integration edit <network integration> < network-"
+"integration.yaml\n"
+"    Update a network integration using the content of network-"
+"integration.yaml"
 msgstr ""
 "lxc storage edit [<remote>:]<pool> < pool.yaml\n"
 "    pool.yaml の内容でストレージプールを更新します。"
@@ -10874,9 +10933,8 @@ msgstr ""
 "のネットワーク \"default\" 間に、新たにピアリングを作成します\n"
 "\n"
 "incus network peer create default peer2 ovn-ic --type=remote\n"
-"    現在のプロジェクト内のネットワーク \"default\" と \"ovn-ic\" "
-"インテグレーションによる他のリモートネットワークの間に、新たにピアリングを作"
-"成します\n"
+"    現在のプロジェクト内のネットワーク \"default\" と \"ovn-ic\" インテグレー"
+"ションによる他のリモートネットワークの間に、新たにピアリングを作成します\n"
 "\n"
 "incus network peer create default peer3 web/default < config.yaml\n"
 "\tconfig.yaml ファイル内の設定を使用して、現在のプロジェクト内のネットワーク "
@@ -10936,8 +10994,8 @@ msgstr ""
 "    \"default\" と \"bar\" をプロファイル \"foo\" に設定します。\n"
 "\n"
 "lxc profile assign foo default\n"
-"    \"foo\" プロファイルを \"default\" プロファイルの内容のみにリセットします"
-"。\n"
+"    \"foo\" プロファイルを \"default\" プロファイルの内容のみにリセットしま"
+"す。\n"
 "\n"
 "lxc profile assign foo ''\n"
 "    \"foo\" からすべてのプロファイルを削除します。"
@@ -11257,8 +11315,8 @@ msgstr ""
 "ます\n"
 "\n"
 "incus storage volume import default some-installer.iso installer --type=iso\n"
-"    CD-ROM イメージとして使用するために some-installer.iso を保存する新しい"
-"カスタムボリュームを作成します"
+"    CD-ROM イメージとして使用するために some-installer.iso を保存する新しいカ"
+"スタムボリュームを作成します"
 
 #: cmd/incus/storage_volume.go:1278
 #, fuzzy
@@ -11348,21 +11406,21 @@ msgstr ""
 msgid "info"
 msgstr "ストレージ情報"
 
-#: cmd/incus/usage/usage.go:833
+#: cmd/incus/usage/usage.go:834
 #, fuzzy
 msgid "instance"
 msgstr "インスタンスを一覧表示します"
 
-#: cmd/incus/usage/usage.go:834
+#: cmd/incus/usage/usage.go:835
 #, fuzzy
 msgid "interface"
 msgstr "ホストインターフェース"
 
-#: cmd/incus/usage/usage.go:837
+#: cmd/incus/usage/usage.go:838
 msgid "keepalive timeout"
 msgstr ""
 
-#: cmd/incus/usage/usage.go:838
+#: cmd/incus/usage/usage.go:839
 #, fuzzy
 msgid "key"
 msgstr "キー"
@@ -11371,17 +11429,17 @@ msgstr "キー"
 msgid "last"
 msgstr ""
 
-#: cmd/incus/usage/usage.go:835
+#: cmd/incus/usage/usage.go:836
 #, fuzzy
 msgid "listen address"
 msgstr "リッスンアドレスを指定する必要があります"
 
-#: cmd/incus/usage/usage.go:836
+#: cmd/incus/usage/usage.go:837
 #, fuzzy
 msgid "listen port"
 msgstr "ポートを聴く"
 
-#: cmd/incus/usage/usage.go:840
+#: cmd/incus/usage/usage.go:841
 #, fuzzy
 msgid "member"
 msgstr "メンバー"
@@ -11394,11 +11452,11 @@ msgstr "n"
 msgid "name"
 msgstr "名前"
 
-#: cmd/incus/usage/usage.go:841
+#: cmd/incus/usage/usage.go:842
 msgid "network"
 msgstr "network"
 
-#: cmd/incus/usage/usage.go:842
+#: cmd/incus/usage/usage.go:843
 #, fuzzy
 msgid "network integration"
 msgstr "ネットワークの設定を削除します"
@@ -11408,7 +11466,7 @@ msgstr "ネットワークの設定を削除します"
 msgid "network or integration"
 msgstr "ネットワークの設定を削除します"
 
-#: cmd/incus/usage/usage.go:900
+#: cmd/incus/usage/usage.go:901
 #, fuzzy, c-format
 msgid "new %s name"
 msgstr "ネットワーク名:"
@@ -11417,6 +11475,10 @@ msgstr "ネットワーク名:"
 #: cmd/incus/image.go:1172
 msgid "no"
 msgstr "no"
+
+#: cmd/incus/default.go:146
+msgid "no_color must be boolean"
+msgstr ""
 
 #: cmd/incus/usage/parse.go:60
 #, fuzzy, c-format
@@ -11432,17 +11494,17 @@ msgstr "ok (y/n/[fingerprint])?"
 msgid "one of %s or %s"
 msgstr "%s または %s のいずれか"
 
-#: cmd/incus/usage/usage.go:843
+#: cmd/incus/usage/usage.go:844
 #, fuzzy
 msgid "operation"
 msgstr "operation"
 
-#: cmd/incus/usage/usage.go:844
+#: cmd/incus/usage/usage.go:845
 #, fuzzy
 msgid "path"
 msgstr "パス"
 
-#: cmd/incus/usage/usage.go:845
+#: cmd/incus/usage/usage.go:846
 #, fuzzy
 msgid "peer"
 msgstr "パートナー"
@@ -11457,12 +11519,12 @@ msgstr "「<key>=<value>」の構文に切り替えてください"
 msgid "please use `incus profile`"
 msgstr "`lxc profile` コマンドを使ってください"
 
-#: cmd/incus/usage/usage.go:846
+#: cmd/incus/usage/usage.go:847
 #, fuzzy
 msgid "pool"
 msgstr "プール"
 
-#: cmd/incus/usage/usage.go:847
+#: cmd/incus/usage/usage.go:848
 #, fuzzy
 msgid "port"
 msgstr "ポート"
@@ -11472,34 +11534,34 @@ msgstr "ポート"
 msgid "preseed.yaml"
 msgstr "プレシード.yaml"
 
-#: cmd/incus/usage/usage.go:848
+#: cmd/incus/usage/usage.go:849
 msgid "profile"
 msgstr "profile"
 
-#: cmd/incus/usage/usage.go:849
+#: cmd/incus/usage/usage.go:850
 msgid "project"
 msgstr "project"
 
-#: cmd/incus/usage/usage.go:850
+#: cmd/incus/usage/usage.go:851
 #, fuzzy
 msgid "protocol"
 msgstr "不正なプロトコル: %s"
 
-#: cmd/incus/usage/usage.go:851
+#: cmd/incus/usage/usage.go:852
 msgid "query"
 msgstr "クエリ"
 
-#: cmd/incus/usage/usage.go:852
+#: cmd/incus/usage/usage.go:853
 #, fuzzy
 msgid "record"
 msgstr "レコード"
 
-#: cmd/incus/usage/usage.go:853
+#: cmd/incus/usage/usage.go:854
 #, fuzzy
 msgid "remote"
 msgstr "<remote>"
 
-#: cmd/incus/usage/usage.go:857
+#: cmd/incus/usage/usage.go:858
 msgid "role"
 msgstr ""
 
@@ -11508,7 +11570,7 @@ msgstr ""
 msgid "rootfs tarball"
 msgstr "ルートファイルシステムアーカイブ"
 
-#: cmd/incus/usage/usage.go:858
+#: cmd/incus/usage/usage.go:859
 #, fuzzy
 msgid "snapshot"
 msgstr "スナップショット:"
@@ -11531,26 +11593,26 @@ msgstr "sshfs で %q を %q にマウントします"
 msgid "stdin can only be used once, with no other source arguments"
 msgstr "--target はインスタンスでは使えません"
 
-#: cmd/incus/usage/usage.go:860
+#: cmd/incus/usage/usage.go:861
 #, fuzzy
 msgid "symlink target path"
 msgstr "シンボリックリンクのターゲットパス"
 
-#: cmd/incus/usage/usage.go:861
+#: cmd/incus/usage/usage.go:862
 #, fuzzy
 msgid "tarball"
 msgstr "アーカイブ"
 
-#: cmd/incus/usage/usage.go:906
+#: cmd/incus/usage/usage.go:907
 #, fuzzy, c-format
 msgid "target %s"
 msgstr "<target>"
 
-#: cmd/incus/usage/usage.go:862
+#: cmd/incus/usage/usage.go:863
 msgid "template"
 msgstr "template"
 
-#: cmd/incus/remote.go:126 cmd/incus/usage/usage.go:863
+#: cmd/incus/remote.go:126 cmd/incus/usage/usage.go:864
 #, fuzzy
 msgid "token"
 msgstr "トークン"
@@ -11564,7 +11626,7 @@ msgstr "あまりにも多くの引数; 予期しない %s"
 msgid "total space"
 msgstr "総容量"
 
-#: cmd/incus/usage/usage.go:859 cmd/incus/usage/usage.go:864
+#: cmd/incus/usage/usage.go:860 cmd/incus/usage/usage.go:865
 #, fuzzy
 msgid "type"
 msgstr "タイプ"
@@ -11597,16 +11659,16 @@ msgstr "サーバに接続できません"
 msgid "used by"
 msgstr "ストレージを使用中の"
 
-#: cmd/incus/usage/usage.go:866
+#: cmd/incus/usage/usage.go:867
 #, fuzzy
 msgid "value"
 msgstr "バリュー"
 
-#: cmd/incus/usage/usage.go:867
+#: cmd/incus/usage/usage.go:868
 msgid "volume"
 msgstr "volume"
 
-#: cmd/incus/usage/usage.go:868
+#: cmd/incus/usage/usage.go:869
 #, fuzzy
 msgid "warning UUID"
 msgstr "警告 UUID"
@@ -11621,7 +11683,7 @@ msgstr "y"
 msgid "yes"
 msgstr "yes"
 
-#: cmd/incus/usage/usage.go:869
+#: cmd/incus/usage/usage.go:870
 #, fuzzy
 msgid "zone"
 msgstr "ゾーン"
@@ -11836,10 +11898,6 @@ msgstr "「%s」"
 #, c-format
 #~ msgid "Invalid target %s"
 #~ msgstr "不正な送り先 %s"
-
-#, fuzzy, c-format
-#~ msgid "Invalid volume %s"
-#~ msgstr "不正なソース %s"
 
 #~ msgid "Missing bucket name"
 #~ msgstr "バケット名を指定する必要があります"
@@ -12692,8 +12750,8 @@ msgstr "「%s」"
 #, fuzzy
 #~ msgid ""
 #~ "incus admin os service edit [<remote>:]<service> < service.yaml\n"
-#~ "    Update an IncusOS service configuration using the content of service."
-#~ "yaml."
+#~ "    Update an IncusOS service configuration using the content of "
+#~ "service.yaml."
 #~ msgstr ""
 #~ "lxc storage edit [<remote>:]<pool> < pool.yaml\n"
 #~ "    pool.yaml の内容でストレージプールを更新します。"
@@ -12891,8 +12949,8 @@ msgstr "「%s」"
 #~ "    Sets the size of a custom volume \"data\" in pool \"default\" to 1 "
 #~ "GiB.\n"
 #~ "\n"
-#~ "incus storage volume set default virtual-machine/data snapshots."
-#~ "expiry=7d\n"
+#~ "incus storage volume set default virtual-machine/data "
+#~ "snapshots.expiry=7d\n"
 #~ "    Sets the snapshot expiration period for a virtual machine \"data\" in "
 #~ "pool \"default\" to seven days."
 #~ msgstr ""
@@ -12909,8 +12967,8 @@ msgstr "「%s」"
 #~ "incus storage volume create p1 v1\n"
 #~ "\n"
 #~ "incus storage volume create p1 v1 < config.yaml\n"
-#~ "\tCreate storage volume v1 for pool p1 with configuration from config."
-#~ "yaml."
+#~ "\tCreate storage volume v1 for pool p1 with configuration from "
+#~ "config.yaml."
 #~ msgstr ""
 #~ "lxc init ubuntu:22.04 u1\n"
 #~ "\n"
@@ -12919,8 +12977,8 @@ msgstr "「%s」"
 
 #, fuzzy
 #~ msgid ""
-#~ "incus storage volume edit [<remote>:]<pool> [<type>/]<volume> < volume."
-#~ "yaml\n"
+#~ "incus storage volume edit [<remote>:]<pool> [<type>/]<volume> < "
+#~ "volume.yaml\n"
 #~ "    Update a storage volume using the content of pool.yaml."
 #~ msgstr ""
 #~ "lxc storage edit [<remote>:]<pool> < pool.yaml\n"
@@ -12987,8 +13045,8 @@ msgstr "「%s」"
 #~ "Provide the type of the storage volume if it is not custom.\n"
 #~ "Supported types are custom, image, container and virtual-machine.\n"
 #~ "\n"
-#~ "incus storage volume edit [<remote>:]<pool> [<type>/]<volume> < volume."
-#~ "yaml\n"
+#~ "incus storage volume edit [<remote>:]<pool> [<type>/]<volume> < "
+#~ "volume.yaml\n"
 #~ "    Update a storage volume using the content of pool.yaml."
 #~ msgstr ""
 #~ "lxc storage volume edit [<remote>:]<pool> <volume> < volume.yaml\n"
@@ -13296,9 +13354,6 @@ msgstr "「%s」"
 #~ msgid "Press enter to start the editor again"
 #~ msgstr "再度エディタを起動するには Enter キーを押します"
 
-#~ msgid "default"
-#~ msgstr "default"
-
 #, fuzzy
 #~ msgid "The --instance-only flag can't be used with --storage"
 #~ msgstr "--instance-only と --target は同時に指定できません"
@@ -13341,9 +13396,6 @@ msgstr "「%s」"
 
 #~ msgid "delete [<remote>:]<project>"
 #~ msgstr "delete [<remote>:]<project>"
-
-#~ msgid "get-default"
-#~ msgstr "get-default"
 
 #~ msgid "info [<remote>:]<image>"
 #~ msgstr "info [<remote>:]<image>"
@@ -13998,8 +14050,8 @@ msgstr "「%s」"
 #~ "lxc image edit [<remote>:]<image>\n"
 #~ "    Edit image, either by launching external editor or reading STDIN.\n"
 #~ "    Example: lxc image edit <image> # launch editor\n"
-#~ "             cat image.yaml | lxc image edit <image> # read from image."
-#~ "yaml\n"
+#~ "             cat image.yaml | lxc image edit <image> # read from "
+#~ "image.yaml\n"
 #~ "\n"
 #~ "lxc image alias create [<remote>:]<alias> <fingerprint>\n"
 #~ "    Create a new alias for an existing image.\n"
@@ -15183,8 +15235,8 @@ msgstr "「%s」"
 #~ "  f - Base Image Fingerprint (short)\n"
 #~ "  F - Base Image Fingerprint (long)\n"
 #~ "\n"
-#~ "Custom columns are defined with \"[config:|devices:]key[:name][:"
-#~ "maxWidth]\":\n"
+#~ "Custom columns are defined with \"[config:|devices:]key[:name][:maxWidth]"
+#~ "\":\n"
 #~ "  KEY: The (extended) config or devices key to display. If [config:|"
 #~ "devices:] is omitted then it defaults to config key.\n"
 #~ "  NAME: Name to display in the column header.\n"
@@ -15224,8 +15276,8 @@ msgstr "「%s」"
 #~ "  - \"type=container status=running\" 実行中のコンテナインスタンスをすべて"
 #~ "表示します\n"
 #~ "\n"
-#~ "設定項目もしくは値とマッチする正規表現 (例:volatile.eth0.hwaddr=00:16:3e:."
-#~ "*)。\n"
+#~ "設定項目もしくは値とマッチする正規表現 "
+#~ "(例:volatile.eth0.hwaddr=00:16:3e:.*)。\n"
 #~ "\n"
 #~ "複数のフィルタを指定した場合は、指定したフィルタが順に追加され、\n"
 #~ "すべてのフィルタを満たすインスタンスが選択されます。\n"

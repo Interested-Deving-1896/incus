@@ -37,6 +37,7 @@ import (
 	"github.com/lxc/incus/v7/shared/idmap"
 	"github.com/lxc/incus/v7/shared/logger"
 	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/osinfo"
 	"github.com/lxc/incus/v7/shared/revert"
 	"github.com/lxc/incus/v7/shared/subprocess"
 	"github.com/lxc/incus/v7/shared/units"
@@ -515,6 +516,10 @@ func (d *disk) validateConfig(instConf instance.ConfigReader, partialValidation 
 
 	if d.config["path"] == "/" && d.config["pool"] == "" {
 		return errors.New(`Root disk entry must have a "pool" property set`)
+	}
+
+	if d.config["pool"] != "" && slices.Contains([]string{diskSourceCloudInit, diskSourceAgent}, d.config["source"]) {
+		return fmt.Errorf(`Disk entry with source %q cannot have a "pool" property set`, d.config["source"])
 	}
 
 	if d.config["size"] != "" && d.config["path"] != "/" && d.config["source"] != diskSourceTmpfs && d.config["source"] != diskSourceTmpfsOverlay {
@@ -3174,9 +3179,9 @@ func (d *disk) generateVMAgentDrive() (string, error) {
 		guestOS := d.inst.GuestOS()
 
 		switch guestOS {
-		case "unknown":
-			guestOS = "linux"
-		case "windows":
+		case osinfo.UnknownOS:
+			guestOS = osinfo.Linux
+		case osinfo.Windows:
 			dstFilename = "incus-agent.exe"
 		}
 

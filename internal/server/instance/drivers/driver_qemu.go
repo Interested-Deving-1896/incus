@@ -72,6 +72,7 @@ import (
 	"github.com/lxc/incus/v7/internal/server/response"
 	"github.com/lxc/incus/v7/internal/server/scriptlet"
 	scriptletLoad "github.com/lxc/incus/v7/internal/server/scriptlet/load"
+	"github.com/lxc/incus/v7/internal/server/selinux"
 	"github.com/lxc/incus/v7/internal/server/state"
 	storagePools "github.com/lxc/incus/v7/internal/server/storage"
 	storageDrivers "github.com/lxc/incus/v7/internal/server/storage/drivers"
@@ -84,6 +85,7 @@ import (
 	"github.com/lxc/incus/v7/shared/ioprogress"
 	"github.com/lxc/incus/v7/shared/logger"
 	"github.com/lxc/incus/v7/shared/osarch"
+	"github.com/lxc/incus/v7/shared/osinfo"
 	"github.com/lxc/incus/v7/shared/resources"
 	"github.com/lxc/incus/v7/shared/revert"
 	"github.com/lxc/incus/v7/shared/subprocess"
@@ -382,7 +384,7 @@ func (d *qemu) getAgentClient() (*http.Client, error) {
 	}
 
 	// Only Linux and Windows support VirtIO vsock.
-	if slices.Contains([]string{"darwin", "freebsd"}, d.GuestOS()) {
+	if slices.Contains([]osinfo.OSType{osinfo.FreeBSD, osinfo.MacOS}, d.GuestOS()) {
 		// Get known network details.
 		networks, err := d.getNetworkState()
 		if err != nil {
@@ -1998,9 +2000,9 @@ func (d *qemu) start(stateful bool, op *operationlock.InstanceOperation) error {
 	// This needs to happen close to creating the full qemu cmd or the time might drift in between.
 	adjustment := d.getStartupRTCAdjustment()
 
-	if d.GuestOS() == "windows" || adjustment != 0 {
+	if d.GuestOS() == osinfo.Windows || adjustment != 0 {
 		base := time.Now().Add(adjustment)
-		if d.GuestOS() == "windows" {
+		if d.GuestOS() == osinfo.Windows {
 			// set base to localtime on windows.
 			base = base.Local()
 		} else {
@@ -2040,23 +2042,34 @@ func (d *qemu) start(stateful bool, op *operationlock.InstanceOperation) error {
 		return err
 	}
 
-	// Run the qemu command via forklimits so we can selectively increase ulimits.
-	forkLimitsCmd := []string{
-		"forklimits",
+	// Run the qemu command via forkqemu so we can selectively increase ulimits.
+	forkQemuCmd := []string{
+		"forkqemu",
 	}
 
 	if !d.state.OS.RunningInUserNS {
 		// Required for PCI passthrough.
-		forkLimitsCmd = append(forkLimitsCmd, "limit=memlock:unlimited:unlimited")
+		forkQemuCmd = append(forkQemuCmd, "limit=memlock:unlimited:unlimited")
 	}
 
 	for i := range fdFiles {
 		// Pass through any file descriptors as 3+i (as first 3 file descriptors are taken as standard).
-		forkLimitsCmd = append(forkLimitsCmd, fmt.Sprintf("fd=%d", 3+i))
+		forkQemuCmd = append(forkQemuCmd, fmt.Sprintf("fd=%d", 3+i))
+	}
+
+	// Ensure SELinux context is generated and persisted.
+	contextIsNew, err := d.selinuxEnsureContext()
+	if err != nil {
+		return err
+	}
+
+	seCtx := d.localConfig["volatile.selinux.context"]
+	if seCtx != "" {
+		forkQemuCmd = append(forkQemuCmd, "secontext="+seCtx)
 	}
 
 	// Log the QEMU command line.
-	fullCmd := append(forkLimitsCmd, "--", qemuPath)
+	fullCmd := append(forkQemuCmd, "--", qemuPath)
 	fullCmd = append(fullCmd, d.cmdArgs...)
 	d.logger.Debug("Starting QEMU", logger.Ctx{"command": fullCmd})
 
@@ -2247,6 +2260,12 @@ func (d *qemu) start(stateful bool, op *operationlock.InstanceOperation) error {
 			op.Done(err)
 			return err
 		}
+	}
+
+	// Label rootfs if SELinux context is set and labels are missing.
+	err = d.selinuxLabelFiles(contextIsNew)
+	if err != nil {
+		return err
 	}
 
 	// Start the VM.
@@ -2545,10 +2564,27 @@ func (d *qemu) setupNvram() error {
 		return err
 	}
 
+	// Unified firmware images (e.g. AMD SEV) carry their own variable store and need no NVRAM.
+	needsNvram := false
+	for _, firmware := range firmwares {
+		if firmware.Vars != "" {
+			needsNvram = true
+			break
+		}
+	}
+
+	if !needsNvram {
+		return nil
+	}
+
 	// Find the template file.
 	var efiVarsPath string
 	var efiVarsName string
 	for _, firmware := range firmwares {
+		if firmware.Vars == "" {
+			continue
+		}
+
 		varsPath, err := filepath.EvalSymlinks(firmware.Vars)
 		if err != nil {
 			continue
@@ -3274,17 +3310,17 @@ func (d *qemu) generateConfigShare(volatileSet map[string]string) error {
 	}
 
 	guestOS := d.GuestOS()
-	if guestOS == "unknown" {
-		guestOS = "linux"
+	if guestOS == osinfo.UnknownOS {
+		guestOS = osinfo.Linux
 	}
 
 	// Windows doesn't handle shares.
-	if guestOS != "windows" {
+	if guestOS != osinfo.Windows {
 		// Add the VM agent loader.
 		agentSrcPath, _ := exec.LookPath("incus-agent")
 		if util.PathExists(os.Getenv("INCUS_AGENT_PATH")) {
 			// Install incus-agent script (loads from agent share).
-			agentFile, err := incusAgentLoader.ReadFile("agent-loader/incus-agent-" + guestOS)
+			agentFile, err := incusAgentLoader.ReadFile("agent-loader/incus-agent-" + string(guestOS))
 			if err != nil {
 				return err
 			}
@@ -3387,7 +3423,7 @@ func (d *qemu) generateConfigShare(volatileSet map[string]string) error {
 
 	// OS-specific configuration.
 	switch guestOS {
-	case "freebsd":
+	case osinfo.FreeBSD:
 		// rc.d service.
 		err = os.MkdirAll(filepath.Join(configDrivePath, "rc.d"), 0o500)
 		if err != nil {
@@ -3429,7 +3465,7 @@ func (d *qemu) generateConfigShare(volatileSet map[string]string) error {
 			return err
 		}
 
-	case "linux":
+	case osinfo.Linux:
 		// Systemd units.
 		err = os.MkdirAll(filepath.Join(configDrivePath, "systemd"), 0o500)
 		if err != nil {
@@ -3489,7 +3525,7 @@ func (d *qemu) generateConfigShare(volatileSet map[string]string) error {
 			return err
 		}
 
-	case "macos":
+	case osinfo.MacOS:
 		// Launchd daemons.
 		err = os.MkdirAll(filepath.Join(configDrivePath, "launchd"), 0o500)
 		if err != nil {
@@ -3531,7 +3567,7 @@ func (d *qemu) generateConfigShare(volatileSet map[string]string) error {
 			return err
 		}
 
-	case "windows":
+	case osinfo.Windows:
 		// Setup script for incus-agent that is executed by Service Control Manager (SCM). Since by
 		// default Windows cannot run a PowerShell script as a service without the help of a third
 		// party, a bat file is used to then execute the PowerShell script doing the job.
@@ -3596,7 +3632,7 @@ func (d *qemu) generateConfigShare(volatileSet map[string]string) error {
 	}
 
 	// Only Linux guests support dynamic NIC configuration.
-	if guestOS == "linux" {
+	if guestOS == osinfo.Linux {
 		// Clear NICConfigDir to ensure that no leftover configuration is erroneously applied by the agent.
 		nicConfigPath := filepath.Join(configDrivePath, deviceConfig.NICConfigDir)
 		_ = os.RemoveAll(nicConfigPath)
@@ -3853,8 +3889,11 @@ func (d *qemu) onRTCChange(change int) error {
 func (d *qemu) generateQemuConfig(bs *qemuBootState, mountInfo *storagePools.MountInfo, busName string, vsockFD int, devConfs []*deviceConfig.RunConfig, fdFiles *[]*os.File) ([]monitorHook, error) {
 	var monHooks []monitorHook
 
-	isWindows := d.GuestOS() == "windows"
+	isWindows := d.GuestOS() == osinfo.Windows
 	conf := qemuBase(&qemuBaseOpts{d.Architecture(), util.IsTrue(d.expandedConfig["security.iommu"]), bs.MachineType})
+
+	// Set OS Specific qemu args.
+	conf = append(conf, d.osVersionSpecificOptions()...)
 
 	err := d.addCPUMemoryConfig(&conf, bs)
 	if err != nil {
@@ -3874,13 +3913,6 @@ func (d *qemu) generateQemuConfig(bs *qemuBootState, mountInfo *storagePools.Mou
 	if slices.Contains(rawOptions, "-bios") || slices.Contains(rawOptions, "-kernel") {
 		d.logger.Warn("Starting VM without default firmware (-bios or -kernel in raw.qemu)")
 	} else if d.architectureSupportsUEFI(d.architecture) {
-		// Open the UEFI NVRAM file and pass it via file descriptor to QEMU.
-		// This is so the QEMU process can still read/write the file after it has dropped its user privs.
-		nvRAMFile, err := os.Open(d.nvramPath())
-		if err != nil {
-			return nil, fmt.Errorf("Failed opening NVRAM file: %w", err)
-		}
-
 		// Determine expected firmware.
 		firmwares, err := d.firmwarePairs()
 		if err != nil {
@@ -3888,8 +3920,16 @@ func (d *qemu) generateQemuConfig(bs *qemuBootState, mountInfo *storagePools.Mou
 		}
 
 		var efiCode string
+		unified := false
 		for _, firmware := range firmwares {
-			if util.PathExists(filepath.Join(d.Path(), filepath.Base(firmware.Vars))) {
+			if firmware.Vars == "" {
+				// Unified firmware image (e.g. AMD SEV) with no separate vars store.
+				if util.PathExists(firmware.Code) {
+					efiCode = firmware.Code
+					unified = true
+					break
+				}
+			} else if util.PathExists(filepath.Join(d.Path(), filepath.Base(firmware.Vars))) {
 				efiCode = firmware.Code
 				break
 			}
@@ -3900,8 +3940,18 @@ func (d *qemu) generateQemuConfig(bs *qemuBootState, mountInfo *storagePools.Mou
 		}
 
 		driveFirmwareOpts := qemuDriveFirmwareOpts{
-			roPath:    efiCode,
-			nvramPath: fmt.Sprintf("/dev/fd/%d", d.addFileDescriptor(fdFiles, nvRAMFile)),
+			roPath: efiCode,
+		}
+
+		if !unified {
+			// Open the UEFI NVRAM file and pass it via file descriptor to QEMU.
+			// This is so the QEMU process can still read/write the file after it has dropped its user privs.
+			nvRAMFile, err := os.Open(d.nvramPath())
+			if err != nil {
+				return nil, fmt.Errorf("Failed opening NVRAM file: %w", err)
+			}
+
+			driveFirmwareOpts.nvramPath = fmt.Sprintf("/dev/fd/%d", d.addFileDescriptor(fdFiles, nvRAMFile))
 		}
 
 		conf = append(conf, qemuDriveFirmware(&driveFirmwareOpts)...)
@@ -6950,7 +7000,7 @@ func (d *qemu) updateMemoryLimit(newLimit string) error {
 	if curSizeMB == newSizeMB {
 		return nil
 	} else if baseSizeMB < newSizeMB {
-		if util.IsFalse(d.expandedConfig["limits.memory.hotplug"]) || d.GuestOS() == "freebsd" {
+		if util.IsFalse(d.expandedConfig["limits.memory.hotplug"]) || d.GuestOS() == osinfo.FreeBSD {
 			return fmt.Errorf("Memory hotplug feature is disabled")
 		}
 
@@ -10940,31 +10990,10 @@ func (d *qemu) CanLiveMigrate() bool {
 }
 
 // GuestOS returns the guest OS. In this driver, we consider anything unknown to be Linux.
-func (d *qemu) GuestOS() string {
-	imageOS := strings.ToLower(d.expandedConfig["image.os"])
-	matches := func(names ...string) bool {
-		for _, name := range names {
-			if strings.Contains(imageOS, name) {
-				return true
-			}
-		}
+func (d *qemu) GuestOS() osinfo.OSType {
+	osType, _ := osinfo.DetermineOS(strings.ToLower(d.expandedConfig["image.os"]))
 
-		return false
-	}
-
-	if matches("windows") {
-		return "windows"
-	}
-
-	if matches("darwin", "macos", "mac os") {
-		return "macos"
-	}
-
-	if matches("freebsd", "opnsense", "pfsense") {
-		return "freebsd"
-	}
-
-	return "unknown"
+	return osType
 }
 
 // CreateQcow2Snapshot creates a qcow2 snapshot for a running instance.
@@ -11721,4 +11750,68 @@ func (d *qemu) GetBitmaps(deviceName string) ([]api.StorageVolumeBitmap, error) 
 	}
 
 	return nil, fmt.Errorf("Requested device not found")
+}
+
+// selinuxEnsureContext generates and persists the SELinux context for this instance.
+func (d *qemu) selinuxEnsureContext() (bool, error) {
+	if !d.state.OS.SELinuxEnabled {
+		return false, nil
+	}
+
+	previousCtx := d.localConfig["volatile.selinux.context"]
+
+	allocLevel := func() (string, func(), error) {
+		used, err := d.selinuxCollectUsedLevels()
+		if err != nil {
+			return "", nil, err
+		}
+
+		return selinux.AllocateLevel(used)
+	}
+
+	ctx, needsPersist, release, err := selinux.InstanceContext(d.state.OS, instancetype.VM, d.localConfig, d.expandedConfig, allocLevel)
+	if err != nil {
+		return false, err
+	}
+
+	defer release()
+
+	if ctx == "" {
+		return false, nil
+	}
+
+	if needsPersist {
+		err = d.VolatileSet(map[string]string{"volatile.selinux.context": ctx})
+		if err != nil {
+			return false, fmt.Errorf("Failed to persist SELinux context: %w", err)
+		}
+	}
+
+	// Return true if this is the first time a context was generated.
+	return previousCtx == "", nil
+}
+
+// selinuxLabelFiles applies SELinux file labels to the VM instance directory.
+func (d *qemu) selinuxLabelFiles(contextIsNew bool) error {
+	if !d.state.OS.SELinuxEnabled {
+		return nil
+	}
+
+	ctx := d.localConfig["volatile.selinux.context"]
+	if ctx == "" {
+		return nil
+	}
+
+	if !contextIsNew {
+		if d.localConfig["security.selinux.level"] != "" {
+			return nil
+		}
+	}
+
+	fileCtx := selinux.InstanceFileContext(ctx, instancetype.VM, d.expandedConfig)
+	if fileCtx == "" {
+		return fmt.Errorf("Failed to derive file context from %q", ctx)
+	}
+
+	return selinux.LabelTree(d.Path(), fileCtx, "")
 }

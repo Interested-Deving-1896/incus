@@ -449,10 +449,26 @@ With VMs, this option supports mounting file system disk devices and paths withi
 
 ```
 
+```{config:option} node_guid devices-infiniband
+:defaultdesc: "kernel assigned"
+:required: "no"
+:shortdesc: "The node GUID to assign to the virtual function (8 bytes of hex separated by colons)"
+:type: "string"
+
+```
+
 ```{config:option} parent devices-infiniband
 :defaultdesc: "kernel assigned"
 :required: "no"
 :shortdesc: "The name of the interface inside the instance"
+:type: "string"
+
+```
+
+```{config:option} port_guid devices-infiniband
+:defaultdesc: "kernel assigned"
+:required: "no"
+:shortdesc: "The port GUID to assign to the virtual function (8 bytes of hex separated by colons)"
 :type: "string"
 
 ```
@@ -1685,7 +1701,7 @@ The custom policy routing table ID to add IPv6 static routes to (in addition to 
 ```{config:option} nat devices-proxy
 :default: "`false`"
 :required: "no"
-:shortdesc: "Whether to optimize proxying via NAT (requires that the instance NIC has a static IP address)"
+:shortdesc: "Whether to optimize proxying via NAT"
 :type: "bool"
 
 ```
@@ -2713,6 +2729,50 @@ Set this option to `true` to prevent the instance's file system from being UID/G
 When disabling this option, consider enabling {config:option}`instance-security:security.csm`.
 ```
 
+```{config:option} security.selinux.domain instance-security
+:condition: "container or virtual machine"
+:defaultdesc: "auto-detected (`container_init_t` for containers, `qemu_t` for VMs)"
+:liveupdate: "no"
+:shortdesc: "SELinux process domain override"
+:type: "string"
+Override the SELinux process domain for the instance.
+```
+
+```{config:option} security.selinux.label_rootfs instance-security
+:condition: "container"
+:defaultdesc: "`auto`"
+:liveupdate: "no"
+:shortdesc: "SELinux rootfs labeling mode (auto, always, never)"
+:type: "string"
+Control SELinux rootfs labeling behavior.
+The default (`auto`) will label rootfs files if it is required. Labeling will be skipped
+only if `security.selinux.level` is explicitly set for the instance, it is not started for
+the first time and the persisted SELinux context is still valid.
+Setting to `always` will label rootfs files on every start and `never` will never touch any
+file labels in the rootfs.
+```
+
+```{config:option} security.selinux.level instance-security
+:condition: "container or virtual machine"
+:defaultdesc: "auto-generated"
+:liveupdate: "no"
+:shortdesc: "SELinux MCS level override"
+:type: "string"
+Override the SELinux MCS level for the instance.
+This key must only be set on individual instances, never on profiles,
+since using the same MCS level across instances breaks isolation.
+Values set via profiles are ignored.
+```
+
+```{config:option} security.selinux.type instance-security
+:condition: "container or virtual machine"
+:defaultdesc: "auto-detected (`container_file_t` for containers, `qemu_image_t` for VMs)"
+:liveupdate: "no"
+:shortdesc: "SELinux file type override"
+:type: "string"
+Override the SELinux file type used for labeling instance storage.
+```
+
 ```{config:option} security.sev instance-security
 :condition: "virtual machine"
 :defaultdesc: "`false`"
@@ -3554,7 +3614,7 @@ User keys can be used in search.
 ```{config:option} ipv4.nat.order network_bridge-common
 :condition: "IPv4 address"
 :default: "`before`"
-:shortdesc: "Whether to add the required NAT rules before or after any pre-existing rules"
+:shortdesc: "Whether to add the required NAT rules before or after any pre-existing rules (no effect with the `nftables` firewall driver)"
 :type: "string"
 
 ```
@@ -3650,7 +3710,7 @@ User keys can be used in search.
 ```{config:option} ipv6.nat.order network_bridge-common
 :condition: "IPv6 address"
 :default: "`before`"
-:shortdesc: "Whether to add the required NAT rules before or after any pre-existing rules"
+:shortdesc: "Whether to add the required NAT rules before or after any pre-existing rules (no effect with the `nftables` firewall driver)"
 :type: "string"
 
 ```
@@ -4662,7 +4722,7 @@ When set to `allow`, {config:option}`instance-security:security.nesting` can be 
 Possible values are `unprivileged`, `isolated`, and `allow`.
 
 - When set to `unprivileged`, this option prevents setting {config:option}`instance-security:security.privileged` to `true`.
-- When set to `isolated`, this option prevents setting {config:option}`instance-security:security.privileged` and {config:option}`instance-security:security.idmap.isolated` to `true`.
+- When set to `isolated`, this option prevents setting {config:option}`instance-security:security.privileged` to `true` and {config:option}`instance-security:security.idmap.isolated` to `false`.
 - When set to `allow`, there is no restriction.
 ```
 

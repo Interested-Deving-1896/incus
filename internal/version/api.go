@@ -548,6 +548,8 @@ var APIExtensions = []string{
 	"core_https_allowed_websocket_origin",
 	"storage_btrfs_compression",
 	"oci_network_config",
+	"infiniband_sriov_guid",
+	"instance_selinux",
 }
 
 // APIExtensionsCount returns the number of available API extensions.
