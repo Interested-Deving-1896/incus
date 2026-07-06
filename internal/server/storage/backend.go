@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"crypto/rand"
+	"crypto/x509"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -4156,7 +4157,11 @@ func volumeConfigsMatch(vol1, vol2 drivers.Volume) bool {
 	// they're considered unequal ("" != "8KiB"), preventing the use of a matching optimized image.
 	blockSizeChanged := vol1.IsBlockBacked() && vol1.Config()["zfs.blocksize"] != vol2.Config()["zfs.blocksize"]
 
-	return !blockModeChanged && !blockFSChanged && !blockSizeChanged
+	// btrfs.compression sets the volume's compression and nodatacow state at creation time, which an
+	// optimized image snapshot would not carry over.
+	compressionChanged := vol1.Config()["btrfs.compression"] != vol2.Config()["btrfs.compression"]
+
+	return !blockModeChanged && !blockFSChanged && !blockSizeChanged && !compressionChanged
 }
 
 // DeleteImage removes an image from the database and underlying storage device if needed.
@@ -4900,6 +4905,16 @@ func (b *backend) GetBucketURL(bucketName string) *url.URL {
 
 	// Handle per-driver implementation for remote storage drivers.
 	return b.driver.GetBucketURL(bucketName)
+}
+
+// bucketServerCert returns the certificate to pin for the local storage buckets
+// endpoint. It returns nil for remote drivers whose certificate isn't known.
+func (b *backend) bucketServerCert() (*x509.Certificate, error) {
+	if b.Driver().Info().Remote {
+		return nil, nil
+	}
+
+	return b.state.Endpoints.NetworkCert().PublicKeyX509()
 }
 
 // CreateCustomVolume creates an empty custom volume.
@@ -7944,7 +7959,12 @@ func (b *backend) BackupBucket(projectName string, bucketName string, tarWriter 
 		return errors.New("The server is lacking a storage buckets listener address")
 	}
 
-	transferManager := s3.NewTransferManager(bucketURL, backupKey.AccessKey, backupKey.SecretKey)
+	serverCert, err := b.bucketServerCert()
+	if err != nil {
+		return err
+	}
+
+	transferManager := s3.NewTransferManager(bucketURL, backupKey.AccessKey, backupKey.SecretKey, serverCert)
 
 	err = transferManager.DownloadAllFiles(bucket.Name, tarWriter)
 	if err != nil {
@@ -8017,7 +8037,12 @@ func (b *backend) CreateBucketFromBackup(srcBackup backup.Info, srcData io.ReadS
 		return errors.New("The server is lacking a storage buckets listener address")
 	}
 
-	transferManager := s3.NewTransferManager(bucketURL, backupKey.AccessKey, backupKey.SecretKey)
+	serverCert, err := b.bucketServerCert()
+	if err != nil {
+		return err
+	}
+
+	transferManager := s3.NewTransferManager(bucketURL, backupKey.AccessKey, backupKey.SecretKey, serverCert)
 	err = transferManager.UploadAllFiles(srcBackup.Name, srcData)
 	if err != nil {
 		return err
