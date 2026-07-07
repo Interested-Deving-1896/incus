@@ -576,7 +576,7 @@
 						"ipv4.gateway": {
 							"longdesc": "",
 							"managed": "no",
-							"shortdesc": "IPv4 default gateway to statically configure inside an OCI container",
+							"shortdesc": "IPv4 default gateway to statically configure inside an OCI container (`none` to prevent a default gateway from being applied)",
 							"type": "string"
 						}
 					},
@@ -608,7 +608,7 @@
 						"ipv6.gateway": {
 							"longdesc": "",
 							"managed": "no",
-							"shortdesc": "IPv6 default gateway to statically configure inside an OCI container",
+							"shortdesc": "IPv6 default gateway to statically configure inside an OCI container (`none` to prevent a default gateway from being applied)",
 							"type": "string"
 						}
 					},
@@ -1103,7 +1103,7 @@
 						"ipv4.gateway": {
 							"longdesc": "",
 							"managed": "no",
-							"shortdesc": "IPv4 default gateway to statically configure inside an OCI container",
+							"shortdesc": "IPv4 default gateway to statically configure inside an OCI container (`none` to prevent a default gateway from being applied)",
 							"type": "string"
 						}
 					},
@@ -1143,7 +1143,7 @@
 						"ipv6.gateway": {
 							"longdesc": "",
 							"managed": "no",
-							"shortdesc": "IPv6 default gateway to statically configure inside an OCI container",
+							"shortdesc": "IPv6 default gateway to statically configure inside an OCI container (`none` to prevent a default gateway from being applied)",
 							"type": "string"
 						}
 					},
@@ -3777,6 +3777,15 @@
 						}
 					},
 					{
+						"bgp.peers.NAME.interface": {
+							"condition": "BGP server",
+							"defaultdesc": "-",
+							"longdesc": "",
+							"shortdesc": "Interface name for BGP unnumbered peering (alternative to the peer address)",
+							"type": "string"
+						}
+					},
+					{
 						"bgp.peers.NAME.password": {
 							"condition": "BGP server",
 							"defaultdesc": "- (no password)",
@@ -4854,6 +4863,15 @@
 							"longdesc": "",
 							"shortdesc": "Peer session hold time (in seconds; optional)",
 							"type": "integer"
+						}
+					},
+					{
+						"bgp.peers.NAME.interface": {
+							"condition": "BGP server",
+							"defaultdesc": "-",
+							"longdesc": "",
+							"shortdesc": "Interface name for BGP unnumbered peering (alternative to the peer address)",
+							"type": "string"
 						}
 					},
 					{
