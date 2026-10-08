@@ -55,7 +55,38 @@ Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-
 ## Contributors
 
 <!-- AI:start:contributors -->
-_Contributors pending._
+| Contributor | Commits |
+|---|---|
+| [@stgraber](https://github.com/stgraber) | 15172 |
+| [@tomponline](https://github.com/tomponline) | 10117 |
+| [@freeekanayaka](https://github.com/freeekanayaka) | 1500 |
+| [@monstermunchkin](https://github.com/monstermunchkin) | 1456 |
+| [@hallyn](https://github.com/hallyn) | 1068 |
+| [@masnax](https://github.com/masnax) | 759 |
+| [@markylaing](https://github.com/markylaing) | 718 |
+| [@presztak](https://github.com/presztak) | 619 |
+| [@tych0](https://github.com/tych0) | 509 |
+| [@bensmrs](https://github.com/bensmrs) | 467 |
+| [@brauner](https://github.com/brauner) | 434 |
+| [@simondeziel](https://github.com/simondeziel) | 413 |
+| [@weblate](https://github.com/weblate) | 358 |
+| [@gabrielmougard](https://github.com/gabrielmougard) | 187 |
+| [@roosterfish](https://github.com/roosterfish) | 142 |
+| [@kazan417](https://github.com/kazan417) | 140 |
+| [@breml](https://github.com/breml) | 122 |
+| [@MusicDin](https://github.com/MusicDin) | 118 |
+| [@gwenya](https://github.com/gwenya) | 72 |
+| [@hnakamur](https://github.com/hnakamur) | 70 |
+| [@tenforward](https://github.com/tenforward) | 69 |
+| [@nanjj](https://github.com/nanjj) | 65 |
+| [@techtonik](https://github.com/techtonik) | 65 |
+| [@The127](https://github.com/The127) | 61 |
+| [@Am-Monteiro](https://github.com/Am-Monteiro) | 59 |
+| [@tarruda](https://github.com/tarruda) | 52 |
+| [@montag451](https://github.com/montag451) | 48 |
+| [@DarkressX](https://github.com/DarkressX) | 47 |
+| [@gibmat](https://github.com/gibmat) | 46 |
+| [@NathanChase22](https://github.com/NathanChase22) | 41 |
 <!-- AI:end:contributors -->
 
 ## Origins
@@ -70,6 +101,8 @@ _Original project — no upstream influences recorded._
 _No additional resource files found._
 <!-- AI:end:resources -->
 
+## Accessibility
+
 <!-- AI:start:accessibility -->
 This repo uses automated accessibility auditing via `check-accessibility.yml`.
 
@@ -81,7 +114,8 @@ WCAG 2.1 AA HTML compliance, audio overview (espeak-ng), and Braille output (lib
 
 Run the [Check Accessibility](https://github.com/Interested-Deving-1896/incus/actions/workflows/check-accessibility.yml)
 workflow to generate the first report and accessibility artifacts.
-See [DOCS/accessibility.md](https://github.com/Interested-Deving-1896/incus/blob/main/DOCS/accessibility.md) for the full reference.
+See the [W3C Web Content Accessibility Guidelines (WCAG)](https://www.w3.org/WAI/standards-guidelines/wcag/)
+for the underlying accessibility reference.
 <!-- AI:end:accessibility -->
 
 ## License
